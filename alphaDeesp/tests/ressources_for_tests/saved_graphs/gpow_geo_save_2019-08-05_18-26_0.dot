@@ -1,0 +1,36 @@
+strict digraph  {
+0 [fillcolor="#f30000", pin=True, pos="-280, -81!", prod_or_load=prod, style=filled, value="232.39320594573712"];
+1 [fillcolor="#f30000", pin=True, pos="-100, -270!", prod_or_load=prod, style=filled, value="18.299999237060547"];
+2 [fillcolor="#478fd0", pin=True, pos="366, -270!", prod_or_load=load, style=filled, value="-94.19999694824219"];
+3 [fillcolor="#478fd0", pin=True, pos="366, -54!", prod_or_load=load, style=filled, value="-47.79999923706055"];
+4 [fillcolor="#478fd0", pin=True, pos="-64, -54!", prod_or_load=load, style=filled, value="-7.599999904632568"];
+5 [fillcolor="#478fd0", pin=True, pos="-64, 54!", prod_or_load=load, style=filled, value="-11.199999809265137"];
+6 [fillcolor="#ffffed", pin=True, pos="366, 0!", prod_or_load=load, style=filled, value="0.0"];
+7 [fillcolor="#ffffed", pin=True, pos="438, 0!", prod_or_load=load, style=filled, value="0.0"];
+8 [fillcolor="#478fd0", pin=True, pos="326, 54!", prod_or_load=load, style=filled, value="-29.5"];
+9 [fillcolor="#478fd0", pin=True, pos="222, 108!", prod_or_load=load, style=filled, value="-9.0"];
+10 [fillcolor="#478fd0", pin=True, pos="79, 162!", prod_or_load=load, style=filled, value="-3.5"];
+11 [fillcolor="#478fd0", pin=True, pos="-152, 270!", prod_or_load=load, style=filled, value="-6.099999904632568"];
+12 [fillcolor="#478fd0", pin=True, pos="-64, 270!", prod_or_load=load, style=filled, value="-13.5"];
+13 [fillcolor="#478fd0", pin=True, pos="222, 216!", prod_or_load=load, style=filled, value="-14.899999618530273"];
+0 -> 1  [color=gray, fontsize=10, penwidth="15.69", xlabel=156.88];
+0 -> 4  [color=gray, fontsize=10, penwidth="7.55", xlabel=75.51];
+1 -> 2  [color=gray, fontsize=10, penwidth="7.32", xlabel=73.24];
+1 -> 3  [color=gray, fontsize=10, penwidth="5.61", xlabel=56.13];
+1 -> 4  [color=gray, fontsize=10, penwidth="4.15", xlabel=41.52];
+3 -> 2  [color=gray, fontsize=10, penwidth="2.33", xlabel=23.29];
+3 -> 6  [color=gray, fontsize=10, penwidth="2.81", xlabel=28.07];
+3 -> 8  [color=gray, fontsize=10, penwidth="1.61", xlabel=16.08];
+4 -> 3  [color=gray, fontsize=10, penwidth="6.12", xlabel=61.16];
+4 -> 5  [color=gray, fontsize=10, penwidth="4.41", xlabel=44.09];
+5 -> 12  [color=gray, fontsize=10, penwidth="1.77", xlabel=17.75];
+5 -> 11  [color=gray, fontsize=10, penwidth="0.78", xlabel=7.79];
+5 -> 10  [color=gray, fontsize=10, penwidth="0.74", xlabel=7.35];
+7 -> 6  [color=gray, fontsize=10, penwidth="0.00", xlabel=0.00];
+6 -> 8  [color=gray, fontsize=10, penwidth="2.81", xlabel=28.07];
+8 -> 13  [color=gray, fontsize=10, penwidth="0.94", xlabel=9.43];
+8 -> 9  [color=gray, fontsize=10, penwidth="0.52", xlabel=5.23];
+10 -> 9  [color=gray, fontsize=10, penwidth="0.38", xlabel=3.79];
+11 -> 12  [color=gray, fontsize=10, penwidth="0.16", xlabel=1.61];
+12 -> 13  [color=gray, fontsize=10, penwidth="0.56", xlabel=5.64];
+}
