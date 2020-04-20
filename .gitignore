@@ -1,11 +1,11 @@
+Pipfile.lock
+
 # Compiled python modules.
 *.pyc
 
 # pycharm stuff
-.idea/workspace.xml
-.idea/usage.statistics.xml
-.idea/tasks.xml
-.idea/sonarlint/
+.idea/*
+*.iml
 
 # we want to ignore all generated files
 /alphaDeesp/ressources/output/

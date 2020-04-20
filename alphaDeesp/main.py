@@ -1,20 +1,12 @@
 #!/usr/bin/python3
 __author__ = "MarcM"
 
-import sys
-# sys.path.insert(0, "/home/mozgawamar/Documents/pypownet-master/pypownet")
-
-import pprint
 import argparse
 import configparser
-from alphaDeesp.core import AlphaDeesp
-from alphaDeesp.core import PypownetSimulation
-from alphaDeesp.core import Printer
+from alphaDeesp.core.alphadeesp import AlphaDeesp
+from alphaDeesp.core.pypownet import PypownetSimulation
+from alphaDeesp.core.printer import Printer
 from alphaDeesp.core.printer import shell_print_project_header
-
-
-# parser.add_argument("-v", "--verbose", action="store_true",
-#                     help="Flag allowing to display a graphical representation of each END RESULT Topo")
 
 
 def main():
