@@ -19,7 +19,7 @@ from alphaDeesp.core.network import Network
 
 
 class PypownetSimulation(Simulation):
-    def __init__(self, param_options=None, debug=False, param_folder=None):
+    def __init__(self, param_options=None, debug=False, ltc=9, param_folder=None):
         super().__init__()
         print("PypownetSimulation object created...")
 
@@ -82,6 +82,24 @@ class PypownetSimulation(Simulation):
         self.substation_to_node_mapping = {}
         self.internal_to_external_mapping = {}  # d[internal_id] = external_name_id
         self.external_to_internal_mapping = {}  # d[external_id] = internal_name_id
+        print("current chronic name = ", self.environment.game.get_current_chronic_name())
+        print(self.obs)
+        self.load(self.obs, ltc)
+
+    def get_layout(self):
+        return [(-280, -81), (-100, -270), (366, -270), (366, -54), (-64, -54), (-64, 54), (366, 0),
+                (438, 0), (326, 54), (222, 108), (79, 162), (-152, 270), (-64, 270), (222, 216),
+                (-280, -151), (-100, -340), (366, -340), (390, -110), (-14, -104), (-184, 54), (400, -80),
+                (438, 100), (326, 140), (200, 8), (79, 12), (-152, 170), (-70, 200), (222, 200)]
+
+    def get_substation_elements(self):
+        return self.substations_elements
+
+    def get_substation_to_node_mapping(self):
+        return self.substation_to_node_mapping
+
+    def get_internal_to_external_mapping(self):
+        return self.internal_to_external_mapping
 
     def compute_new_network_changes(self, ranked_combinations):
         """this function takes a dataframe ranked_combinations,

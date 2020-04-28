@@ -11,10 +11,6 @@ class Simulation(ABC):
         super().__init__()
 
     @abstractmethod
-    def load(self, raw_data, lines_to_cut: list):
-        """loads information into a data frame"""
-
-    @abstractmethod
     def build_powerflow_graph(self, raw_data):
         print("Abstract build_graph pre executed")
         """ returns a graph networkx """
@@ -22,6 +18,22 @@ class Simulation(ABC):
     @abstractmethod
     def cut_lines_and_recomputes_flows(self, ids: list):
         """network is the grid in pypownet, XX in RTE etc..."""
+
+    @abstractmethod
+    def get_layout(self):
+        """returns the layour of the graph in array of (x,y) form : [(x1,y1),(x2,y2)...]]"""
+
+    @abstractmethod
+    def get_substation_elements(self):
+        """TODO"""
+
+    @abstractmethod
+    def get_substation_to_node_mapping(self):
+        """TODO"""
+
+    @abstractmethod
+    def get_internal_to_external_mapping(self):
+        """TODO"""
 
     @staticmethod
     def create_end_result_empty_dataframe():

@@ -7,6 +7,7 @@ from alphaDeesp.core.alphadeesp import AlphaDeesp
 from alphaDeesp.core.pypownet import PypownetSimulation
 from alphaDeesp.core.printer import Printer
 from alphaDeesp.core.printer import shell_print_project_header
+from core.grid2op.Grid2opSimulation import Grid2opSimulation
 
 
 def main():
@@ -40,89 +41,33 @@ def main():
     print("-------------------------------------")
     print(f"Working on lines: {args.ltc} ")
     print("-------------------------------------\n")
-
-    custom_layout = [(-280, -81), (-100, -270), (366, -270), (366, -54), (-64, -54), (-64, 54), (366, 0),
-                     (438, 0), (326, 54), (222, 108), (79, 162), (-152, 270), (-64, 270), (222, 216),
-                     (-280, -151), (-100, -340), (366, -340), (390, -110), (-14, -104), (-184, 54), (400, -80),
-                     (438, 100), (326, 140), (200, 8), (79, 12), (-152, 170), (-70, 200), (222, 200)]
-
-    custom_layout2 = {
-        '6661': (-280, -151),
-        '6662': (-100, -340),
-        '6663': (366, -340),
-        '6664': (390, -110),
-        '6665': (-14, -74),
-        '6666': (-184, 54),
-        '6667': (400, -80),
-        '6668': (438, 100),
-        '6669': (326, 140),
-        '66610': (200, 8),
-        '66611': (79, 12),
-        '66612': (-152, 170),
-        '66613': (-70, 200),
-        '66614': (222, 200)
-    }
-    axially_symetric = False
-    if axially_symetric:
-        x_inversed_layout = []
-        for x in custom_layout:
-            x_inversed_layout.append((x[0] * -1, x[1]))
-        custom_layout = x_inversed_layout
-
-    # ###############################################################################################################
-    # ###############################################################################################################
     # ###############################################################################################################
     sim = None
-
     if config["DEFAULT"]["simulatortype"] == "Pypownet":
         parameters_folder = "./alphaDeesp/ressources/parameters/default14_static"
-        sim = PypownetSimulation(config["DEFAULT"], args.debug, parameters_folder)
-
-        print("current chronic name = ", sim.environment.game.get_current_chronic_name())
-
-        _current_observation = sim.obs
-
-        print(_current_observation)
-
-        print("args ltc = ", args.ltc)
-        print("type = ", type(args.ltc))
-
-        if args.debug:
-            print("current obs = ")
-            print(_current_observation)
-
-        sim.load(_current_observation, args.ltc)
-
+        sim = PypownetSimulation(config["DEFAULT"], args.debug, args.ltc, parameters_folder)
+    elif config["DEFAULT"]["simulatortype"] == "Grid2OP":
+        print("We init Grid2OP Simulation")
+        parameters_folder = "./alphaDeesp/ressources/parameters/default14_static"
+        sim = Grid2opSimulation(parameters_folder)
     elif config["DEFAULT"]["simulatorType"] == "RTE":
         print("We init RTE Simulation")
         # sim = RTESimulation(
         return
     else:
         print("Error simulator Type in config.ini not recognized...")
-    # ====================================================================
+    custom_layout = sim.get_layout()
+
+    printer = Printer()
     # ====================================================================
     # BELOW PART SHOULD BE UNAWARE OF WETHER WE WORK WITH RTE OR PYPOWNET
-
     # df_of_g is a pandas_DataFrame
     g_over, df_of_g = sim.build_graph_from_data_frame(args.ltc)
-    #
-    # g_pow = sim.build_powerflow_graph(_grid)
-    g_pow = sim.build_powerflow_graph(_current_observation)
-    #
-    # g_over = sim.build_overflow_graph(_grid, [9], config["DEFAULT"])
-    #
-    printer = Printer()
-    # printer.display_geo(g_pow, custom_layout, name="save_for_tests")
-
-    # if args.snapshot:
-    #     printer.display_geo(g_over, custom_layout, name="overflow_graph_example")
-
-    simulator_data = {"substations_elements": sim.substations_elements,
-                      "substation_to_node_mapping": sim.substation_to_node_mapping,
-                      "internal_to_external_mapping": sim.internal_to_external_mapping}
-
-    alphadeesp = AlphaDeesp(g_over, df_of_g, printer, custom_layout, simulator_data,
-                            debug=args.debug)  # here instead of giving printer,
+    g_pow = sim.build_powerflow_graph(sim.obs)
+    simulator_data = {"substations_elements": sim.get_substation_elements(),
+                      "substation_to_node_mapping": sim.get_substation_to_node_mapping(),
+                      "internal_to_external_mapping": sim.get_internal_to_external_mapping()}
+    alphadeesp = AlphaDeesp(g_over, df_of_g, custom_layout, simulator_data, debug=args.debug)
 
     ranked_combinations = alphadeesp.get_ranked_combinations()
 
@@ -135,47 +80,11 @@ def main():
     print(expert_system_results)
 
     # print("\n--------------------------------------- POST PROCESSING DEBUG ---------------------------------------\n")
-    # save_bag is filled in function sim.compute_new_network_changes()
     if args.snapshot:
-        # print("sim save bag")
-        # print(sim.save_bag)
-        # print("alphadeesp.bag of graphs")
-        # print(alphadeesp.bag_of_graphs)
         for elem in sim.save_bag:  # elem[0] = name, elem[1] = graph
-            # g = alphaDeesp.bag_of_graphs[elem[1]]
-
-            # for e in g.edges():
-            #     print(e)
-            #
-            # res = nx.get_edge_attributes(g, "xlabel")
-            # print(res)
-
-            # CREATE A DICTIONARY FOR NETWORKX to set edge_attributes, we must have a DICTIONNARY
-            # { (u, v): {"xlabel"
-
-            # now here apply new values from simulation into new graph with new topo
-            # g = elem[1]
-            # print(g)
-            # printer.display_geo(g, custom_layout, name=elem[0])
-
-            # _grid = sim.environment.game.grid
-            # sim.load(elem[1], args.ltc)
-            # g_over, df_of_g = sim.build_graph_from_data_frame()
-            # printer.display_geo(g_over, custom_layout, name="overflow_graph_example")
-
             sim.load(elem[1], args.ltc)
-            # g_over, df_of_g = sim.build_graph_from_data_frame(args.ltc)
             g_over_detailed = sim.build_detailed_graph_from_internal_structure(args.ltc)
-
             printer.display_geo(g_over_detailed, custom_layout, name=elem[0])
-
-            # g_pow = sim.build_powerflow_graph(elem[1])
-            # printer.display_geo(g_pow, custom_layout, name=elem[0])
-
-    # print("substation to node mapping")
-    # print(sim.substation_to_node_mapping)
-    # print("internal to external mapping ")
-    # print(sim.internal_to_external_mapping)
 
 
 if __name__ == "__main__":
