@@ -48,12 +48,9 @@ class PypownetSimulation(Simulation):
         # Create do_nothing action.
         action_do_nothing = action_space.get_do_nothing_action()
         # Run one step in the environment
-        # raw_obs, *_ = self.environment.step(action_do_nothing)
         raw_simulated_obs = self.environment.simulate(action_do_nothing)
         self.obs = self.environment.observation_space.array_to_observation(raw_simulated_obs[0])
-        # transform raw_obs into Observation object. (Useful for prints, for debugging)
         #############################
-
         # new structures to omit querying Pypownet, they are filled in LOAD function.
         # for each substation, we get an array with (Prod, Cons, Line) Objects, representing the actual configuration
         self.substations_elements = {}
