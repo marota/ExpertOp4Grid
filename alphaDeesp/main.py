@@ -4,10 +4,10 @@ __author__ = "MarcM"
 import argparse
 import configparser
 from alphaDeesp.core.alphadeesp import AlphaDeesp
-from alphaDeesp.core.pypownet import PypownetSimulation
+from alphaDeesp.core.pypownet.PypownetSimulation import PypownetSimulation
 from alphaDeesp.core.printer import Printer
 from alphaDeesp.core.printer import shell_print_project_header
-from core.grid2op.Grid2opSimulation import Grid2opSimulation
+from alphaDeesp.core.grid2op.Grid2opSimulation import Grid2opSimulation
 
 
 def main():
@@ -67,7 +67,7 @@ def main():
     simulator_data = {"substations_elements": sim.get_substation_elements(),
                       "substation_to_node_mapping": sim.get_substation_to_node_mapping(),
                       "internal_to_external_mapping": sim.get_internal_to_external_mapping()}
-    alphadeesp = AlphaDeesp(g_over, df_of_g, custom_layout, simulator_data, debug=args.debug)
+    alphadeesp = AlphaDeesp(g_over, df_of_g, custom_layout, printer, simulator_data, debug=args.debug)
     ranked_combinations = alphadeesp.get_ranked_combinations()
 
     print("--------------------------------------------------------------------------------------------")
