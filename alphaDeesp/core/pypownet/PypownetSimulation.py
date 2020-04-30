@@ -1,7 +1,6 @@
 from math import fabs
 
 import networkx as nx
-import pandas as pd
 import pypownet.environment
 from pypownet.agent import *
 from pypownet.environment import ElementType
@@ -664,9 +663,7 @@ def build_nodes_v2(g, nodes_prod_values: list):
 
 def build_edges_v2(g, substation_id_busbar_id_node_id_mapping, substations_elements):
     print("\nWE ARE IN BUILD EDGES V2")
-
     substation_ids = sorted(list(substations_elements.keys()))
-
     # loops through each substation, and creates an edge from (
     for substation_id in substation_ids:
         print("\nSUBSTATION ID = ", substation_id)
@@ -686,7 +683,6 @@ def build_edges_v2(g, substation_id_busbar_id_node_id_mapping, substations_eleme
                     if isinstance(elem, ExtremityLine) and elem.flow_value == element.flow_value:
                         if elem.busbar == 1:
                             extremity = substation_id_busbar_id_node_id_mapping[extremity][1]
-
                 reported_flow = element.flow_value
             elif origin is None or extremity is None:
                 continue
@@ -699,17 +695,14 @@ def build_edges_v2(g, substation_id_busbar_id_node_id_mapping, substations_eleme
             pen_width = fabs(reported_flow[0]) / 10.0
             if pen_width < 0.01:
                 pen_width = 0.1
-
             print(f"#################### Edge created : ({origin}, {extremity}), with flow = {reported_flow},"
                   f" pen_width = {pen_width} >>>")
-
             if reported_flow[0] > 0:  # RED
                 g.add_edge(origin, extremity, capacity=float(reported_flow[0]), xlabel=reported_flow[0], color="red",
                            penwidth="%.2f" % pen_width)
             else:  # BLUE
                 g.add_edge(origin, extremity, capacity=float(reported_flow[0]), xlabel=reported_flow[0], color="blue",
                            penwidth="%.2f" % pen_width)
-
             g.add_edge(origin, extremity, capacity=float(reported_flow[0]), xlabel=reported_flow[0])
 
 

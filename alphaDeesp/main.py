@@ -68,7 +68,6 @@ def main():
                       "substation_to_node_mapping": sim.get_substation_to_node_mapping(),
                       "internal_to_external_mapping": sim.get_internal_to_external_mapping()}
     alphadeesp = AlphaDeesp(g_over, df_of_g, custom_layout, simulator_data, debug=args.debug)
-
     ranked_combinations = alphadeesp.get_ranked_combinations()
 
     print("--------------------------------------------------------------------------------------------")
@@ -84,7 +83,6 @@ def main():
             sim.load(elem[1], args.ltc)
             g_over_detailed = sim.build_detailed_graph_from_internal_structure(args.ltc)
             printer.display_geo(g_over_detailed, custom_layout, name=elem[0])
-
 
 if __name__ == "__main__":
     main()
