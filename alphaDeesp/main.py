@@ -71,12 +71,11 @@ def main():
 
     ranked_combinations = alphadeesp.get_ranked_combinations()
 
-    # expert_system_results is a DATAFRAME containing lots of information about the work done.
-
-    expert_system_results = sim.compute_new_network_changes(ranked_combinations)
     print("--------------------------------------------------------------------------------------------")
     print("----------------------------------- END RESULT DATAFRAME -----------------------------------")
     print("--------------------------------------------------------------------------------------------")
+    # expert_system_results is a DATAFRAME containing lots of information about the work done.
+    expert_system_results = sim.compute_new_network_changes(ranked_combinations)
     print(expert_system_results)
 
     # print("\n--------------------------------------- POST PROCESSING DEBUG ---------------------------------------\n")

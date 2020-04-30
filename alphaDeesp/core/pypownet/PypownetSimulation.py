@@ -1,58 +1,40 @@
-import pprint
-import sys
-import numpy as np
 from math import fabs
+
+import networkx as nx
 import pandas as pd
-
-
-# sys.path.append("/home/mozgawamar/Documents/pypownet_last_version/pypownet/")
-sys.path.append("/home/mozgawamar/Documents/pypownet-master")
 import pypownet.environment
 from pypownet.agent import *
 from pypownet.environment import ElementType
 
-import networkx as nx
-
-from alphaDeesp.core.simulation import Simulation
 from alphaDeesp.core.elements import *
 from alphaDeesp.core.network import Network
+from alphaDeesp.core.simulation import Simulation
 
 
 class PypownetSimulation(Simulation):
     def __init__(self, param_options=None, debug=False, ltc=9, param_folder=None):
         super().__init__()
         print("PypownetSimulation object created...")
-
         if not param_options or param_options is None:
             raise AttributeError("\nparam_options are empty or None, meaning the config file is not properly read.")
 
         if not param_folder or param_folder is None:
             raise AttributeError("\nThe parameters folder for Pypownet is empty or None.")
-
-        # parameters_folder = "./alphaDeesp/ressources/parameters/default14"
-        # parameters_folder = "/home/mozgawamar/Documents/Libs/pypownet_fork/pypownet/parameters/default14"
-        # parameters_folder = "/home/mozgawamar/Documents/Libs/pypownet_fork/pypownet/parameters/default14_static"
         parameters_folder = param_folder
         game_level = "level0"
         chronic_looping_mode = 'natural'
         chronic_starting_id = 0
-
         game_over_mode = 'easy'
         without_overflow_cuttof = True
-
-        render_bool = True
-
         self.save_bag = []
         self.debug = debug
         self.args_number_of_simulated_topos = param_options["totalnumberofsimulatedtopos"]
         self.args_inner_number_of_simulated_topos_per_node = param_options["numberofsimulatedtopospernode"]
-
         self.grid = None
         self.df = None
         self.topo = None  # a dict create in retrieve topology
         self.lines_to_cut = None
         self.param_options = param_options
-
         #############################
         self.environment = pypownet.environment.RunEnv(parameters_folder=parameters_folder, game_level=game_level,
                                                        chronic_looping_mode=chronic_looping_mode,
@@ -61,16 +43,12 @@ class PypownetSimulation(Simulation):
                                                        without_overflow_cutoff=without_overflow_cuttof)
         print("HARD OVERFLOW = ", self.environment.game.hard_overflow_coefficient)
         print("")
-
         action_space = self.environment.action_space
         observation_space = self.environment.observation_space
-
         # Create do_nothing action.
         action_do_nothing = action_space.get_do_nothing_action()
-
         # Run one step in the environment
         # raw_obs, *_ = self.environment.step(action_do_nothing)
-
         raw_simulated_obs = self.environment.simulate(action_do_nothing)
         self.obs = self.environment.observation_space.array_to_observation(raw_simulated_obs[0])
         # transform raw_obs into Observation object. (Useful for prints, for debugging)
@@ -110,25 +88,9 @@ class PypownetSimulation(Simulation):
         print("##########...........COMPUTE NEW NETWORK CHANGES..........####################")
         print("##############################################################################")
 
-        # for each node_combination
-        # pypownet.step(node_combination)
-        # new_obs = pypow.getobs
-        #
-
-        # then alphadeesp.score(new_obs)
         # the function score creates a Dataframe with sorted score for each topo change.
         # FINISHED
-        final_results = pd.DataFrame()
-
-        # df = ranked_combinations[0]
-
-        # print("df in compute new network change")
-        # print(df)
-
         end_result_dataframe = self.create_end_result_empty_dataframe()
-
-        new_node = True
-
         j = 0
         for df in ranked_combinations:
             ii = 0
@@ -178,10 +140,6 @@ class PypownetSimulation(Simulation):
                 if self.debug:
                     print(obs)
 
-                # print(obs.active_flows_origin)
-                # print(saved_obs.active_flows_origin)
-                # assert(obs.active_flows_origin == saved_obs.active_flows_origin)
-
                 print("old obs addr = ", hex(id(saved_obs)))
                 print("new obs addr = ", hex(id(obs)))
 
@@ -219,15 +177,6 @@ class PypownetSimulation(Simulation):
                 elif isinstance(worsened_line_ids, np.ndarray):
                     worsened_line_ids = list(worsened_line_ids)
 
-                # if empty
-                # if not worsened_line_ids:
-                #     worsened_line_ids = []
-
-                # print(type(worsened_line_ids[0]))
-                # print("length = ", len(worsened_line_ids))
-                # if len(worsened_line_ids) == 2:
-                #     print(type(worsened_line_ids[1]))
-
                 score_data = [self.lines_to_cut[0],
                               saved_obs.active_flows_origin[self.lines_to_cut[0]],
                               obs.active_flows_origin[self.lines_to_cut[0]],
@@ -246,14 +195,6 @@ class PypownetSimulation(Simulation):
                 end_result_dataframe.loc[max_index] = score_data
 
                 end_result_dataframe.to_csv("./END_RESULT_DATAFRAME.csv", index=True)
-                # print("--------------------------------------------------------------------------------------------")
-                # print("----------------------------------- END RESULT DATAFRAME -----------------------------------")
-                # print("--------------------------------------------------------------------------------------------")
-                # print(end_result_dataframe)
-
-                # self.prin
-                # return
-
                 ii += 1
                 j += 1
 
@@ -271,16 +212,6 @@ class PypownetSimulation(Simulation):
 
         it returns an array with all data for end_result_dataframe creation
         """
-        # if self.debug:
-        #     print("==========================================================================")
-        #     print("===================== INSIDE OBSERVATIONS COMPARATOR =====================")
-        #     print("==========================================================================")
-        #     print("old obs = ")
-        #     print(old_obs)
-        #
-        #     print("new obs = ")
-        #     print(new_obs)
-
         simulated_score = self.score_changes_between_two_observations(old_obs, new_obs)
 
         worsened_line_ids = self.create_boolean_array_of_worsened_line_ids(old_obs, new_obs)
@@ -308,8 +239,6 @@ class PypownetSimulation(Simulation):
         for old, new in zip(old_obs.get_lines_capacity_usage(), new_obs.get_lines_capacity_usage()):
             if fabs(new) > 1 and fabs(old) > 1 and fabs(new) > 1.05 * fabs(old):  # contrainte existante empiree
                 res.append(1)
-
-            # elif fabs(new) > 1 and fabs(old) < 1:  #  nouvelle contrainte
             elif fabs(new) > 1 > fabs(old):
                 res.append(1)
             else:
@@ -326,39 +255,15 @@ class PypownetSimulation(Simulation):
         1: if an overload was relieved but another appeared and got worse
         0: if no overloads were alleviated or if it resulted in some load shedding or production distribution.
         """
-        # print("==========================================================================")
-        # print("==================== INSIDE SCORE CHANGES BETWEEN 2 OBS ==================")
-        # print("==========================================================================")
         old_number_of_overloads = 0
         new_number_of_overloads = 0
-        # if new > old > 1.0 then 1 else 0
         boolean_constraint_worsened = []
-        # if an overload has been relieved and the % is > 30% then 1 else 0
         boolean_overload_30percent_relieved = []
         boolean_overload_relieved = []
         boolean_overload_created = []
 
         old_obs_lines_capacity_usage = old_obs.get_lines_capacity_usage()
         new_obs_lines_capacity_usage = new_obs.get_lines_capacity_usage()
-        # print("old obs capacity usage = ", old_obs_lines_capacity_usage)
-        # print("new obs capacity usage = ", new_obs_lines_capacity_usage)
-
-        # test for rank 3 works for node 5 and max conf simulated = 5, we get some simulated score 3 and 4.
-        # old_obs_lines_capacity_usage[9] = 1.2
-        # new_obs_lines_capacity_usage[9] = 0.9
-        # old_obs_lines_capacity_usage[10] = 1.5
-        # test for rank 2, unquote above and below
-        # old_obs_lines_capacity_usage[0] = 1.9
-        # new_obs_lines_capacity_usage[0] = 2.0
-
-        # test for rank 2
-        # old_obs_lines_capacity_usage[9] = 1.2
-        # new_obs_lines_capacity_usage[9] = 0.83
-
-        # test for rank 1
-        # old_obs_lines_capacity_usage[9] = 1.2
-        # new_obs_lines_capacity_usage[9] = 0.9
-
         # ################################### PREPROCESSING #####################################
         for elem in old_obs_lines_capacity_usage:
             if elem > 1.0:
@@ -367,9 +272,6 @@ class PypownetSimulation(Simulation):
         for elem in new_obs_lines_capacity_usage:
             if elem > 1.0:
                 new_number_of_overloads += 1
-
-        # print("new_obs_lines_capacity_usage = ", new_obs_lines_capacity_usage)
-        # print("old_obs_lines_capacity_usage = ", old_obs_lines_capacity_usage)
 
         # preprocessing for score 3 and 2
         for old, new in zip(old_obs_lines_capacity_usage, new_obs_lines_capacity_usage):
@@ -384,13 +286,6 @@ class PypownetSimulation(Simulation):
                 surcharge = old - 1.0
                 diff = old - new
                 percentage_relieved = diff * 100 / surcharge
-
-                # if self.debug:
-                # print("old capa usage = ", old)
-                # print("new capa usage = ", new)
-                # print("diff = ", diff)
-                # print("percentage relieved = ", percentage_relieved)
-
                 if percentage_relieved > 30.0:
                     boolean_overload_30percent_relieved.append(1)
                 else:
@@ -417,28 +312,7 @@ class PypownetSimulation(Simulation):
         redistribution_prod = np.sum(np.absolute(new_obs.active_productions - old_obs.active_productions))
         redistribution_load = np.sum(np.absolute(new_obs.active_loads - old_obs.active_loads))
 
-        # print("redistribution_prod", redistribution_prod)
-        # print("redistribution_load", redistribution_load)
-        #
-        # print("old_obs.active_productions  = ", list(old_obs.active_productions))
-        # print("new_obs.active_productions  = ", list(new_obs.active_productions))
-        # print("old_obs.active_loads        = ", list(old_obs.active_loads))
-        # print("new_obs.active_loads        = ", list(new_obs.active_loads))
-        #
-        # print("boolean_overload_relieved   = ", boolean_overload_relieved)
-        # print("boolean_overload_created    = ", boolean_overload_created)
-        # print("boolean_constraint_worsened = ", boolean_constraint_worsened)
-        # print("boolean_overload_30%_reliev = ", boolean_overload_30percent_relieved)
-        # print("old_number_of_overloads     = ", old_number_of_overloads)
-        # print("new_number_of_overloads     = ", new_number_of_overloads)
-        # print("new_obs.are_loads_cut       = ", new_obs.are_loads_cut)
-        # print("Thermal limits = ", old_obs.thermal_limits)
-
         # ################################ END OF PREPROCESSING #################################
-        # if old_number_of_overloads == 0:
-        #     print("return -1: there were previously no overloads.")
-        #     return -1
-
         # score 0 if no overloads were alleviated or if it resulted in some load shedding or production distribution.
         if redistribution_load > 0 or (new_obs.are_loads_cut == 1).any() or (new_obs.are_productions_cut == 1).any():
             print("return 0: no overloads were alleviated or some load shedding occured.")
@@ -497,22 +371,6 @@ class PypownetSimulation(Simulation):
         prod_values = obs.active_productions
         cons_values = obs.active_loads
 
-        # self.cons_values =
-
-        # if self.debug:
-        #     print("internal to external mapping")
-        #     pprint.pprint(self.internal_to_external_mapping)
-        #     print("external to internal mapping")
-        #     pprint.pprint(self.external_to_internal_mapping)
-        #     print("-----------------------------------------------")
-        #     print("prod nodes = ", prod_nodes)
-        #     print("prod values = ", prod_values)
-        #     print("cons nodes = ", cons_nodes)
-        #     print("cons values = ", cons_values)
-        #     print("lines_or_nodes = ", obs.lines_or_substations_ids)
-        #     print("lines_ex_nodes = ", obs.lines_ex_substations_ids)
-        #     print("line_flows = ", list(self.df["delta_flows"].round(decimals=2)))
-
         # ################ PART II : fill self.substation_elements
         for substation_id in self.internal_to_external_mapping.keys():
             elements_array = []
@@ -536,11 +394,6 @@ class PypownetSimulation(Simulation):
             indexes_dest_ex = [obs.lines_or_substations_ids[ind] for ind in indexes_tmp_ex]
             # this iterator contains a LIST OF SUBSTATION_IDS, which correspond to "the other end" of element line EX
             iter_indexes_dest_ex = iter(indexes_dest_ex[0])
-
-            # flow_value = 0
-            # print("test query DATAFRAME")
-            # print(list(self.df.query("idx_or == " + str(substation_id) + " & idx_ex == 4")
-            #            ["delta_flows"].round(decimals=2)))
 
             assert (len(current_conf) == len(types))
 
@@ -587,11 +440,6 @@ class PypownetSimulation(Simulation):
                         else:
                             raise ValueError("Problem with swap conditions")
 
-                        # if not swapped_condition:
-                        #     elements_array.append(OriginLine(busbar, dest, flow_value))
-                        # else:
-                        #     elements_array.append(ExtremityLine(busbar, dest, flow_value))
-
                 elif elem == ElementType.EXTREMITY_POWER_LINE:
                     dest = self.external_to_internal_mapping[int(next(iter_indexes_dest_ex))]
                     flow_value = list(df.query("idx_or == " + str(dest) + " & idx_ex == " + str(substation_id))
@@ -622,25 +470,16 @@ class PypownetSimulation(Simulation):
 
             self.substations_elements[substation_id] = elements_array
 
-        # if self.debug:
-        # print("from Load2, create_and_fill_internal_structure, substations_elements = ")
-        # pprint.pprint(self.substations_elements)
-
     def load(self, observation, lines_to_cut: list):
         # first, load information into a data frame
         self.lines_to_cut = lines_to_cut
-
         # d is a dict containing topology
         d = self.extract_topo_from_obs(observation)
         self.topo = d
-
         df = self.create_df(d, lines_to_cut)
         self.df = df
         print("DF From load2")
         print(df)
-
-        # this creates and fills
-        # self.substation_elements, self.substation_to_node_mapping, self.internal_to_external_mapping
         self.create_and_fill_internal_structures(observation, df)
 
     def build_graph_from_data_frame(self, lines_to_cut):
@@ -659,75 +498,12 @@ class PypownetSimulation(Simulation):
 
     def build_detailed_graph_from_internal_structure(self, lines_to_cut):
         """This function create a detailed graph from internal self structures as self.substations_elements..."""
-
-        custom_layout = [(-280, -81), (-100, -270), (366, -270), (366, -54), (-64, -54), (-64, 54), (366, 0),
-                         (438, 0), (326, 54), (222, 108), (79, 162), (-152, 270), (-64, 270), (222, 216),
-                         (-280, -151), (-100, -340), (366, -340), (390, -110), (-14, -104), (-184, 54), (400, -80),
-                         (438, 100), (326, 140), (200, 8), (79, 12), (-152, 170), (-70, 200), (222, 200)]
-        # nodes = self.substations_elements.keys()
-        #
-        # are_prods = np.zeros(len(nodes))
-        # are_loads = np.zeros(len(nodes))
-        # prod_values = np.zeros(len(nodes))
-        # load_values = np.zeros(len(nodes))
-
-        # #############################################################################################################
-        # ############## FIRST PART, KNOW HOW MANY DISTINCT NODES WE HAVE, busbar0 and busbar 1 == 2 nodes
-        # #############################################################################################################
-
-        # var used to know if a node is using his "second" busbar
-        # twin_node_needed = False
-        #
-        # for substation_id in nodes:
-        #     twin_node_needed = False
-        #
-        #     for configuration in self.substations_elements[substation_id]:
-        #         # substation_id = busbar 0, 666+(substation_id) = busbar 1
-        #         # so here we detect if per configuration, there are 2 busbars needed, cad, add substation_id(666+id)
-        #         if configuration.busbar_id == 1.0:
-        #             twin_node_needed = True
-        #
-        #
-        # nb_prods = 0
-        # nb_loads = 0
-
-        # main loop over all the network
-        # for substation_id in nodes:
-        #     print("Node ID = ", substation_id)
-        #     for element in self.substations_elements[substation_id]:
-        #         print(element)
-        #
-        #
-        #         node_info = {
-        #
-        #         }
-
-        # print("are prods = ", are_prods)
-        # print("are loads = ", are_loads)
-        # print("prod_values = ", prod_values)
-        # print("load_values = ", load_values)
-
-        # build_nodes(g, are_prods, are_loads, prod_values, load_values, debug=True)
-        # print("Nodes")
-        # print(g.nodes())
-
         g = nx.DiGraph()
-
         network = Network(self.substations_elements)
         print("Network = ", network)
-
         build_nodes_v2(g, network.nodes_prod_values)
         build_edges_v2(g, network.substation_id_busbar_id_node_id_mapping, self.substations_elements)
         print("This graph is weakly connected : ", nx.is_weakly_connected(g))
-        # if not (nx.is_weakly_connected(g)):
-        #     raise ValueError("\n\nWe don't allow disconnected graphs to be displayed or computed")
-
-        # p = Printer()
-        # p.display_geo(g, custom_layout, name="build_detailed_graph_examples")
-
-        # for node in network.nodes_prod_values:
-        #     print(node)
-
         return g
 
     def change_nodes_configurations(self, new_configuration, node_id):
@@ -738,28 +514,21 @@ class PypownetSimulation(Simulation):
 
         for new_conf, id_node in zip(new_configuration, node_id):
             action_space.set_substation_switches_in_action(action, id_node, new_conf)
-
-        # raw_simulated_obs = self.environment.simulate(action)
         raw_simulated_obs, *_ = self.environment.simulate(action)
         # if obs is None, error in the simulation of the next step
         if raw_simulated_obs is None:
             raise ValueError("\n\nPypownet simulation returned a None... Cannot process results...\n")
-            # print("Pypownet simulation returnt a None... Cannot process results...")
-
         # transform raw_obs into Observation object. (Useful for prints, for debugging)
         obs = self.environment.observation_space.array_to_observation(raw_simulated_obs)
-
         return obs
 
     @staticmethod
     def extract_topo_from_obs(obs):
         """This function, takes an obs an returns a dict with all topology information"""
-
         d = {
             "edges": {},
             "nodes": {}
         }
-        lines_cut = np.argwhere(obs.lines_status == 0)
         # print("lines_cut = ", lines_cut)
         nodes_ids = obs.substations_ids
         # print("obs substations_ids = ", nodes_ids)
@@ -772,7 +541,6 @@ class PypownetSimulation(Simulation):
         prods_values = obs.active_productions
         loads_values = obs.active_loads
         current_flows = obs.active_flows_origin
-
         d["edges"]["idx_or"] = [x for x in idx_or]
         d["edges"]["idx_ex"] = [x for x in idx_ex]
         d["edges"]["init_flows"] = current_flows
@@ -780,26 +548,13 @@ class PypownetSimulation(Simulation):
         d["nodes"]["are_loads"] = are_loads
         d["nodes"]["prods_values"] = prods_values
         d["nodes"]["loads_values"] = loads_values
-
-        # print("extract topo from obs")
-        # pprint.pprint(d)
-
         return d
 
     def build_powerflow_graph(self, obs):
         """This function takes a pypownet Observation and returns a NetworkX Graph"""
         g = nx.DiGraph()
-
-        # print("======================================== BUILD POWERFLOW GRAPH2 ")
-        # print("lines status = ", obs.lines_status)
-        # print(obs)
-        # print("Object type obs = ", type(obs))
         lines_cut = np.argwhere(obs.lines_status == 0)
-        # print("lines_cut = ", lines_cut)
-        # idx_or = obs.lines_or_nodes
-        # idx_ex = obs.lines_ex_nodes
         nodes_ids = obs.substations_ids
-        # print("obs substations_ids = ", nodes_ids)
         idx_or = [int(x - 1) for x in obs.lines_or_substations_ids]
         idx_ex = [int(x - 1) for x in obs.lines_ex_substations_ids]
         prods_ids = obs.productions_substations_ids
@@ -809,7 +564,6 @@ class PypownetSimulation(Simulation):
         prods_values = obs.active_productions
         loads_values = obs.active_loads
         current_flows = obs.active_flows_origin
-
         if self.debug:
             print("============================= FUNCTION build_powerflow_graph 2 =============================")
             print("self.idx_or = ", idx_or)
@@ -824,98 +578,15 @@ class PypownetSimulation(Simulation):
         # =========================================== EDGE PART ===========================================
         build_edges(g, idx_or, idx_ex, edge_weights=current_flows, debug=self.debug,
                     gtype="powerflow", lines_cut=lines_cut)
-
         return g
-
-    # def build_overflow_graph(self, grid, lines_cut, param_options):
-    #     """This function takes a pypownet grid and returns a NetworkX Graph"""
-    #     print("we'll use var ThresholdReportOfLine = ", param_options["ThresholdReportOfLine"])
-    #
-    #     g = nx.DiGraph()
-    #
-    #     # first we extract the flows
-    #     initial_flows = grid.extract_flows_a()
-    #     initial_flows = grid.mpc["branch"][:, 13]
-    #     # as we are creating an overflow graph we need to cut line then recompute flows
-    #     new_flows = self.cut_lines_and_recomputes_flows(grid, lines_cut)
-    #
-    #     # retrieve topology
-    #     mpcbus = grid.mpc['bus']
-    #     mpcgen = grid.mpc['gen']
-    #     half_nodes_ids = mpcbus[:len(mpcbus) // 2, 0]
-    #     node_to_substation = lambda x: int(float(str(x).replace('666', '')))
-    #     # intermediate step to get idx_or and idx_ex
-    #     nodes_or_ids = np.asarray(list(map(node_to_substation, grid.mpc['branch'][:, 0])))
-    #     nodes_ex_ids = np.asarray(list(map(node_to_substation, grid.mpc['branch'][:, 1])))
-    #     # origin
-    #     idx_or = [np.where(half_nodes_ids == or_id)[0][0] for or_id in nodes_or_ids]
-    #     # extremeties
-    #     idx_ex = [np.where(half_nodes_ids == ex_id)[0][0] for ex_id in nodes_ex_ids]
-    #
-    #     # retrieve loads and prods
-    #     nodes_ids = mpcbus[:, 0]
-    #     prods_ids = mpcgen[:, 0]
-    #     are_prods = np.logical_or([node_id in prods_ids for node_id in nodes_ids[:len(nodes_ids) // 2]],
-    #                               [node_id in prods_ids for node_id in nodes_ids[len(nodes_ids) // 2:]])
-    #     are_loads = np.logical_or(grid.are_loads[:len(mpcbus) // 2], grid.are_loads[len(nodes_ids) // 2:])
-    #     prods_values = grid.mpc['gen'][:, 1]
-    #     loads_values = grid.mpc['bus'][grid.are_loads, 2]
-    #     lines_por_values = grid.mpc['branch'][:, 13]
-    #
-    #     lines_cut = np.argwhere(grid.get_lines_status() == 0)
-    #
-    #     delta_flows = new_flows - initial_flows
-    #
-    #     # finally we compute the edges to be displayed in gray. IE: if report line is < ThresholdReportOfLine*MAX_OVER
-    #     gray_edges = []  # boolean array
-    #     # print("type delta flows = ", type(delta_flows))
-    #     # print("max = ", max(delta_flows))
-    #     max_overload = max(delta_flows) * float(param_options["ThresholdReportOfLine"])
-    #     print("max overload = ", max_overload)
-    #     for edge_value in delta_flows:
-    #         if fabs(edge_value) < max_overload:
-    #             gray_edges.append(True)
-    #         else:
-    #             gray_edges.append(False)
-    #     print("gray edges = ", gray_edges)
-    #
-    #     if self.debug:
-    #         print("============================= FUNCTION build_overflow_graph =============================")
-    #         print("self.idx_or = ", idx_or)
-    #         print("self.idx_ex = ", idx_ex)
-    #         print("self.lines_por_values = ", lines_por_values)
-    #         print("Nodes that are prods =", are_prods)
-    #         print("Nodes that are loads =", are_loads)
-    #         print("prods_values = ", prods_values)
-    #         print("loads_values = ", loads_values)
-    #         print("initial_flows = ", initial_flows)
-    #         print("new_flows = ", new_flows)
-    #         print("delta_flows = ", delta_flows)
-    #
-    #     # =========================================== NODE PART ===========================================
-    #     build_nodes(g, are_prods, are_loads, prods_values, loads_values, debug=self.debug)
-    #     # =========================================== EDGE PART ===========================================
-    #     build_edges(g, idx_or, idx_ex, gray_edges=gray_edges, edge_weights=delta_flows, debug=self.debug,
-    #                 initial_flows=initial_flows, gtype="overflow", lines_cut=lines_cut)
-    #
-    #     return g
 
     def cut_lines_and_recomputes_flows(self, ids: list):
         """This functions cuts lines: [ids], simulates and returns new line flows"""
-        # print("DEBUG IN CUT LINES AND RECOMPUTE FLOWS")
-        # print("LINES STATUS ==================",  self.obs.lines_status)
-        # print("THERMAL LIMITS = ", self.obs.thermal_limits)
-        # print("capacity usages ", self.obs.get_lines_capacity_usage())
-        # print("flows in ampere = ", self.obs.ampere_flows)
-        # print("DEBUG IN LINE TO CUT IDS = ", ids)
         action_space = self.environment.action_space
         action = action_space.get_do_nothing_action(as_class_Action=True)
         for line_id in ids:
-            # print("we switch line id to ")
             action_space.set_lines_status_switch_from_id(action=action, line_id=line_id, new_switch_value=1)
-
         raw_simulated_obs = self.environment.simulate(action)
-        # print("type = ", type(raw_simulated_obs[0]))
         if raw_simulated_obs[0] is None:
             raise ValueError("The simulation step of Pypownet returnt a None... Something")
         obs = self.environment.observation_space.array_to_observation(raw_simulated_obs[0])
@@ -1004,17 +675,12 @@ def build_edges_v2(g, substation_id_busbar_id_node_id_mapping, substations_eleme
         print("\nSUBSTATION ID = ", substation_id)
         for element in substations_elements[substation_id]:
             print(element)
-
             origin = None
             extremity = None
-            reported_flow = None
-
             if isinstance(element, OriginLine):
                 # origin = substation_id
                 origin = int(substation_id_busbar_id_node_id_mapping[substation_id][element.busbar_id])
-
                 extremity = int(element.end_substation_id)
-
                 # check if extremity on busbar1, if it is,
                 # check with the substation substation_id_busbar_id_node_id_mapping dic what "graphical" node it is
                 print("substations_elements[extremity] = ", substations_elements[extremity])
@@ -1024,36 +690,15 @@ def build_edges_v2(g, substation_id_busbar_id_node_id_mapping, substations_eleme
                         if elem.busbar == 1:
                             extremity = substation_id_busbar_id_node_id_mapping[extremity][1]
 
-                # if substations_elements[extremity].busbar_id == 1:
-                #     extremity = substation_id_busbar_id_node_id_mapping[extremity][1]
-
                 reported_flow = element.flow_value
-
-            # elif isinstance(element, ExtremityLine):
-            #     origin = element.start_substation_id
-            #     extremity = substation_id_busbar_id_node_id_mapping[substation_id][element.busbar_id]
-            #     reported_flow = element.flow_value
-
             elif origin is None or extremity is None:
                 continue
-
             # in case we get on an element that is Production or Consumption
             else:
                 continue
-
             print("origin = ", origin)
             print("extremity = ", extremity)
             print("reported_flow = ", reported_flow)
-
-            # if isinstance(element, OriginLine):
-            #     print("origin mapped = ", substation_id_busbar_id_node_id_mapping[origin][element.busbar_id])
-            # if isinstance(element, ExtremityLine):
-            #     print("extremity mapped = ", substation_id_busbar_id_node_id_mapping[extremity][element.busbar_id])
-
-            # if origin == "6660":
-            #     print("WE SKIP")
-            #     continue
-
             pen_width = fabs(reported_flow[0]) / 10.0
             if pen_width < 0.01:
                 pen_width = 0.1
@@ -1073,11 +718,6 @@ def build_edges_v2(g, substation_id_busbar_id_node_id_mapping, substations_eleme
 
 def build_edges(g, idx_or, idx_ex, edge_weights, gtype, gray_edges=None, lines_cut=None, debug=False,
                 initial_flows=None):
-    if debug:
-        ar = list(zip(idx_or, idx_ex, edge_weights))
-        # print(" ==== Build_edges debug === : ZIP OF DEATH = ")
-        # pprint.pprint(ar)
-
     if gtype is "powerflow":
         for origin, extremity, weight_value in zip(idx_or, idx_ex, edge_weights):
             # origin += 1
@@ -1120,29 +760,12 @@ def build_edges(g, idx_or, idx_ex, edge_weights, gtype, gray_edges=None, lines_c
                 else:
                     g.add_edge(origin, extremity, xlabel="%.2f" % reported_flow, color="blue", fontsize=10,
                                penwidth="%.2f" % penwidth)
-
-                # if reported_flow >= 0:
-                #     g.add_edge(origin, extremity, xlabel="%.2f" % reported_flow, color="blue", fontsize=10,
-                #                penwidth="%.2f" % penwidth)
-                # else:
-                # g.add_edge(extremity, origin, xlabel="%.2f" % reported_flow, color="blue", fontsize=10,
-                #            penwidth="%.2f" % penwidth)
             else:  # > 0  # Red
-                # if reported_flow >= 0:
                 g.add_edge(origin, extremity, xlabel="%.2f" % reported_flow, color="red", fontsize=10,
                            penwidth="%.2f" % penwidth)
-                # else:
-                #     g.add_edge(extremity, origin, xlabel="%.2f" % reported_flow, color="red", fontsize=10,
-            #                penwidth="%.2f" % penwidth)
             i += 1
     else:
         raise RuntimeError("Graph's GType not understood, cannot build_edges!")
-
-
-# class RTESimulation(Simulation):
-#     def __init__(self):
-#         super().__init__()
-
 
 def invert_dict_keys_values(d):
     return dict([(v, k) for k, v in d.items()])
