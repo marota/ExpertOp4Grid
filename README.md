@@ -74,14 +74,13 @@ There are three important objects to have in mind:
 * g_pow_prime - A powerflow_graph: it displays the electricity flow after a line has been cut, here in the example we
 can see the line n°9 that has been cut, it now has a value of 0
 
-image here
 ![Drag Racing](./alphaDeesp/ressources/g_pow_prime_print.jpg)
 
 * g_over - An Overflow graph: it is the result of "g_pow" that got compared to "g_pow_prime". The edge's values
-represent the difference between g_pow_edge_value - g_pow_prime_edge_value
-**g_over = g_pow - g_pow_prime**
+represent the difference between g_pow_prime_edge_value - g_pow_edge_value
 
-image here
+**g_over = g_pow_prime - g_pow**
+
 ![Drag Racing](./alphaDeesp/ressources/g_over_print.jpg)
 
 Now, to the main algorithm. The first three steps of the algorithm are about extracting the situation, creating and 
@@ -115,14 +114,6 @@ it will appear on the display graph on node X
 However, if an element is on busbar 1 with ID X,
 The program will create another node named 666X
 
-# TODOS
-explain what critical functions are, for loading observation from pypownet. (in case of Pypownet changes)
-
-explain internal_repr
-all elements objects: OriginLine, ExLine, Production, Consumption
-
-In Network init func, In node part, change the np.round by a function that trims not rounds
-
 
 # Debug Help
 #### To force specific hubs
@@ -134,51 +125,133 @@ If one wants a specific hub, (as shown at the previous line), a user can "force"
 Check in the code, there are commented examples
 
 
-# TODOS virtual func
-==> There are multiple functions from Pypownet_Simulation class that can be put as base functions in the base class 
-Simulation. Not yet done.
-
-The list of those function is:
-==> compute_network_change 
-==> ...
-==> Finish detailed graph with colored edges
-==> Make 2 integration tests with final dataframe verifications
-
-Explain diff between those two functions
-    g_over, df_of_g = sim.build_graph_from_data_frame(args.ltc)
-    g_over_detailed = sim.build_detailed_graph_from_internal_structure(args.ltc)
-And why at force we use on, then the other? 
-Is there a way to fuse them ?
-    
-
-# LEXICON
-
-#### Overflow Graph:
-An Overflow Graph is the result of an "initial graph" init_graph that got compared to a "changed graph" c_graph.
-(for example, a "changed graph" c_graph could be same as "initial graph" init_graph but with a splited node or a cutted
- edge) The edge's values represent the difference between initial_graph_edge_value - change_graph_edge_value
-
-overflow_graph = init_graph - c_graph
-
-#### Powerflow Graph:
-A Powerflow Graph displays electricity flow on edges.
-
 # TESTS
 To launch the test suite: python3 -m pytest --verbose --continue-on-collection-errors -p no:warnings
 
 
-#### List of all calls to the simulator Pypownet:
-make a list here
+# FAQ DEV
 
-
-
-
-### NOTES
-
-##### How to know Lines IDS ?
+### How to know Lines IDS ?
 When starting to use AlphaDeesp, the input arguments are IDs of lines to cut.
 How to know line's IDS ?
 
-Print save or display an example of the network, to know the line's IDS
-example, we would like to cut line between node X and Y ? what line to cut ?
+Line indexing can be found in the object DF_OF_G. 
 
+
+Check the FAQ Question, What is Df_of_g? [click on this link](#what-is-df_of_g)
+
+
+
+### How is a disconnected line represented in the internal structure ?
+In the code when we create the internal structure
+
+![Drag Racing](./alphaDeesp/ressources/internal_to_external_mapping_explanation_code.png)
+
+We get a substations_list and then we create our own proper INTERNAL indexing with the line:
+
+```python
+for i, substation_id in enumerate(substations_list):
+    self.internal_to_external_mapping[i] = substation_id
+```
+
+This produces: 
+
+![Drag Racing](./alphaDeesp/ressources/internal_to_external_mapping_explanation_console.png)
+
+The next portion of code will loop over that substations_list. 
+
+![Drag Racing](./alphaDeesp/ressources/internal_to_external_mapping_explanation_code_2.png)
+
+Substation after substation the program will check all elements and add them to elements_array, meaning, **if
+there is NO LINE between node X and node Y, there will be NO SIGN of that in the internal structure.**
+
+PYPOWNET_OBS + DF_OF_G = INTERNAL_STRUCTURE.SUBSTATIONS_ELEMENTS
+
+
+### What is a  Pypownet Observation ?
+
+![Drag Racing](./alphaDeesp/ressources/pypownet_observation_example.png)
+
+### What is Df_of_g ?
+
+![Drag Racing](./alphaDeesp/ressources/df_of_g_explained.jpg)
+
+### Internal structure dump for g_over: 
+
+IMPORTANT: La representation interne est de style g_over
+
+![Drag Racing](./alphaDeesp/ressources/internal_structure_explained.jpg)
+
+La meme chose mais avec internal structure dump + explanation
+print image here
+side by side image with g_over and dump
+
+### Results DataFrame example
+
+![Drag Racing](./alphaDeesp/ressources/end_result_dataframe_example.png)
+
+### Exemple de g_overdetailed / Topology explained ?
+
+
+create image
+prendre premiere ligne de end result data frame, prendre la topology, et montrer limage de sorti
+avec la version detailed
++ en profiter pour expliquer l'encodage de la topologie
+
+On part à partir d'une ligne du resultat, et step by step comme tu ferais sur papier:
+
+EXEMPLE END RESULT DATAFRAME TOPOLOGY ET G_OVER_DETAILED
+
+If we look at the first line in the END_RESULT_DATAFRAME, topology = [1, 1, 0, 0, 0] on SubstationID = 4
+
+![Drag Racing](./alphaDeesp/ressources/end_result_first_line.png)
+
+If executed with -s, this should have created a snapshot called "4_11000_geo_2020-05-14_19-06_0_.pdf"
+
+The approach to understanding is as follows:
+
+Check the internal_structure for SubstationID 4:
+
+![Drag Racing](./alphaDeesp/ressources/internal_structure_node_4.png)
+
+This tell us that the order is as follows: 
+[Consumption, Extremity, Extremity, Extremity, Origin] or [C, Ex, Ex, Ex, Or]
+
+So with all those information we can understand how the final topology [1, 1, 0, 0, 0] should look like:
+
+[C, Ex, Ex, Ex, Or]
+
+[1, 1 ,  0,  0, 0]
+
+
+If we go column by column in order from left to right, it should be as follows:
+
+* [0] The first element Consumption is on Busbar 1 (meaning Node 6664), meaning node will be red.
+
+* [1] The second element Extremity is on BusBar 1 (meaning Node 6664), and we can see it is connected to substation 5. 
+So node 6664 is the EXTREMITY of the line going **FROM** 5 **TO** 6664
+
+* [2] The third element Extremity is on BusBar 0 (meaning Node 4), and we see it is connected to substation 0.
+So node 4 is the EXTREMITY of the line going **FROM** 0 **TO** 4
+
+* [3] The fourth element Extremity is on BusBar 0 (meaning Node 4), and we can see it is connected to substation 1. 
+So node 4 is the EXTREMITY of the line going **FROM** 1 **TO** 4
+
+* [4] The fifth and final element Origin is on BusBar 0 (meaning Node 4), and we can see it is connected to substation 3. 
+So node 4 is the ORIGIN of the line going **FROM** 4 **TO** 3
+
+It is exactly how it is displayed with g_over_detailed.
+
+![Drag Racing](./alphaDeesp/ressources/4_11000_result_snapshot.png)
+
+
+# DOC PATCH NOTES
+As of 14.05.2020
+* added g_pow, g_pow_prime, g_over examples with a bit more explanation.
+* FAQ Df_of_g ressemble à ?
+* Une observation Pypownet ressemble à ?
+* Explication structure interne avec schémas. 
+* Lien END_RESULT_DATAFRAME avec Topology et représentation interne.
+* correction BUG : TypeError: unsupported operand type(s) for -: 'NoneType' and 'float' en exécutant: 
+python3 -m alphaDeesp.main -l 9 -s
+* 
