@@ -64,10 +64,28 @@ on a paper: (link)
 
 
 ## Explication
-Here is a brief explanation of the algorithm
+Before heading into a brief explanation of the algorithm
 
-The first three steps of the algorithm are about extracting the situation, creating and structuring the data
-that will be needed for the rest of the steps.
+There are three important objects to have in mind:
+* g_pow - A powerflow_graph: it displays electricity flow on edges (in MW).
+
+![Drag Racing](./alphaDeesp/ressources/g_pow_print.jpg)
+
+* g_pow_prime - A powerflow_graph: it displays the electricity flow after a line has been cut, here in the example we
+can see the line n°9 that has been cut, it now has a value of 0
+
+image here
+![Drag Racing](./alphaDeesp/ressources/g_pow_prime_print.jpg)
+
+* g_over - An Overflow graph: it is the result of "g_pow" that got compared to "g_pow_prime". The edge's values
+represent the difference between g_pow_edge_value - g_pow_prime_edge_value
+**g_over = g_pow - g_pow_prime**
+
+image here
+![Drag Racing](./alphaDeesp/ressources/g_over_print.jpg)
+
+Now, to the main algorithm. The first three steps of the algorithm are about extracting the situation, creating and 
+structuring the data that will be needed for the rest of the steps.
 
 ![Drag Racing](./alphaDeesp/ressources/first_line_algorithm_es_.png)
 

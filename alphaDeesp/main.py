@@ -120,7 +120,9 @@ def main():
     # g_over = sim.build_overflow_graph(_grid, [9], config["DEFAULT"])
     #
     printer = Printer()
-    # printer.display_geo(g_pow, custom_layout, name="save_for_tests")
+    # printer.display_geo(g_pow, custom_layout, name="g_pow_print")
+    # printer.display_geo(g_over, custom_layout, name="g_overflow_print")
+    printer.display_geo(sim.g_pow_prime, custom_layout, name="g_pow_prime")
 
     # if args.snapshot:
     #     printer.display_geo(g_over, custom_layout, name="overflow_graph_example")
