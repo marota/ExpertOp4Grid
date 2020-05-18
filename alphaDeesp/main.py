@@ -64,6 +64,9 @@ def main():
     # df_of_g is a pandas_DataFrame
     g_over, df_of_g = sim.build_graph_from_data_frame(args.ltc)
     g_pow = sim.build_powerflow_graph(sim.obs)
+    # printer.display_geo(g_pow, custom_layout, name="g_pow_print")
+    # printer.display_geo(g_over, custom_layout, name="g_overflow_print")
+    printer.display_geo(sim.g_pow_prime, custom_layout, name="g_pow_prime")
     simulator_data = {"substations_elements": sim.get_substation_elements(),
                       "substation_to_node_mapping": sim.get_substation_to_node_mapping(),
                       "internal_to_external_mapping": sim.get_internal_to_external_mapping()}
