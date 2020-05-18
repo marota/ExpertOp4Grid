@@ -25,6 +25,7 @@ class PypownetSimulation(Simulation):
         chronic_starting_id = 0
         game_over_mode = 'easy'
         without_overflow_cuttof = True
+        self.g_pow_prime = None
         self.save_bag = []
         self.debug = debug
         self.args_number_of_simulated_topos = param_options["totalnumberofsimulatedtopos"]
@@ -586,6 +587,8 @@ class PypownetSimulation(Simulation):
         if raw_simulated_obs[0] is None:
             raise ValueError("The simulation step of Pypownet returnt a None... Something")
         obs = self.environment.observation_space.array_to_observation(raw_simulated_obs[0])
+        # print here somewhere g_pow_prime
+        self.g_pow_prime = self.build_powerflow_graph(obs)
         return obs.active_flows_origin
 
     def build_edges_from_df(self, g, lines_to_cut):
