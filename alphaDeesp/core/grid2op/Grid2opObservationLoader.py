@@ -8,4 +8,5 @@ class Grid2opObservationLoader():
     def get_observation(self, timestep = 0):
         self.env.fast_forward_chronics(nb_timestep= timestep)
         obs = self.env.get_obs()
-        return obs
+        backend = self.env.backend
+        return obs, backend
