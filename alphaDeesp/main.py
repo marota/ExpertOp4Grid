@@ -24,7 +24,7 @@ def main():
     # nargs '?' == 0 or 1.
     # ltc for: Lines To Cut
     parser.add_argument("-l", "--ltc", nargs="+", type=int,
-                        help="List of integers representing the lines to cut")
+                        help="List of integers representing the lines to cut", default = [9])
 
     args = parser.parse_args()
     config = configparser.ConfigParser()
@@ -48,7 +48,7 @@ def main():
         sim = PypownetSimulation(config["DEFAULT"], args.debug, args.ltc, parameters_folder)
     elif config["DEFAULT"]["simulatortype"] == "Grid2OP":
         print("We init Grid2OP Simulation")
-        parameters_folder = "./alphaDeesp/ressources/parameters/default14_static"
+        parameters_folder = "./alphaDeesp/ressources/parameters/l2rpn_2019"
         sim = Grid2opSimulation(parameters_folder)
     elif config["DEFAULT"]["simulatorType"] == "RTE":
         print("We init RTE Simulation")
