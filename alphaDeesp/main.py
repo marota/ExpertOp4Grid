@@ -8,6 +8,7 @@ from alphaDeesp.core.pypownet.PypownetSimulation import PypownetSimulation
 from alphaDeesp.core.printer import Printer
 from alphaDeesp.core.printer import shell_print_project_header
 from alphaDeesp.core.grid2op.Grid2opSimulation import Grid2opSimulation
+from alphaDeesp.core.grid2op.Grid2opObservationLoader import Grid2opObservationLoader
 
 
 def main():
@@ -25,6 +26,8 @@ def main():
     # ltc for: Lines To Cut
     parser.add_argument("-l", "--ltc", nargs="+", type=int,
                         help="List of integers representing the lines to cut", default = [9])
+    parser.add_argument("-t", "--timestep", type=int,
+                        help="Number of the timestep to use", default = 0)
 
     args = parser.parse_args()
     config = configparser.ConfigParser()
@@ -49,7 +52,9 @@ def main():
     elif config["DEFAULT"]["simulatortype"] == "Grid2OP":
         print("We init Grid2OP Simulation")
         parameters_folder = "./alphaDeesp/ressources/parameters/l2rpn_2019"
-        sim = Grid2opSimulation(parameters_folder)
+        loader = Grid2opObservationLoader(parameters_folder)
+        obs, backend = loader.get_observation(args.timestep)
+        sim = Grid2opSimulation(config["DEFAULT"], obs, backend, args.ltc)
     elif config["DEFAULT"]["simulatorType"] == "RTE":
         print("We init RTE Simulation")
         # sim = RTESimulation(

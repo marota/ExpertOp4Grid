@@ -360,7 +360,7 @@ class PypownetSimulation(Simulation):
             self.internal_to_external_mapping[i] = substation_id
 
         if self.internal_to_external_mapping:
-            self.external_to_internal_mapping = invert_dict_keys_values(self.internal_to_external_mapping)
+            self.external_to_internal_mapping = self.invert_dict_keys_values(self.internal_to_external_mapping)
 
         # prod values
         prod_nodes = obs.productions_substations_ids
@@ -759,9 +759,6 @@ def build_edges(g, idx_or, idx_ex, edge_weights, gtype, gray_edges=None, lines_c
             i += 1
     else:
         raise RuntimeError("Graph's GType not understood, cannot build_edges!")
-
-def invert_dict_keys_values(d):
-    return dict([(v, k) for k, v in d.items()])
 
 
 def get_differencial_topology(new_conf, old_conf):

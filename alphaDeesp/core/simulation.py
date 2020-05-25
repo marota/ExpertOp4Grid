@@ -166,3 +166,7 @@ class Simulation(ABC):
                 swapped.append(False)
 
         df["swapped"] = swapped
+
+    @staticmethod
+    def invert_dict_keys_values(d):
+        return dict([(v, k) for k, v in d.items()])
