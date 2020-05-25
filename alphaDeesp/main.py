@@ -54,7 +54,8 @@ def main():
         parameters_folder = "./alphaDeesp/ressources/parameters/l2rpn_2019"
         loader = Grid2opObservationLoader(parameters_folder)
         obs, backend = loader.get_observation(args.timestep)
-        sim = Grid2opSimulation(config["DEFAULT"], obs, backend, args.ltc)
+        plot_helper = loader.get_plot_helper()
+        sim = Grid2opSimulation(config["DEFAULT"], obs, backend, args.ltc, plot_helper = plot_helper)
     elif config["DEFAULT"]["simulatorType"] == "RTE":
         print("We init RTE Simulation")
         # sim = RTESimulation(

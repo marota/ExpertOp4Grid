@@ -17,9 +17,10 @@ class Grid2opSimulation(Simulation):
     def get_internal_to_external_mapping(self):
         pass
 
-    def __init__(self, config, obs, backend, ltc=9):
+    def __init__(self, config, obs, backend, ltc=9, plot_helper = None):
         super().__init__()
         self.obs = obs
+        self.plot_helper = plot_helper
         self.backend = backend
         self.param_options = config
         print("Number of generators of the powergrid: {}".format(self.obs.n_gen))
@@ -88,9 +89,17 @@ class Grid2opSimulation(Simulation):
         loads_ids = self.obs.load_to_subid
         are_prods = [node_id in prods_ids for node_id in nodes_ids]
         are_loads = [node_id in loads_ids for node_id in nodes_ids]
+        current_flows = self.obs.p_or  # Flow at the origin of power line is taken
+
+        # Repartition of prod and load in substations
         prods_values = self.obs.prod_p
         loads_values = self.obs.load_p
-        current_flows = self.obs.p_or  # Flow at the origin of power line is taken
+        gens_ordered_by_subid = np.argsort(self.obs.gen_to_subid)
+        loads_ordered_by_subid = np.argsort(self.obs.load_to_subid)
+        prods_values = prods_values[gens_ordered_by_subid]
+        loads_values = loads_values[loads_ordered_by_subid]
+
+        # Store topo in dictionary
         d["edges"]["idx_or"] = [x for x in idx_or]
         d["edges"]["idx_ex"] = [x for x in idx_ex]
         d["edges"]["init_flows"] = current_flows
@@ -123,3 +132,7 @@ class Grid2opSimulation(Simulation):
 
     def build_powerflow_graph(self, raw_data):
         pass
+
+    def plot_grid(self, before_removal = True, after_removal = False):
+        if before_removal:
+            fig_obs = self.plot_helper.plot_obs(self.obs, line_info = 'p')
