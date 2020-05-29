@@ -3,6 +3,8 @@ from math import fabs
 
 import pandas as pd
 
+from alphaDeesp.core.elements import ExtremityLine, OriginLine
+
 
 class Simulation(ABC):
     """Abstract Class Simulation"""
@@ -170,3 +172,61 @@ class Simulation(ABC):
     @staticmethod
     def invert_dict_keys_values(d):
         return dict([(v, k) for k, v in d.items()])
+
+    @staticmethod
+    def get_model_obj_from_or(df, substation_id, dest, busbar):
+        flow_value = list(df.query("idx_or == " + str(substation_id) + " & idx_ex == " + str(dest))
+                          ["delta_flows"].round(decimals=2))
+        if flow_value:  # if not empty
+            return OriginLine(busbar, dest, flow_value)
+        else:  # else means the flow has been swapped. We must invert edge.
+            #POSSIBLY USELESS
+            flow_value = list(df.query("idx_ex == " + str(substation_id) + " & idx_or == " + str(dest))
+                              ["delta_flows"].round(decimals=2))
+            swapped_condition = \
+                list(df.query("idx_ex == " + str(substation_id) + " & idx_or == " + str(dest))
+                     ["swapped"])[0]
+            # second swapped_condition for new_flows_swapped in self.topo
+            second_condition = \
+                list(df.query("idx_ex == " + str(substation_id) + " & idx_or == " + str(dest))
+                     ["new_flows_swapped"])[0]
+
+            # if both are true, two swaps = do nothing or both are false and we do nothing.
+            if (swapped_condition and second_condition) or (not swapped_condition and not second_condition):
+                return OriginLine(busbar, dest, flow_value)
+
+            # if one condition is true
+            elif swapped_condition or second_condition:
+                return ExtremityLine(busbar, dest, flow_value)
+
+            else:
+                raise ValueError("Problem with swap conditions")
+
+    @staticmethod
+    def get_model_obj_from_ext(df, substation_id, dest, busbar):
+        flow_value = list(df.query("idx_or == " + str(dest) + " & idx_ex == " + str(substation_id))
+                          ["delta_flows"].round(decimals=2))
+
+        if flow_value:  # if not empty
+            return ExtremityLine(busbar, dest, flow_value)
+        else:
+            #POSSIBLY USELESS
+            flow_value = list(df.query("idx_ex == " + str(dest) + " & idx_or == " + str(substation_id))
+                              ["delta_flows"].round(decimals=2))
+
+            swapped_condition = \
+                list(df.query("idx_ex == " + str(dest) + " & idx_or == " + str(substation_id))
+                     ["swapped"])[0]
+            # second swapped_condition for new_flows_swapped in self.topo
+            second_condition = \
+                list(df.query("idx_ex == " + str(dest) + " & idx_or == " + str(substation_id))
+                     ["new_flows_swapped"])[0]
+
+            # if both are true, two swaps = do nothing or both are false and we do nothing.
+            if (swapped_condition and second_condition) or (not swapped_condition and not second_condition):
+                return ExtremityLine(busbar, dest, flow_value)
+            # if one condition is true
+            elif swapped_condition or second_condition:
+                return OriginLine(busbar, dest, flow_value)
+            else:
+                raise ValueError("Problem with swap conditions")

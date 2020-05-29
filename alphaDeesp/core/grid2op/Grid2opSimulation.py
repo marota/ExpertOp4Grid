@@ -1,3 +1,5 @@
+from pprint import pprint
+
 import numpy as np
 
 from alphaDeesp.core.simulation import Simulation
@@ -52,28 +54,30 @@ class Grid2opSimulation(Simulation):
 
         # ################ PART II : fill self.substation_elements
         for substation_id in self.internal_to_external_mapping.keys():
-            print(substation_id)
             elements_array = []
-            external_substation_id = self.internal_to_external_mapping[substation_id]
             objects = obs.get_obj_connect_to(substation_id=substation_id)
-
-            for load_id in objects.loads_id:
-                load_state = obs.state_of(load_id=load_id)
-                elements_array.append(Consumption(load_state.bus, load_state.p))
-            for gen_id in objects.generators_id:
+            for gen_id in objects['generators_id']:
                 gen_state = obs.state_of(gen_id=gen_id)
-                elements_array.append(Production(gen_state.bus, gen_state.p))
-            for line_id in objects.lin:
+                elements_array.append(Production(gen_state['bus'], gen_state['p']))
+            for load_id in objects['loads_id']:
+                load_state = obs.state_of(load_id=load_id)
+                elements_array.append(Consumption(load_state['bus'], load_state['p']))
+            for line_id in objects['lines_or_id']:
                 line_state = obs.state_of(line_id=line_id)
-                orig = line_state.origin
-                ext = line_state.extremity
-                dest = orig.sub_id
-                if dest == substation_id:
-                    dest = ext.sub_id
-                elements_array.append(OriginLine(orig.bus, dest, orig.p))
-                elements_array.append(ExtremityLine(ext.bus, dest, ext.p))
+                orig = line_state['origin']
+                ext = line_state['extremity']
+                dest = ext['sub_id']
+                #elements_array.append(OriginLine(orig['bus'], dest, orig['p']))
+                elements_array.append(self.get_model_obj_from_or(self.df, substation_id, dest, orig['bus']))
+            for line_id in objects['lines_ex_id']:
+                line_state = obs.state_of(line_id=line_id)
+                orig = line_state['origin']
+                ext = line_state['extremity']
+                dest = orig['sub_id']
+                #elements_array.append(ExtremityLine(ext['bus'], dest, orig['p']))
+                elements_array.append(self.get_model_obj_from_ext(self.df, substation_id, dest, ext['bus']))
             self.substations_elements[substation_id] = elements_array
-            print(self.substations_elements)
+        pprint(self.substations_elements)
 
     def extract_topo_from_obs(self):
         """This function, takes an obs an returns a dict with all topology information"""
