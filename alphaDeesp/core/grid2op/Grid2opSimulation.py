@@ -40,7 +40,7 @@ class Grid2opSimulation(Simulation):
         self.topo_linecut = None
 
         self.df = self.create_df(self.topo, ltc)
-        #self.create_and_fill_internal_structures(self.obs, self.df)
+        self.create_and_fill_internal_structures(self.obs, self.df)
 
     def create_and_fill_internal_structures(self, obs, df):
         """This function fills multiple structures:
@@ -124,13 +124,8 @@ class Grid2opSimulation(Simulation):
 
     def cut_lines_and_recomputes_flows(self, ids: list):
         """This functions cuts lines: [ids], simulates and returns new line flows"""
-        # for line in ids:
-        #     self.backend._disconnect_line(line)
-        # self.backend.runpf()
-        # new_flow = self.backend.get_line_flow()
 
         # Set action which disconects the specified lines (by ids)
-        print({"set_line_status": [(id_, -1) for id_ in ids]})
         deconexion_action = self.action_space({"set_line_status": [(id_, -1) for id_ in ids]})
         obs_linecut, reward, done, info = self.obs.simulate(deconexion_action)
 
