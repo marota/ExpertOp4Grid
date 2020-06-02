@@ -53,9 +53,9 @@ def main():
         print("We init Grid2OP Simulation")
         parameters_folder = "./alphaDeesp/ressources/parameters/l2rpn_2019"
         loader = Grid2opObservationLoader(parameters_folder)
-        obs, backend = loader.get_observation(args.timestep)
+        obs, action_space = loader.get_observation(args.timestep)
         plot_helper = loader.get_plot_helper()
-        sim = Grid2opSimulation(config["DEFAULT"], obs, backend, args.ltc, plot_helper = plot_helper)
+        sim = Grid2opSimulation(config["DEFAULT"], obs, action_space, args.ltc, plot_helper = plot_helper)
     elif config["DEFAULT"]["simulatorType"] == "RTE":
         print("We init RTE Simulation")
         # sim = RTESimulation(
@@ -67,12 +67,19 @@ def main():
     printer = Printer()
     # ====================================================================
     # BELOW PART SHOULD BE UNAWARE OF WETHER WE WORK WITH RTE OR PYPOWNET
-    # df_of_g is a pandas_DataFrame
-    g_over, df_of_g = sim.build_graph_from_data_frame(args.ltc)
-    g_pow = sim.build_powerflow_graph(sim.obs)
+    # Pypownet old way
+    #g_over, df_of_g = sim.build_graph_from_data_frame(args.ltc)
+    #g_pow = sim.build_powerflow_graph(sim.obs)
+
+    # Grid2op new way
+    df_of_g = sim.get_dataframe()
+    g_over = sim.build_graph_from_data_frame(args.ltc)
+    g_pow = sim.build_powerflow_graph(mode='before_cutting')
+    g_pow_prime = sim.build_powerflow_graph(mode='after_cutting')
+
     # printer.display_geo(g_pow, custom_layout, name="g_pow_print")
     # printer.display_geo(g_over, custom_layout, name="g_overflow_print")
-    printer.display_geo(sim.g_pow_prime, custom_layout, name="g_pow_prime")
+    # printer.display_geo(sim.g_pow_prime, custom_layout, name="g_pow_prime")
     simulator_data = {"substations_elements": sim.get_substation_elements(),
                       "substation_to_node_mapping": sim.get_substation_to_node_mapping(),
                       "internal_to_external_mapping": sim.get_internal_to_external_mapping()}

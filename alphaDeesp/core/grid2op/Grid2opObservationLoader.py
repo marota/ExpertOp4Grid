@@ -6,7 +6,7 @@ class Grid2opObservationLoader():
         self.parameter_folder = parameter_folder
         self.env = grid2op.make(self.parameter_folder)
 
-    def get_observation(self, timestep = 5):
+    def get_observation(self, timestep = 0):
         # Method fast_forward_chronics doesnt work properly
         # self.env.fast_forward_chronics(nb_timestep= timestep)
         # obs = self.env.get_obs()
@@ -16,9 +16,13 @@ class Grid2opObservationLoader():
             obs = self.env.get_obs()
         for i in range(1,timestep+1):
             obs, reward, done, info = self.env.step(self.env.action_space())
-        # get backend which will be used to simulate network after modifying its configuration
-        backend = self.env.backend
-        return obs, backend
+
+        # Get backend which will be used to simulate network after modifying its configuration
+        #backend = self.env.backend
+
+        # Get action space to enable action generation for simulation
+        action_space = self.env.action_space
+        return obs, action_space
 
     def get_plot_helper(self):
         plot_helper = PlotMatplot(self.env.observation_space)
