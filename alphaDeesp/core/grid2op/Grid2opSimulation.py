@@ -10,25 +10,25 @@ from alphaDeesp.core.elements import OriginLine, Consumption, Production, Extrem
 
 class Grid2opSimulation(Simulation):
     def get_layout(self):
-        pass
-
-    def get_substation_elements(self):
-        pass
-
-    def get_substation_to_node_mapping(self):
-        pass
-
-    def get_internal_to_external_mapping(self):
-        pass
+        return [(-280, -81), (-100, -270), (366, -270), (366, -54), (-64, -54), (-64, 54), (366, 0),
+                (438, 0), (326, 54), (222, 108), (79, 162), (-152, 270), (-64, 270), (222, 216),
+                (-280, -151), (-100, -340), (366, -340), (390, -110), (-14, -104), (-184, 54), (400, -80),
+                (438, 100), (326, 140), (200, 8), (79, 12), (-152, 170), (-70, 200), (222, 200)]
 
     def __init__(self, config, obs, action_space, ltc=9, plot_helper = None):
         super().__init__()
+
+        # Get Grid2op objects
         self.obs = obs
         self.obs_linecut = None
-
         self.plot_helper = plot_helper
         self.action_space = action_space
+
+        # Get Alphadeesp configuration
         self.param_options = config
+        self.args_number_of_simulated_topos = config["totalnumberofsimulatedtopos"]
+        self.args_inner_number_of_simulated_topos_per_node = config["numberofsimulatedtopospernode"]
+
         print("Number of generators of the powergrid: {}".format(self.obs.n_gen))
         print("Number of loads of the powergrid: {}".format(self.obs.n_load))
         print("Number of powerline of the powergrid: {}".format(self.obs.n_line))
@@ -38,11 +38,60 @@ class Grid2opSimulation(Simulation):
         self.external_to_internal_mapping = {}
         self.substations_elements = {}
 
+        # Compute data structure representing grid an dtopology
         self.topo = self.extract_topo_from_obs(self.obs)
         self.topo_linecut = None
-
         self.df = self.create_df(self.topo, ltc)
         self.create_and_fill_internal_structures(self.obs, self.df)
+
+    def get_substation_elements(self):
+        return self.substations_elements
+
+    def get_substation_to_node_mapping(self):
+        pass
+
+    def get_internal_to_external_mapping(self):
+        return self.internal_to_external_mapping
+
+    def compute_new_network_changes(self, ranked_combinations):
+        """
+        This function takes a dataframe ranked_combinations,
+        For each combination it computes a simulation step in Grid2op by following the given combinations
+        Number of tested combinations and topo per node is given in alphadeesp parameters
+        :returns pandas.DataFrame with results of simulations
+        """
+
+        print("\n##############################################################################")
+        print("##########...........COMPUTE NEW NETWORK CHANGES..........####################")
+        print("##############################################################################")
+
+        # the function score creates a Dataframe with sorted score for each topo change.
+        # FINISHED
+        end_result_dataframe = self.create_end_result_empty_dataframe()
+        j = 0
+        for df in ranked_combinations:
+            ii = 0
+            if j == int(self.args_number_of_simulated_topos):
+                break
+            for i, row in df.iterrows():
+                if ii == int(self.args_inner_number_of_simulated_topos_per_node):
+                    break
+                saved_obs = self.obs
+                # target_node = row["node"] + 1
+                internal_target_node = row["node"]
+                target_node = self.internal_to_external_mapping[row["node"]]
+                # target_node = row["node"]
+                new_conf = row["topology"]
+                print("ROW KEYS = ", row.keys())
+                score_topo = i
+                print("#####################################################################################")
+                print("###########"" Compute new network changes on node [{}] with new topo [{}] ###########"
+                      .format(target_node, new_conf))
+                print("#####################################################################################")
+
+                # TODO: Use actions thanks to self.action_space and simulate their impact with self.obs.simulate(action) (or self.obs_linecut) ? Then add it to the final dataframe
+
+        return end_result_dataframe
 
     def create_and_fill_internal_structures(self, obs, df):
         """This function fills multiple structures:
@@ -146,39 +195,22 @@ class Grid2opSimulation(Simulation):
 
         return new_flow
 
-    def build_powerflow_graph(self, mode = 'before_cutting'):
-        """This function takes a Grid2op Observation and returns a NetworkX Graph"""
-        g = nx.DiGraph()
-
-        if mode == 'before_cutting':
-            topo = self.topo
-            obs = self.obs
-        elif mode == 'after_cutting':
-            topo = self.topo_linecut
-            obs = self.obs_linecut
-        else:
-            print("Mode can be either 'before_cutting' or 'after_cutting' default has been set to 'before_cutting")
-            topo = self.topo
-            obs = self.obs
-
-        # Get the id of lines that are disconnected from network
-        lines_cut = np.argwhere(obs.line_status == False)[:,0]
-
-        # Get the whole topology information
-        idx_or = topo["edges"]['idx_or']
-        idx_ex = topo["edges"]['idx_ex']
-        are_prods = topo["nodes"]['are_prods']
-        are_loads = topo["nodes"]['are_loads']
-        prods_values = topo["nodes"]['prods_values']
-        loads_values = topo["nodes"]['loads_values']
-        current_flows = topo["edges"]['init_flows']
-
-        # =========================================== NODE PART ===========================================
-        build_nodes(g, are_prods, are_loads, prods_values, loads_values, debug=False)
-        # =========================================== EDGE PART ===========================================
-        build_edges(g, idx_or, idx_ex, edge_weights=current_flows, debug=False,
-                    gtype="powerflow", lines_cut=lines_cut)
+    def build_powerflow_graph_beforecut(self):
+        """
+        Builds a graph of the grid and its powerflow before the lines are cut
+        :return: NetworkX Graph of representing the grid
+        """
+        g = build_powerflow_graph(self.topo, self.obs)
         return g
+
+    def build_powerflow_graph_aftercut(self):
+        """
+        Builds a graph of the grid and its powerflow after the lines have been cut
+        :return: NetworkX Graph of representing the grid
+        """
+        g = build_powerflow_graph(self.topo_linecut, self.obs_linecut)
+        return g
+
 
     def get_dataframe(self):
         """
@@ -222,11 +254,47 @@ class Grid2opSimulation(Simulation):
                            color="red", fontsize=10, penwidth="%.2f" % penwidth)
             i += 1
 
-    def plot_grid(self, before_removal = True, after_removal = False):
-        if before_removal:
-            fig_obs = self.plot_helper.plot_obs(self.obs, line_info = 'p')
+    def plot_grid_beforecut(self):
+        """
+        Plots the grid with Grid2op PlotHelper for Observations, before lines are cut
+        :return: Figure
+        """
+        return self.plot_grid(self.obs)
+
+    def plot_grid_aftercut(self):
+        """
+        Plots the grid with Grid2op PlotHelper for Observations, after lines have been cut
+        :return: Figure
+        """
+        return self.plot_grid(self.obs_linecut)
+
+    def plot_grid(self, obs):
+        fig_obs = self.plot_helper.plot_obs(obs, line_info = 'p')
+        return fig_obs
 
 
+def build_powerflow_graph(topo, obs):
+    """This function takes a Grid2op Observation and returns a NetworkX Graph"""
+    g = nx.DiGraph()
+
+    # Get the id of lines that are disconnected from network
+    lines_cut = np.argwhere(obs.line_status == False)[:, 0]
+
+    # Get the whole topology information
+    idx_or = topo["edges"]['idx_or']
+    idx_ex = topo["edges"]['idx_ex']
+    are_prods = topo["nodes"]['are_prods']
+    are_loads = topo["nodes"]['are_loads']
+    prods_values = topo["nodes"]['prods_values']
+    loads_values = topo["nodes"]['loads_values']
+    current_flows = topo["edges"]['init_flows']
+
+    # =========================================== NODE PART ===========================================
+    build_nodes(g, are_prods, are_loads, prods_values, loads_values, debug=False)
+    # =========================================== EDGE PART ===========================================
+    build_edges(g, idx_or, idx_ex, edge_weights=current_flows, debug=False,
+                gtype="powerflow", lines_cut=lines_cut)
+    return g
 
 def build_nodes(g, are_prods, are_loads, prods_values, loads_values, debug=False):
     # =========================================== NODE PART ===========================================

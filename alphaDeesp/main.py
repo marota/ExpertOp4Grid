@@ -67,22 +67,40 @@ def main():
     printer = Printer()
     # ====================================================================
     # BELOW PART SHOULD BE UNAWARE OF WETHER WE WORK WITH RTE OR PYPOWNET
-    # Pypownet old way
-    #g_over, df_of_g = sim.build_graph_from_data_frame(args.ltc)
-    #g_pow = sim.build_powerflow_graph(sim.obs)
 
-    # Grid2op new way
-    df_of_g = sim.get_dataframe()
-    g_over = sim.build_graph_from_data_frame(args.ltc)
-    g_pow = sim.build_powerflow_graph(mode='before_cutting')
-    g_pow_prime = sim.build_powerflow_graph(mode='after_cutting')
+    ## Pypownet old way
+    # Get data representing the grid before and after line cutting, and topologies
+    # g_over, df_of_g = sim.build_graph_from_data_frame(args.ltc)
+    # g_pow = sim.build_powerflow_graph(sim.obs)
+    # g_pow_prime = sim.g_pow_prime
 
+    # Plot the grids before and after line cutting
     # printer.display_geo(g_pow, custom_layout, name="g_pow_print")
     # printer.display_geo(g_over, custom_layout, name="g_overflow_print")
     # printer.display_geo(sim.g_pow_prime, custom_layout, name="g_pow_prime")
+
+
+    ## Grid2op new way
+    # Get data representing the grid before and after line cutting, and topologies
+    df_of_g = sim.get_dataframe()
+    g_over = sim.build_graph_from_data_frame(args.ltc)
+    g_pow = sim.build_powerflow_graph_beforecut()
+    g_pow_prime = sim.build_powerflow_graph_aftercut()
+
+    # Plot the grids before and after line cutting
+    # printer.display_geo(g_over, custom_layout, name="g_overflow_print") # Doesnt work
+    fig_before = sim.plot_grid_beforecut()
+    fig_before.show()
+    fig_after = sim.plot_grid_aftercut()
+    fig_after.show()
+
+
+    # In common
     simulator_data = {"substations_elements": sim.get_substation_elements(),
                       "substation_to_node_mapping": sim.get_substation_to_node_mapping(),
                       "internal_to_external_mapping": sim.get_internal_to_external_mapping()}
+
+
     alphadeesp = AlphaDeesp(g_over, df_of_g, custom_layout, printer, simulator_data, debug=args.debug)
     ranked_combinations = alphadeesp.get_ranked_combinations()
 

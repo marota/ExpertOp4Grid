@@ -12,10 +12,6 @@ class Simulation(ABC):
     def __init__(self):
         super().__init__()
 
-    @abstractmethod
-    def build_powerflow_graph(self, raw_data):
-        print("Abstract build_graph pre executed")
-        """ returns a graph networkx """
 
     @abstractmethod
     def cut_lines_and_recomputes_flows(self, ids: list):
