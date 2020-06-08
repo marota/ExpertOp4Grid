@@ -3,6 +3,7 @@ from pprint import pprint
 import numpy as np
 from math import fabs
 import networkx as nx
+from grid2op.dtypes import dt_int
 
 from alphaDeesp.core.simulation import Simulation
 from alphaDeesp.core.elements import OriginLine, Consumption, Production, ExtremityLine
@@ -54,6 +55,39 @@ class Grid2opSimulation(Simulation):
     def get_internal_to_external_mapping(self):
         return self.internal_to_external_mapping
 
+    @staticmethod
+    def merge_two_dicts(x, y):
+        z = x.copy()   # start with x's keys and values
+        z.update(y)    # modifies z with y's keys and values & returns None
+        return z
+
+    def get_action_from_topo(self, substation_id, new_conf, obs):
+        final_dict = {}
+        i = 0
+        objects = obs.get_obj_connect_to(substation_id=substation_id)
+        for gen_id in objects['generators_id']:
+            if "generators_id" not in final_dict:
+                final_dict["generators_id"] = []
+            final_dict["generators_id"].append((gen_id, new_conf[i]))
+            i += 1
+        for load_id in objects['loads_id']:
+            if "loads_id" not in final_dict:
+                final_dict["loads_id"] = []
+            final_dict["loads_id"].append((load_id, new_conf[i]))
+            i += 1
+        for line_id in objects['lines_or_id']:
+            if "lines_or_id" not in final_dict:
+                final_dict["lines_or_id"] = []
+            final_dict["lines_or_id"].append((line_id, new_conf[i]))
+            i += 1
+        for line_id in objects['lines_ex_id']:
+            if "lines_ex_id" not in final_dict:
+                final_dict["lines_ex_id"] = []
+            final_dict["lines_ex_id"].append((line_id, new_conf[i]))
+            i += 1
+        print(final_dict)
+        return self.action_space({"set_bus": final_dict})
+
     def compute_new_network_changes(self, ranked_combinations):
         """
         This function takes a dataframe ranked_combinations,
@@ -81,8 +115,9 @@ class Grid2opSimulation(Simulation):
                 score_topo = i
                 print("###########"" Compute new network changes on node [{}] with new topo [{}] ###########"
                       .format(internal_target_node, new_conf))
-                action = self.action_space({"set_bus": {"substations_id": [(internal_target_node, new_conf)]}})
+                action = self.get_action_from_topo(internal_target_node, new_conf, obs)
                 virtual_obs, reward, done, info = self.obs.simulate(action)
+                self.plot_grid(virtual_obs).show()
                 # Same as in Pypownet, this is not what we would want though, as we do the work for only one ltc
                 only_line = self.ltc[0]
                 line_state_before = obs.state_of(line_id=only_line)
