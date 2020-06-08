@@ -15,7 +15,7 @@ class Grid2opSimulation(Simulation):
                 (-280, -151), (-100, -340), (366, -340), (390, -110), (-14, -104), (-184, 54), (400, -80),
                 (438, 100), (326, 140), (200, 8), (79, 12), (-152, 170), (-70, 200), (222, 200)]
 
-    def __init__(self, config, obs, action_space, ltc=9, plot_helper = None):
+    def __init__(self, config, obs, action_space, ltc=9, plot_helper=None):
         super().__init__()
 
         # Get Grid2op objects
@@ -25,6 +25,7 @@ class Grid2opSimulation(Simulation):
         self.action_space = action_space
 
         # Get Alphadeesp configuration
+        self.ltc = ltc
         self.param_options = config
         self.args_number_of_simulated_topos = config["totalnumberofsimulatedtopos"]
         self.args_inner_number_of_simulated_topos_per_node = config["numberofsimulatedtopospernode"]
@@ -60,13 +61,9 @@ class Grid2opSimulation(Simulation):
         Number of tested combinations and topo per node is given in alphadeesp parameters
         :returns pandas.DataFrame with results of simulations
         """
-
         print("\n##############################################################################")
         print("##########...........COMPUTE NEW NETWORK CHANGES..........####################")
         print("##############################################################################")
-
-        # the function score creates a Dataframe with sorted score for each topo change.
-        # FINISHED
         end_result_dataframe = self.create_end_result_empty_dataframe()
         j = 0
         for df in ranked_combinations:
@@ -76,22 +73,71 @@ class Grid2opSimulation(Simulation):
             for i, row in df.iterrows():
                 if ii == int(self.args_inner_number_of_simulated_topos_per_node):
                     break
-                saved_obs = self.obs
+                obs = self.obs
                 # target_node = row["node"] + 1
                 internal_target_node = row["node"]
-                target_node = self.internal_to_external_mapping[row["node"]]
                 # target_node = row["node"]
-                new_conf = row["topology"]
-                print("ROW KEYS = ", row.keys())
+                new_conf = np.array([n + 1 for n in row["topology"]])
                 score_topo = i
-                print("#####################################################################################")
                 print("###########"" Compute new network changes on node [{}] with new topo [{}] ###########"
-                      .format(target_node, new_conf))
-                print("#####################################################################################")
-
-                # TODO: Use actions thanks to self.action_space and simulate their impact with self.obs.simulate(action) (or self.obs_linecut) ? Then add it to the final dataframe
-
+                      .format(internal_target_node, new_conf))
+                action = self.action_space({"set_bus": {"substations_id": [(internal_target_node, new_conf)]}})
+                virtual_obs, reward, done, info = self.obs.simulate(action)
+                # Same as in Pypownet, this is not what we would want though, as we do the work for only one ltc
+                only_line = self.ltc[0]
+                line_state_before = obs.state_of(line_id=only_line)
+                line_state_after = virtual_obs.state_of(line_id=only_line)
+                flow_before = line_state_before["origin"]["p"]
+                flow_after = line_state_after["origin"]["p"]
+                delta_flow = flow_before - flow_after
+                worsened_line_ids = self.create_boolean_array_of_worsened_line_ids(obs, virtual_obs)
+                # TODO
+                simulated_score = 4  # self.score_changes_between_two_observations(obs, virtual_obs)
+                redistribution_prod = np.sum(np.absolute(virtual_obs.prod_p - obs.prod_p))
+                redistribution_load = np.sum(np.absolute(virtual_obs.load_p - obs.load_p))
+                if simulated_score in [4, 3, 2]:  # success
+                    efficacity = fabs(delta_flow / virtual_obs.rho[self.ltc[0]])
+                else:  # failure
+                    efficacity = -fabs(delta_flow / virtual_obs.rho[self.ltc[0]])
+                score_data = [only_line,
+                              flow_before,
+                              flow_after,
+                              delta_flow,
+                              worsened_line_ids,
+                              redistribution_prod,
+                              redistribution_load,
+                              new_conf,
+                              internal_target_node,
+                              1,  # category hubs?
+                              score_topo,
+                              simulated_score,
+                              efficacity]
+                print(score_data)
+                max_index = end_result_dataframe.shape[0]  # rows
+                end_result_dataframe.loc[max_index] = score_data
+                ii += 1
+                j += 1
+        end_result_dataframe.to_csv("./END_RESULT_DATAFRAME.csv", index=True)
         return end_result_dataframe
+
+    @staticmethod
+    def create_boolean_array_of_worsened_line_ids(old_obs, new_obs):
+        res = []
+        for old, new in zip(old_obs.rho, new_obs.rho):
+            if new > 1 and old > 1 and new > 1.05 * old:
+                res.append(1)
+            elif new > 1 > old:
+                res.append(1)
+            else:
+                res.append(0)
+        res = np.array(res)
+        res = list(np.where(res == 1))
+        res = res[0]
+        if res.size == 0:
+            res = []
+        elif isinstance(res, np.ndarray):
+            res = list(res)
+        return res
 
     def create_and_fill_internal_structures(self, obs, df):
         """This function fills multiple structures:
@@ -99,8 +145,6 @@ class Grid2opSimulation(Simulation):
         @:arg observation, df"""
         # ################ PART I : fill self.internal_to_external_mapping
         substations_list = list(obs.name_sub)
-        print(substations_list)
-
         # we create mapping from external representation to internal.
         for i, substation_id in enumerate(substations_list):
             self.internal_to_external_mapping[i] = substation_id
@@ -122,19 +166,18 @@ class Grid2opSimulation(Simulation):
                 orig = line_state['origin']
                 ext = line_state['extremity']
                 dest = ext['sub_id']
-                #elements_array.append(OriginLine(orig['bus'], dest, orig['p']))
                 elements_array.append(self.get_model_obj_from_or(self.df, substation_id, dest, orig['bus']))
             for line_id in objects['lines_ex_id']:
                 line_state = obs.state_of(line_id=line_id)
                 orig = line_state['origin']
                 ext = line_state['extremity']
                 dest = orig['sub_id']
-                #elements_array.append(ExtremityLine(ext['bus'], dest, orig['p']))
                 elements_array.append(self.get_model_obj_from_ext(self.df, substation_id, dest, ext['bus']))
             self.substations_elements[substation_id] = elements_array
         pprint(self.substations_elements)
 
-    def extract_topo_from_obs(self, obs):
+    @staticmethod
+    def extract_topo_from_obs(obs):
         """This function, takes an obs an returns a dict with all topology information"""
         d = {
             "edges": {},
@@ -186,7 +229,6 @@ class Grid2opSimulation(Simulation):
         self.obs_linecut = obs_linecut
         self.topo_linecut = self.extract_topo_from_obs(self.obs_linecut)
 
-
         # Get new flow simulated
         new_flow = self.obs_linecut.p_or
 
@@ -210,7 +252,6 @@ class Grid2opSimulation(Simulation):
         """
         g = build_powerflow_graph(self.topo_linecut, self.obs_linecut)
         return g
-
 
     def get_dataframe(self):
         """
@@ -269,7 +310,7 @@ class Grid2opSimulation(Simulation):
         return self.plot_grid(self.obs_linecut)
 
     def plot_grid(self, obs):
-        fig_obs = self.plot_helper.plot_obs(obs, line_info = 'p')
+        fig_obs = self.plot_helper.plot_obs(obs, line_info='p')
         return fig_obs
 
 
@@ -296,6 +337,7 @@ def build_powerflow_graph(topo, obs):
                 gtype="powerflow", lines_cut=lines_cut)
     return g
 
+
 def build_nodes(g, are_prods, are_loads, prods_values, loads_values, debug=False):
     # =========================================== NODE PART ===========================================
     print(f"There are {len(are_loads)} nodes")
@@ -318,6 +360,7 @@ def build_nodes(g, are_prods, are_loads, prods_values, loads_values, debug=False
             g.add_node(i, pin=True, prod_or_load="load", value=str(prod_minus_load), style="filled",
                        fillcolor="#ffffed")  # white color
         i += 1
+
 
 def build_edges(g, idx_or, idx_ex, edge_weights, gtype, gray_edges=None, lines_cut=None, debug=False,
                 initial_flows=None):
