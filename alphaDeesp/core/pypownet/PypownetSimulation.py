@@ -11,7 +11,7 @@ from alphaDeesp.core.simulation import Simulation
 
 
 class PypownetSimulation(Simulation):
-    def __init__(self, param_options=None, debug=False, ltc=9, param_folder=None):
+    def __init__(self, param_options=None, debug=False, ltc=[9], param_folder=None):
         super().__init__()
         print("PypownetSimulation object created...")
         if not param_options or param_options is None:

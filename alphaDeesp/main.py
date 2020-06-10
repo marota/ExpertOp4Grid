@@ -86,6 +86,7 @@ def main():
     g_over = sim.build_graph_from_data_frame(args.ltc)
     g_pow = sim.build_powerflow_graph_beforecut()
     g_pow_prime = sim.build_powerflow_graph_aftercut()
+    printer.display_geo(g_over, custom_layout, name="g_overflow_print")
 
     # Plot the grids before and after line cutting
     # printer.display_geo(g_over, custom_layout, name="g_overflow_print") # Doesnt work

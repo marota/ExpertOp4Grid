@@ -1,6 +1,7 @@
 import configparser
-from alphaDeesp.core import simulation, Printer
-from alphaDeesp.core import AlphaDeesp
+from alphaDeesp.core.printer import Printer
+from alphaDeesp.core.pypownet.PypownetSimulation import PypownetSimulation
+from alphaDeesp.core.alphadeesp import AlphaDeesp
 import pandas as pd
 from pathlib import Path
 import ast
@@ -103,7 +104,7 @@ def test_integration_dataframe_results_with_line_9_cut():
     param_folder = "./alphaDeesp/ressources/parameters/default14_static"
 
     # run Pypownet
-    sim = simulation.PypownetSimulation(
+    sim = PypownetSimulation(
         config["DEFAULT"], debug=False, param_folder=param_folder
     )
 
@@ -172,7 +173,7 @@ def test_integration_dataframe_results_with_line_8_cut():
     param_folder = "./alphaDeesp/ressources/parameters/default14_static"
 
     # run Pypownet
-    sim = simulation.PypownetSimulation(
+    sim = PypownetSimulation(
         config["DEFAULT"], debug=False, param_folder=param_folder
     )
 

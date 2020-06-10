@@ -3,8 +3,9 @@ graph with delta flows, current_flows - flows_after_closing_line"""
 
 import configparser
 import networkx as nx
-from alphaDeesp.core import simulation, Printer
+from alphaDeesp.core.printer import Printer
 from alphaDeesp.core.network import Network
+from alphaDeesp.core.pypownet.PypownetSimulation import PypownetSimulation
 import numpy as np
 
 
@@ -17,7 +18,7 @@ def test_powerflow_graph():
     config.read("./alphaDeesp/tests/ressources_for_tests/config_for_tests.ini")
     param_folder = "./alphaDeesp/ressources/parameters/default14_static"
 
-    sim = simulation.PypownetSimulation(config["DEFAULT"], debug=False, param_folder=param_folder)
+    sim = PypownetSimulation(config["DEFAULT"], debug=False, param_folder=param_folder)
 
     g_pow = sim.build_powerflow_graph(sim.obs)
 
@@ -42,7 +43,7 @@ def test_overflow_grid():
     config.read("./alphaDeesp/tests/ressources_for_tests/config_for_tests.ini")
     param_folder = "./alphaDeesp/ressources/parameters/default14_static"
 
-    sim = simulation.PypownetSimulation(
+    sim = PypownetSimulation(
         config["DEFAULT"], debug=False, param_folder=param_folder
     )
 
@@ -87,7 +88,7 @@ def test_new_flows_after_network_cut():
     config.read("./alphaDeesp/tests/ressources_for_tests/config_for_tests.ini")
     param_folder = "./alphaDeesp/ressources/parameters/default14_static"
 
-    sim = simulation.PypownetSimulation(config["DEFAULT"], debug=False, param_folder=param_folder)
+    sim = PypownetSimulation(config["DEFAULT"], debug=False, param_folder=param_folder)
     print("flows = ", sim.obs.active_flows_origin.astype(int))
 
     new_flows = sim.cut_lines_and_recomputes_flows([9])
@@ -114,7 +115,7 @@ def extract_topology():
     config.read("./alphaDeesp/tests/ressources_for_tests/config_for_tests.ini")
     param_folder = "./alphaDeesp/tests/ressources/parameters/default14_static"
 
-    sim = simulation.PypownetSimulation(config["DEFAULT"], debug=False, param_folder=param_folder)
+    sim = PypownetSimulation(config["DEFAULT"], debug=False, param_folder=param_folder)
     print("flows = ", sim.obs.active_flows_origin.astype(int))
 
 
@@ -151,7 +152,7 @@ def test_detailed_graph_with_node_0_split_in_two():
     config.read("./alphaDeesp/tests/ressources_for_tests/config_for_tests.ini")
     param_folder = "./alphaDeesp/ressources/parameters/default14_static"
 
-    sim = simulation.PypownetSimulation(
+    sim = PypownetSimulation(
         config["DEFAULT"], debug=False, param_folder=param_folder
     )
 
@@ -184,7 +185,7 @@ def test_from_dict_substations_elements_14_nodes_111_on_node_0_and_11111_on_node
     config.read("./alphaDeesp/tests/ressources_for_tests/config_for_tests.ini")
     param_folder = "./alphaDeesp/ressources/parameters/default14_static"
 
-    sim = simulation.PypownetSimulation(
+    sim = PypownetSimulation(
         config["DEFAULT"], debug=False, param_folder=param_folder
     )
 
@@ -205,7 +206,7 @@ def test_from_dict_substations_elements_14_nodes_111_on_node_0_and_11000_on_node
     config.read("./alphaDeesp/tests/ressources_for_tests/config_for_tests.ini")
     param_folder = "./alphaDeesp/ressources/parameters/default14_static"
 
-    sim = simulation.PypownetSimulation(
+    sim = PypownetSimulation(
         config["DEFAULT"], debug=False, param_folder=param_folder
     )
 
@@ -229,7 +230,7 @@ def test_from_dict_substations_elements_14_nodes_110_on_node_0_and_11000_on_node
     param_folder = "./alphaDeesp/ressources/parameters/default14_static"
 
     # run Pypownet
-    sim = simulation.PypownetSimulation(
+    sim = PypownetSimulation(
         config["DEFAULT"], debug=False, param_folder=param_folder
     )
 
