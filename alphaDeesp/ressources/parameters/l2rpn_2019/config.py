@@ -14,7 +14,8 @@ config = {
     "chronics_class": Multifolder,
     "grid_value_class": ReadPypowNetData,
     "volagecontroler_class": None,
-    "thermal_limits": None,
+    "thermal_limits": [1740, 500, 500, 500, 500, 500, 500, 500, 500, 240, 500, 500,
+                       500, 500, 500, 500, 500, 500, 500, 500],
     "names_chronics_to_grid": {
         "loads": {
             "2_C-10.61": "load_1_0",

@@ -22,7 +22,7 @@ class Grid2opObservationLoader():
 
         # Get action space to enable action generation for simulation
         action_space = self.env.action_space
-        return obs, action_space
+        return self.env, obs, action_space
 
     def get_plot_helper(self):
         plot_helper = PlotMatplot(self.env.observation_space)

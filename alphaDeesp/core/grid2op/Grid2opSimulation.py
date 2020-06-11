@@ -16,10 +16,11 @@ class Grid2opSimulation(Simulation):
                 (-280, -151), (-100, -340), (366, -340), (390, -110), (-14, -104), (-184, 54), (400, -80),
                 (438, 100), (326, 140), (200, 8), (79, 12), (-152, 170), (-70, 200), (222, 200)]
 
-    def __init__(self, config, obs, action_space, ltc=9, plot_helper=None):
+    def __init__(self, config, env, obs, action_space, ltc=9, plot_helper=None):
         super().__init__()
 
         # Get Grid2op objects
+        self.env = env
         self.obs = obs
         self.obs_linecut = None
         self.plot_helper = plot_helper
@@ -99,6 +100,7 @@ class Grid2opSimulation(Simulation):
         print("##########...........COMPUTE NEW NETWORK CHANGES..........####################")
         print("##############################################################################")
         end_result_dataframe = self.create_end_result_empty_dataframe()
+        print(self.env.backend.get_thermal_limit())
         j = 0
         for df in ranked_combinations:
             ii = 0
@@ -117,7 +119,6 @@ class Grid2opSimulation(Simulation):
                       .format(internal_target_node, new_conf))
                 action = self.get_action_from_topo(internal_target_node, new_conf, obs)
                 virtual_obs, reward, done, info = self.obs.simulate(action)
-                self.plot_grid(virtual_obs).show()
                 # Same as in Pypownet, this is not what we would want though, as we do the work for only one ltc
                 only_line = self.ltc[0]
                 line_state_before = obs.state_of(line_id=only_line)
@@ -259,7 +260,6 @@ class Grid2opSimulation(Simulation):
         # Set action which disconects the specified lines (by ids)
         deconexion_action = self.action_space({"set_line_status": [(id_, -1) for id_ in ids]})
         obs_linecut, reward, done, info = self.obs.simulate(deconexion_action)
-
         # Storage of new observation to access features in other function
         self.obs_linecut = obs_linecut
         self.topo_linecut = self.extract_topo_from_obs(self.obs_linecut)

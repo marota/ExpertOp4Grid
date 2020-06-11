@@ -53,9 +53,9 @@ def main():
         print("We init Grid2OP Simulation")
         parameters_folder = "./alphaDeesp/ressources/parameters/l2rpn_2019"
         loader = Grid2opObservationLoader(parameters_folder)
-        obs, action_space = loader.get_observation(args.timestep)
+        env, obs, action_space = loader.get_observation(args.timestep)
         plot_helper = loader.get_plot_helper()
-        sim = Grid2opSimulation(config["DEFAULT"], obs, action_space, args.ltc, plot_helper = plot_helper)
+        sim = Grid2opSimulation(config["DEFAULT"], env,  obs, action_space, args.ltc, plot_helper = plot_helper)
     elif config["DEFAULT"]["simulatorType"] == "RTE":
         print("We init RTE Simulation")
         # sim = RTESimulation(
@@ -86,7 +86,6 @@ def main():
     g_over = sim.build_graph_from_data_frame(args.ltc)
     g_pow = sim.build_powerflow_graph_beforecut()
     g_pow_prime = sim.build_powerflow_graph_aftercut()
-    printer.display_geo(g_over, custom_layout, name="g_overflow_print")
 
     # Plot the grids before and after line cutting
     # printer.display_geo(g_over, custom_layout, name="g_overflow_print") # Doesnt work
