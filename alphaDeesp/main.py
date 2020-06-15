@@ -113,13 +113,17 @@ def main():
 
     # df_of_g is a pandas_DataFrame
     g_over, df_of_g = sim.build_graph_from_data_frame(args.ltc)
+    
+    printer = Printer()
+    if args.snapshot:
+        printer.display_geo(g_over, custom_layout, name='overload')
     #
     # g_pow = sim.build_powerflow_graph(_grid)
     g_pow = sim.build_powerflow_graph(_current_observation)
     #
     # g_over = sim.build_overflow_graph(_grid, [9], config["DEFAULT"])
     #
-    printer = Printer()
+
     # printer.display_geo(g_pow, custom_layout, name="save_for_tests")
 
     # if args.snapshot:
