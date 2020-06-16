@@ -96,12 +96,16 @@ def test_integration_dataframe_results_with_line_9_cut():
     Line 9 is between Node 4 and 5 [internal node ID indexing]
     Test
     """
+
+    #import os
+    #os.chdir('../../')
+
     line_to_cut = [9]
 
     # read config file and parameters folder for Pypownet
     config = configparser.ConfigParser()
     config.read("./alphaDeesp/tests/ressources_for_tests/config_for_tests.ini")
-    param_folder = "./alphaDeesp/ressources/parameters/default14_static"
+    param_folder = "./alphaDeesp/tests/ressources_for_tests/default14_static_line9"
 
     # run Pypownet
     sim = PypownetSimulation(
@@ -149,7 +153,10 @@ def test_integration_dataframe_results_with_line_9_cut():
     path_to_saved_end_result_dataframe = \
         Path.cwd() / "alphaDeesp/tests/ressources_for_tests/END_RESULT_DATAFRAME_for_test_with_line_9_cut.csv"
 
+    #expert_system_results.to_csv("./alphaDeesp/tests/ressources_for_tests/END_RESULT_DATAFRAME_for_test_with_line_9_cut.csv")
+
     saved_df = pd.read_csv(path_to_saved_end_result_dataframe, index_col=0)
+
 
     print("--------------------------------------------------------------------------------------------")
     print("-------------------------------- SAVED END RESULT DATAFRAME --------------------------------")
@@ -165,17 +172,23 @@ def test_integration_dataframe_results_with_line_8_cut():
     Line 9 is between Node 3 and 8 [internal node ID indexing]
     Test
     """
+
+    #import os
+    #os.chdir('../../')
+
     line_to_cut = [8]
 
     # read config file and parameters folder for Pypownet
     config = configparser.ConfigParser()
     config.read("./alphaDeesp/tests/ressources_for_tests/config_for_tests.ini")
-    param_folder = "./alphaDeesp/ressources/parameters/default14_static"
+    param_folder = "./alphaDeesp/tests/ressources_for_tests/default14_static_line8"
 
     # run Pypownet
     sim = PypownetSimulation(
         config["DEFAULT"], debug=False, param_folder=param_folder
     )
+
+    print(sim.obs.thermal_limits) # Check thermal limits
 
     # retrieve Topology as an Observation object from Pypownet
     _current_observation = sim.obs
@@ -218,7 +231,10 @@ def test_integration_dataframe_results_with_line_8_cut():
     path_to_saved_end_result_dataframe = \
         Path.cwd() / "alphaDeesp/tests/ressources_for_tests/END_RESULT_DATAFRAME_for_test_with_line_8_cut.csv"
 
+    #expert_system_results.to_csv("./alphaDeesp/tests/ressources_for_tests/END_RESULT_DATAFRAME_for_test_with_line_8_cut_new.csv")
+
     saved_df = pd.read_csv(path_to_saved_end_result_dataframe, index_col=0)
+
 
     # print("--------------------------------------------------------------------------------------------")
     # print("-------------------------------- SAVED END RESULT DATAFRAME --------------------------------")
@@ -236,4 +252,4 @@ def test_integration_dataframe_results_with_line_8_cut():
     #     printer.display_geo(g_over_detailed, custom_layout, name=elem[0])
 
 
-# test_integration_dataframe_results_with_line_8_cut()
+#test_integration_dataframe_results_with_line_8_cut()

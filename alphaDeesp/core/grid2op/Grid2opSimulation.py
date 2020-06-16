@@ -128,7 +128,7 @@ class Grid2opSimulation(Simulation):
                 delta_flow = flow_before - flow_after
                 worsened_line_ids = self.create_boolean_array_of_worsened_line_ids(obs, virtual_obs)
                 # TODO
-                simulated_score = 4  # self.score_changes_between_two_observations(obs, virtual_obs)
+                simulated_score = score_changes_between_two_observations(obs, virtual_obs, done)
                 redistribution_prod = np.sum(np.absolute(virtual_obs.prod_p - obs.prod_p))
                 redistribution_load = np.sum(np.absolute(virtual_obs.load_p - obs.load_p))
                 if simulated_score in [4, 3, 2]:  # success
@@ -396,112 +396,6 @@ def build_nodes(g, are_prods, are_loads, prods_values, loads_values, debug=False
                        fillcolor="#ffffed")  # white color
         i += 1
 
-    @staticmethod
-    def score_changes_between_two_observations(old_obs, new_obs):
-        """This function takes two observations and computes a score to quantify the change between old_obs and new_obs.
-        @:return int between [0 and 4]
-        4: if every overload disappeared
-        3: if an overload disappeared without stressing the network
-        2: if at least 30% of an overload was relieved
-        1: if an overload was relieved but another appeared and got worse
-        0: if no overloads were alleviated or if it resulted in some load shedding or production distribution.
-        """
-        old_number_of_overloads = 0
-        new_number_of_overloads = 0
-        boolean_constraint_worsened = []
-        boolean_overload_30percent_relieved = []
-        boolean_overload_relieved = []
-        boolean_overload_created = []
-
-        old_obs_lines_capacity_usage = old_obs.rho
-        new_obs_lines_capacity_usage = new_obs.rho
-        # ################################### PREPROCESSING #####################################
-        for elem in old_obs_lines_capacity_usage:
-            if elem > 1.0:
-                old_number_of_overloads += 1
-
-        for elem in new_obs_lines_capacity_usage:
-            if elem > 1.0:
-                new_number_of_overloads += 1
-
-        # preprocessing for score 3 and 2
-        for old, new in zip(old_obs_lines_capacity_usage, new_obs_lines_capacity_usage):
-            # preprocessing for score 3
-            if new > 1.05 * old > 1.0:  # if new > old > 1.0 it means it worsened an existing constraint
-                boolean_constraint_worsened.append(1)
-            else:
-                boolean_constraint_worsened.append(0)
-
-            # preprocessing for score 2
-            if old > 1.0:  # if old was an overload:
-                surcharge = old - 1.0
-                diff = old - new
-                percentage_relieved = diff * 100 / surcharge
-                if percentage_relieved > 30.0:
-                    boolean_overload_30percent_relieved.append(1)
-                else:
-                    boolean_overload_30percent_relieved.append(0)
-            else:
-                boolean_overload_30percent_relieved.append(0)
-
-            # preprocessing for score 1
-            if old > 1.0 > new:
-                boolean_overload_relieved.append(1)
-            else:
-                boolean_overload_relieved.append(0)
-
-            if old < 1.0 < new:
-                boolean_overload_created.append(1)
-            else:
-                boolean_overload_created.append(0)
-
-        boolean_constraint_worsened = np.array(boolean_constraint_worsened)
-        boolean_overload_30percent_relieved = np.array(boolean_overload_30percent_relieved)
-        boolean_overload_relieved = np.array(boolean_overload_relieved)
-        boolean_overload_created = np.array(boolean_overload_created)
-
-        redistribution_prod = np.sum(np.absolute(new_obs.prod_p - old_obs.prod_p))
-        redistribution_load = np.sum(np.absolute(new_obs.load_p - old_obs.load_p))
-
-        # ################################ END OF PREPROCESSING #################################
-        # score 0 if no overloads were alleviated or if it resulted in some load shedding or production distribution.
-        if redistribution_load > 0 or (new_obs.are_loads_cut == 1).any() or (new_obs.are_productions_cut == 1).any():
-            print("return 0: no overloads were alleviated or some load shedding occured.")
-            return 0
-
-        # score 1 if overload was relieved but another one appeared and got worse
-        elif (boolean_overload_relieved == 1).any() and ((boolean_overload_created == 1).any() or
-                                                         (boolean_constraint_worsened == 1).any()):
-            print("return 1: an overload was relieved but another one appeared")
-            return 1
-
-        # 4: if every overload disappeared
-        elif old_number_of_overloads > 0 and new_number_of_overloads == 0:
-            print("return 4: every overload disappeared")
-            return 4
-
-        # 3: if an overload disappeared without stressing the network, ie,
-        # if an overload disappeared
-        # and without worsening existing constraint
-        # and no Loads that get cut
-        elif new_number_of_overloads < old_number_of_overloads and \
-                (boolean_constraint_worsened == 0).all() and \
-                (new_obs.are_loads_cut == 0).all():
-            print("return 3: an overload disappeared without stressing the network")
-            return 3
-
-        # 2: if at least 30% of an overload was relieved
-        elif (boolean_overload_30percent_relieved == 1).any():
-            print("return 2: at least 30% of line [{}] was relieved".format(
-                np.where(boolean_overload_30percent_relieved == 1)[0]))
-            return 2
-
-        # score 0
-        elif (boolean_overload_30percent_relieved == 0).all():
-            return 0
-
-        else:
-            raise ValueError("Probleme with Scoring")
 
 def build_edges(g, idx_or, idx_ex, edge_weights, gtype, gray_edges=None, lines_cut=None, debug=False,
                 initial_flows=None):
@@ -553,3 +447,110 @@ def build_edges(g, idx_or, idx_ex, edge_weights, gtype, gray_edges=None, lines_c
             i += 1
     else:
         raise RuntimeError("Graph's GType not understood, cannot build_edges!")
+
+def score_changes_between_two_observations(old_obs, new_obs, game_over):
+    """This function takes two observations and computes a score to quantify the change between old_obs and new_obs.
+    @:return int between [0 and 4]
+    4: if every overload disappeared
+    3: if an overload disappeared without stressing the network
+    2: if at least 30% of an overload was relieved
+    1: if an overload was relieved but another appeared and got worse
+    0: if no overloads were alleviated or if it resulted in some load shedding or production distribution.
+    """
+    old_number_of_overloads = 0
+    new_number_of_overloads = 0
+    boolean_constraint_worsened = []
+    boolean_overload_30percent_relieved = []
+    boolean_overload_relieved = []
+    boolean_overload_created = []
+
+    old_obs_lines_capacity_usage = old_obs.rho
+    new_obs_lines_capacity_usage = new_obs.rho
+    # ################################### PREPROCESSING #####################################
+    for elem in old_obs_lines_capacity_usage:
+        if elem > 1.0:
+            old_number_of_overloads += 1
+
+    for elem in new_obs_lines_capacity_usage:
+        if elem > 1.0:
+            new_number_of_overloads += 1
+
+    # preprocessing for score 3 and 2
+    for old, new in zip(old_obs_lines_capacity_usage, new_obs_lines_capacity_usage):
+        # preprocessing for score 3
+        if new > 1.05 * old > 1.0:  # if new > old > 1.0 it means it worsened an existing constraint
+            boolean_constraint_worsened.append(1)
+        else:
+            boolean_constraint_worsened.append(0)
+
+        # preprocessing for score 2
+        if old > 1.0:  # if old was an overload:
+            surcharge = old - 1.0
+            diff = old - new
+            percentage_relieved = diff * 100 / surcharge
+            if percentage_relieved > 30.0:
+                boolean_overload_30percent_relieved.append(1)
+            else:
+                boolean_overload_30percent_relieved.append(0)
+        else:
+            boolean_overload_30percent_relieved.append(0)
+
+        # preprocessing for score 1
+        if old > 1.0 > new:
+            boolean_overload_relieved.append(1)
+        else:
+            boolean_overload_relieved.append(0)
+
+        if old < 1.0 < new:
+            boolean_overload_created.append(1)
+        else:
+            boolean_overload_created.append(0)
+
+    boolean_constraint_worsened = np.array(boolean_constraint_worsened)
+    print(boolean_constraint_worsened)
+    boolean_overload_30percent_relieved = np.array(boolean_overload_30percent_relieved)
+    boolean_overload_relieved = np.array(boolean_overload_relieved)
+    boolean_overload_created = np.array(boolean_overload_created)
+
+    redistribution_prod = np.sum(np.absolute(new_obs.prod_p - old_obs.prod_p))
+    redistribution_load = np.sum(np.absolute(new_obs.load_p - old_obs.load_p))
+
+    # ################################ END OF PREPROCESSING #################################
+    # score 0 if no overloads were alleviated or if it resulted in some load shedding or production distribution.
+    if redistribution_load > 0 or game_over or (boolean_overload_relieved == 0).all():
+        print("return 0: no overloads were alleviated or some load shedding occured.")
+        return 0
+
+    # score 1 if overload was relieved but another one appeared and got worse
+    elif (boolean_overload_relieved == 1).any() and ((boolean_overload_created == 1).any() or
+                                                     (boolean_constraint_worsened == 1).any()):
+        print("return 1: an overload was relieved but another one appeared")
+        return 1
+
+    # 4: if every overload disappeared
+    elif old_number_of_overloads > 0 and new_number_of_overloads == 0:
+        print("return 4: every overload disappeared")
+        return 4
+
+    # 3: if an overload disappeared without stressing the network, ie,
+    # if an overload disappeared
+    # and without worsening existing constraint
+    # and no Loads that get cut
+    elif new_number_of_overloads < old_number_of_overloads and \
+            (boolean_constraint_worsened == 0).all() and \
+            (new_obs.are_loads_cut == 0).all():
+        print("return 3: an overload disappeared without stressing the network")
+        return 3
+
+    # 2: if at least 30% of an overload was relieved
+    elif (boolean_overload_30percent_relieved == 1).any():
+        print("return 2: at least 30% of line [{}] was relieved".format(
+            np.where(boolean_overload_30percent_relieved == 1)[0]))
+        return 2
+
+    # score 0
+    elif (boolean_overload_30percent_relieved == 0).all():
+        return 0
+
+    else:
+        raise ValueError("Probleme with Scoring")
