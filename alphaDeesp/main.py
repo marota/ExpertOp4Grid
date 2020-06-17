@@ -68,31 +68,25 @@ def main():
     # ====================================================================
     # BELOW PART SHOULD BE UNAWARE OF WETHER WE WORK WITH RTE OR PYPOWNET
 
-    ## Pypownet old way
-    # Get data representing the grid before and after line cutting, and topologies
-    # g_over, df_of_g = sim.build_graph_from_data_frame(args.ltc)
-    # g_pow = sim.build_powerflow_graph(sim.obs)
-    # g_pow_prime = sim.g_pow_prime
 
-    # Plot the grids before and after line cutting
-    # printer.display_geo(g_pow, custom_layout, name="g_pow_print")
-    # printer.display_geo(g_over, custom_layout, name="g_overflow_print")
-    # printer.display_geo(sim.g_pow_prime, custom_layout, name="g_pow_prime")
-
-
-    ## Grid2op new way
     # Get data representing the grid before and after line cutting, and topologies
     df_of_g = sim.get_dataframe()
     g_over = sim.build_graph_from_data_frame(args.ltc)
     g_pow = sim.build_powerflow_graph_beforecut()
     g_pow_prime = sim.build_powerflow_graph_aftercut()
 
-    # Plot the grids before and after line cutting
+    ## Plot the grids before and after line cutting
+
+    # Printer API
     # printer.display_geo(g_over, custom_layout, name="g_overflow_print") # Doesnt work
-    fig_before = sim.plot_grid_beforecut()
-    fig_before.show()
-    fig_after = sim.plot_grid_aftercut()
-    fig_after.show()
+    # printer.display_geo(g_over, custom_layout, name="g_overflow_print")
+    # printer.display_geo(sim.g_pow_prime, custom_layout, name="g_pow_prime")
+
+    # Grid2op API
+    # fig_before = sim.plot_grid_beforecut()
+    # fig_before.show()
+    # fig_after = sim.plot_grid_aftercut()
+    # fig_after.show()
 
 
     # In common
