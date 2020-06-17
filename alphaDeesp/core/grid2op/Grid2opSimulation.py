@@ -127,7 +127,6 @@ class Grid2opSimulation(Simulation):
                 flow_after = line_state_after["origin"]["p"]
                 delta_flow = flow_before - flow_after
 
-                # TODO: Modifs Nico
                 if done:    # Game over: no need to compute further operations
                     worsened_line_ids = []
                     simulated_score = 0
@@ -499,7 +498,7 @@ def score_changes_between_two_observations(old_obs, new_obs):
             surcharge = old - 1.0
             diff = old - new
             percentage_relieved = diff * 100 / surcharge
-            if percentage_relieved > 1000:
+            if percentage_relieved > 30.0:
                 boolean_overload_30percent_relieved.append(1)
             else:
                 boolean_overload_30percent_relieved.append(0)
