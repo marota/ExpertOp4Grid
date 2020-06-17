@@ -129,7 +129,9 @@ def test_integration_dataframe_results_with_line_9_cut():
     sim.load(_current_observation, line_to_cut)
 
     # create NetworkX graph g_over, and DataFrame df_of_g
-    g_over, df_of_g = sim.build_graph_from_data_frame(line_to_cut)
+
+    df_of_g = sim.get_dataframe()
+    g_over = sim.build_graph_from_data_frame(line_to_cut)
 
     simulator_data = {"substations_elements": sim.substations_elements,
                       "substation_to_node_mapping": sim.substation_to_node_mapping,
@@ -207,7 +209,8 @@ def test_integration_dataframe_results_with_line_8_cut():
     sim.load(_current_observation, line_to_cut)
 
     # create NetworkX graph g_over, and DataFrame df_of_g
-    g_over, df_of_g = sim.build_graph_from_data_frame(line_to_cut)
+    df_of_g = sim.get_dataframe()
+    g_over = sim.build_graph_from_data_frame(line_to_cut)
 
     simulator_data = {"substations_elements": sim.substations_elements,
                       "substation_to_node_mapping": sim.substation_to_node_mapping,

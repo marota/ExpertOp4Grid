@@ -33,6 +33,22 @@ class Simulation(ABC):
     def get_internal_to_external_mapping(self):
         """TODO"""
 
+    @abstractmethod
+    def get_dataframe(self):
+        """TODO"""
+
+    @abstractmethod
+    def build_graph_from_data_frame(self, lines_to_cut: list):
+        """TODO"""
+
+    @abstractmethod
+    def build_powerflow_graph_beforecut(self):
+        """TODO"""
+
+    @abstractmethod
+    def build_powerflow_graph_aftercut(self):
+        """TODO"""
+
     @staticmethod
     def create_end_result_empty_dataframe():
         """This function creates initial structure for the dataframe"""

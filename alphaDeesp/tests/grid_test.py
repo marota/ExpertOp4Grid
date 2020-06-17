@@ -52,7 +52,8 @@ def test_overflow_grid():
 
     sim.load(_current_observation, [9])
 
-    g_over, df_of_g = sim.build_graph_from_data_frame([9])
+    df_of_g = sim.get_dataframe()
+    g_over = sim.build_graph_from_data_frame([9])
 
     path_to_saved_graph = \
         "./alphaDeesp/tests/ressources_for_tests/saved_graphs/overflow_graph_example_geo_2019-11-06_16-40_0_.dot"

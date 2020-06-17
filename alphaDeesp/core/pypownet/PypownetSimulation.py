@@ -25,7 +25,6 @@ class PypownetSimulation(Simulation):
         chronic_starting_id = 0
         game_over_mode = 'easy'
         without_overflow_cuttof = True
-        self.g_pow_prime = None
         self.save_bag = []
         self.debug = debug
         self.args_number_of_simulated_topos = param_options["totalnumberofsimulatedtopos"]
@@ -50,6 +49,7 @@ class PypownetSimulation(Simulation):
         # Run one step in the environment
         raw_simulated_obs = self.environment.simulate(action_do_nothing)
         self.obs = self.environment.observation_space.array_to_observation(raw_simulated_obs[0])
+        self.obs_linecut = None
         #############################
         # new structures to omit querying Pypownet, they are filled in LOAD function.
         # for each substation, we get an array with (Prod, Cons, Line) Objects, representing the actual configuration
@@ -75,6 +75,12 @@ class PypownetSimulation(Simulation):
 
     def get_internal_to_external_mapping(self):
         return self.internal_to_external_mapping
+
+    def get_dataframe(self):
+        """
+        :return: pandas dataframe with topology information before and after line cutting
+        """
+        return self.df
 
     def compute_new_network_changes(self, ranked_combinations):
         """this function takes a dataframe ranked_combinations,
@@ -173,6 +179,7 @@ class PypownetSimulation(Simulation):
                     worsened_line_ids = []
                 elif isinstance(worsened_line_ids, np.ndarray):
                     worsened_line_ids = list(worsened_line_ids)
+
 
                 score_data = [self.lines_to_cut[0],
                               saved_obs.active_flows_origin[self.lines_to_cut[0]],
@@ -491,7 +498,7 @@ class PypownetSimulation(Simulation):
         # all_edges_xlabel_attributes = nx.get_edge_attributes(g, "xlabel")  # dict[edge]
         # print("all_edges_xlabel_attributes = ", all_edges_xlabel_attributes)
 
-        return g, self.df
+        return g
 
     def build_detailed_graph_from_internal_structure(self, lines_to_cut):
         """This function create a detailed graph from internal self structures as self.substations_elements..."""
@@ -547,6 +554,23 @@ class PypownetSimulation(Simulation):
         d["nodes"]["loads_values"] = loads_values
         return d
 
+    def build_powerflow_graph_beforecut(self):
+        """
+        Builds a graph of the grid and its powerflow before the lines are cut
+        :return: NetworkX Graph of representing the grid
+        """
+        g = self.build_powerflow_graph(self.obs)
+        return g
+
+    def build_powerflow_graph_aftercut(self):
+        """
+        Builds a graph of the grid and its powerflow after the lines have been cut
+        :return: NetworkX Graph of representing the grid
+        """
+        g = self.build_powerflow_graph(self.obs_linecut)
+        return g
+
+
     def build_powerflow_graph(self, obs):
         """This function takes a pypownet Observation and returns a NetworkX Graph"""
         g = nx.DiGraph()
@@ -587,8 +611,8 @@ class PypownetSimulation(Simulation):
         if raw_simulated_obs[0] is None:
             raise ValueError("The simulation step of Pypownet returnt a None... Something")
         obs = self.environment.observation_space.array_to_observation(raw_simulated_obs[0])
-        # print here somewhere g_pow_prime
-        self.g_pow_prime = self.build_powerflow_graph(obs)
+        self.obs_linecut = obs
+
         return obs.active_flows_origin
 
     def build_edges_from_df(self, g, lines_to_cut):

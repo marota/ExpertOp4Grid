@@ -126,15 +126,26 @@ class Grid2opSimulation(Simulation):
                 flow_before = line_state_before["origin"]["p"]
                 flow_after = line_state_after["origin"]["p"]
                 delta_flow = flow_before - flow_after
-                worsened_line_ids = self.create_boolean_array_of_worsened_line_ids(obs, virtual_obs)
-                # TODO
-                simulated_score = score_changes_between_two_observations(obs, virtual_obs, done)
-                redistribution_prod = np.sum(np.absolute(virtual_obs.prod_p - obs.prod_p))
-                redistribution_load = np.sum(np.absolute(virtual_obs.load_p - obs.load_p))
-                if simulated_score in [4, 3, 2]:  # success
-                    efficacity = fabs(delta_flow / virtual_obs.rho[self.ltc[0]])
-                else:  # failure
-                    efficacity = -fabs(delta_flow / virtual_obs.rho[self.ltc[0]])
+
+                # TODO: Modifs Nico
+                if done:    # Game over: no need to compute further operations
+                    worsened_line_ids = []
+                    simulated_score = 0
+                    redistribution_prod = float('nan')
+                    redistribution_load = float('nan')
+                    efficacity = float('nan')
+
+                else:
+                    worsened_line_ids = self.create_boolean_array_of_worsened_line_ids(obs, virtual_obs)
+                    simulated_score = score_changes_between_two_observations(obs, virtual_obs)
+                    redistribution_prod = np.sum(np.absolute(virtual_obs.prod_p - obs.prod_p))
+                    redistribution_load = np.sum(np.absolute(virtual_obs.load_p - obs.load_p))
+                    if simulated_score in [4, 3, 2]:  # success
+                        efficacity = fabs(delta_flow / virtual_obs.rho[self.ltc[0]])
+                    else:  # failure
+                        efficacity = -fabs(delta_flow / virtual_obs.rho[self.ltc[0]])
+
+                # To store in data frame
                 score_data = [only_line,
                               flow_before,
                               flow_after,
@@ -448,7 +459,7 @@ def build_edges(g, idx_or, idx_ex, edge_weights, gtype, gray_edges=None, lines_c
     else:
         raise RuntimeError("Graph's GType not understood, cannot build_edges!")
 
-def score_changes_between_two_observations(old_obs, new_obs, game_over):
+def score_changes_between_two_observations(old_obs, new_obs):
     """This function takes two observations and computes a score to quantify the change between old_obs and new_obs.
     @:return int between [0 and 4]
     4: if every overload disappeared
@@ -488,7 +499,7 @@ def score_changes_between_two_observations(old_obs, new_obs, game_over):
             surcharge = old - 1.0
             diff = old - new
             percentage_relieved = diff * 100 / surcharge
-            if percentage_relieved > 30.0:
+            if percentage_relieved > 1000:
                 boolean_overload_30percent_relieved.append(1)
             else:
                 boolean_overload_30percent_relieved.append(0)
@@ -507,7 +518,6 @@ def score_changes_between_two_observations(old_obs, new_obs, game_over):
             boolean_overload_created.append(0)
 
     boolean_constraint_worsened = np.array(boolean_constraint_worsened)
-    print(boolean_constraint_worsened)
     boolean_overload_30percent_relieved = np.array(boolean_overload_30percent_relieved)
     boolean_overload_relieved = np.array(boolean_overload_relieved)
     boolean_overload_created = np.array(boolean_overload_created)
@@ -517,7 +527,7 @@ def score_changes_between_two_observations(old_obs, new_obs, game_over):
 
     # ################################ END OF PREPROCESSING #################################
     # score 0 if no overloads were alleviated or if it resulted in some load shedding or production distribution.
-    if redistribution_load > 0 or game_over or (boolean_overload_relieved == 0).all():
+    if redistribution_load > 0: # (boolean_overload_relieved == 0).all()
         print("return 0: no overloads were alleviated or some load shedding occured.")
         return 0
 
