@@ -47,11 +47,15 @@ def main():
     # ###############################################################################################################
     sim = None
     if config["DEFAULT"]["simulatortype"] == "Pypownet":
-        parameters_folder = "./alphaDeesp/ressources/parameters/default14_static"
+        # parameters_folder = "./alphaDeesp/ressources/parameters/default14_static"
+        parameters_folder = "./alphaDeesp/ressources/parameters/default14_static_ltc_8"
+        # parameters_folder = "./alphaDeesp/ressources/parameters/default14_static_ltc_9"
         sim = PypownetSimulation(config["DEFAULT"], args.debug, args.ltc, parameters_folder)
     elif config["DEFAULT"]["simulatortype"] == "Grid2OP":
         print("We init Grid2OP Simulation")
-        parameters_folder = "./alphaDeesp/ressources/parameters/l2rpn_2019"
+        # parameters_folder = "./alphaDeesp/ressources/parameters/l2rpn_2019_ltc_9"
+        parameters_folder = "./alphaDeesp/ressources/parameters/l2rpn_2019_ltc_8"
+        # parameters_folder = "./alphaDeesp/ressources/parameters/l2rpn_2019"
         loader = Grid2opObservationLoader(parameters_folder)
         env, obs, action_space = loader.get_observation(args.timestep)
         plot_helper = loader.get_plot_helper()
@@ -77,12 +81,12 @@ def main():
 
     ## Plot the grids before and after line cutting
 
-    # Printer API
-    # printer.display_geo(g_over, custom_layout, name="g_overflow_print") # Doesnt work
-    # printer.display_geo(g_over, custom_layout, name="g_overflow_print")
-    # printer.display_geo(sim.g_pow_prime, custom_layout, name="g_pow_prime")
+    # Printer API (for both Grid2op and Pypownet)
+    printer.display_geo(g_over, custom_layout, name="g_overflow_print") # Doesnt work
+    printer.display_geo(g_pow, custom_layout, name="g_pow")
+    printer.display_geo(g_pow_prime, custom_layout, name="g_pow_prime")
 
-    # Grid2op API
+    # Grid2op API (Grid2op only)
     # fig_before = sim.plot_grid_beforecut()
     # fig_before.show()
     # fig_after = sim.plot_grid_aftercut()

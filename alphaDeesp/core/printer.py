@@ -69,9 +69,9 @@ class Printer:
         nx.drawing.nx_pydot.write_dot(g, filename_dot)
 
         if custom_layout is None:
-            cmd_line = "neato -Tpdf " + str(filename_dot) + " -o " + str(filename_pdf)
+            cmd_line = 'neato -Tpdf "' + str(filename_dot) + '" -o "' + str(filename_pdf) + '"'
         else:
-            cmd_line = "neato -n -Tpdf " + str(filename_dot) + " -o " + str(filename_pdf)
+            cmd_line = 'neato -n -Tpdf "' + str(filename_dot) + '" -o "' + str(filename_pdf) + '"'
         print("we print the cmd line = ", cmd_line)
 
         assert alphadeesp.execute_command(cmd_line)

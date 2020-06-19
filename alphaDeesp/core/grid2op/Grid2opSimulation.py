@@ -526,7 +526,10 @@ def score_changes_between_two_observations(old_obs, new_obs):
 
     # ################################ END OF PREPROCESSING #################################
     # score 0 if no overloads were alleviated or if it resulted in some load shedding or production distribution.
-    if redistribution_load > 0: # (boolean_overload_relieved == 0).all()
+    if old_number_of_overloads == 0:
+        print("return NaN: No overflow at initial state of grid")
+        return float('nan')
+    elif redistribution_load > 0: # (boolean_overload_relieved == 0).all()
         print("return 0: no overloads were alleviated or some load shedding occured.")
         return 0
 
