@@ -1,7 +1,8 @@
 import grid2op
 from grid2op.PlotGrid import PlotMatplot
 
-class Grid2opObservationLoader():
+
+class Grid2opObservationLoader:
     def __init__(self, parameter_folder):
         self.parameter_folder = parameter_folder
         self.env = grid2op.make(self.parameter_folder)

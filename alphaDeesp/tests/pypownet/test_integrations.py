@@ -194,65 +194,25 @@ def test_integration_dataframe_results_with_line_8_cut():
 
     # retrieve Topology as an Observation object from Pypownet
     _current_observation = sim.obs
-
-    # new configuration creation
-    # new_configuration = [[1, 1, 0], [1, 1, 0, 0, 0]]
-    # node_ids = [1, 5]
-
-    # change network Topology and retrieve an Obersation object from Pypownet
-    # _current_observation = sim.change_nodes_configurations(new_configuration, node_ids)
-    ####################################################################################################################
-    # ------------------------------------------------------------------------------------------------------------------
-    ####################################################################################################################
-
     # load Observation into Simulation Class
     sim.load(_current_observation, line_to_cut)
-
     # create NetworkX graph g_over, and DataFrame df_of_g
     df_of_g = sim.get_dataframe()
     g_over = sim.build_graph_from_data_frame(line_to_cut)
-
     simulator_data = {"substations_elements": sim.substations_elements,
                       "substation_to_node_mapping": sim.substation_to_node_mapping,
                       "internal_to_external_mapping": sim.internal_to_external_mapping}
-
     # create AlphaDeesp
     alphadeesp = AlphaDeesp(g_over, df_of_g, simulator_data=simulator_data)
-
     ranked_combinations = alphadeesp.get_ranked_combinations()
-
     expert_system_results = sim.compute_new_network_changes(ranked_combinations)
     # This removes the first XXX line (used to construct initial dataframe structure)
     expert_system_results = expert_system_results.drop(0, axis=0)
-
-    # expert_system_results.to_csv("alphaDeesp/tests/ressources_for_tests/END_RESULT_DATAFRAME.csv")
-    # print("--------------------------------------------------------------------------------------------")
-    # print("----------------------------------- END RESULT DATAFRAME -----------------------------------")
-    # print("--------------------------------------------------------------------------------------------")
-    # print(expert_system_results)
-
     path_to_saved_end_result_dataframe = \
         Path.cwd() / "alphaDeesp/tests/ressources_for_tests/END_RESULT_DATAFRAME_for_test_with_line_8_cut.csv"
-
-    #expert_system_results.to_csv("./alphaDeesp/tests/ressources_for_tests/END_RESULT_DATAFRAME_for_test_with_line_8_cut_new.csv")
-
     saved_df = pd.read_csv(path_to_saved_end_result_dataframe, index_col=0)
-
-
-    # print("--------------------------------------------------------------------------------------------")
-    # print("-------------------------------- SAVED END RESULT DATAFRAME --------------------------------")
-    # print("--------------------------------------------------------------------------------------------")
-    # print(saved_df)
-    #
     print("The two dataframes are equal: ", are_dataframes_equal(expert_system_results, saved_df))
 
-    # UN-COMMENT NEXT BLOCK TO HAVE A GRAPHICAL DISPLAY FOR EACH LINE OF THE DATAFRAME RESULT
-    # printer = Printer()
-    # # Bag is filled in the last function sim.compute_new_network_changes(ranked_combinations)
-    # for elem in sim.save_bag:  # elem[0] = name, elem[1] = graph
-    #     sim.load2(elem[1], lines_to_cut=line_to_cut)
-    #     g_over_detailed = sim.build_detailed_graph_from_internal_structure(line_to_cut)
-    #     printer.display_geo(g_over_detailed, custom_layout, name=elem[0])
 
 
 #test_integration_dataframe_results_with_line_8_cut()

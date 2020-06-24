@@ -3,6 +3,7 @@ __author__ = "MarcM"
 
 import argparse
 import configparser
+
 from alphaDeesp.core.alphadeesp import AlphaDeesp
 from alphaDeesp.core.pypownet.PypownetSimulation import PypownetSimulation
 from alphaDeesp.core.printer import Printer
@@ -53,8 +54,8 @@ def main():
         sim = PypownetSimulation(config["DEFAULT"], args.debug, args.ltc, parameters_folder)
     elif config["DEFAULT"]["simulatortype"] == "Grid2OP":
         print("We init Grid2OP Simulation")
-        # parameters_folder = "./alphaDeesp/ressources/parameters/l2rpn_2019_ltc_9"
-        parameters_folder = "./alphaDeesp/ressources/parameters/l2rpn_2019_ltc_8"
+        parameters_folder = "./alphaDeesp/ressources/parameters/l2rpn_2019_ltc_9"
+        # parameters_folder = "./alphaDeesp/ressources/parameters/l2rpn_2019_ltc_8"
         # parameters_folder = "./alphaDeesp/ressources/parameters/l2rpn_2019"
         loader = Grid2opObservationLoader(parameters_folder)
         env, obs, action_space = loader.get_observation(args.timestep)

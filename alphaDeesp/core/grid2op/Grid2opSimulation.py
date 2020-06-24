@@ -16,10 +16,12 @@ class Grid2opSimulation(Simulation):
                 (-280, -151), (-100, -340), (366, -340), (390, -110), (-14, -104), (-184, 54), (400, -80),
                 (438, 100), (326, 140), (200, 8), (79, 12), (-152, 170), (-70, 200), (222, 200)]
 
-    def __init__(self, config, env, obs, action_space, ltc=9, plot_helper=None):
+    def __init__(self, config, env, obs, action_space, ltc=None, plot_helper=None):
         super().__init__()
 
         # Get Grid2op objects
+        if ltc is None:
+            ltc = [9]
         self.env = env
         self.obs = obs
         self.obs_linecut = None
@@ -42,9 +44,18 @@ class Grid2opSimulation(Simulation):
         self.substations_elements = {}
 
         # Compute data structure representing grid an dtopology
+        self.topo = None
+        self.topo_linecut = None
+        self.df = None
+        self.load()
+
+    def load(self):
         self.topo = self.extract_topo_from_obs(self.obs)
         self.topo_linecut = None
-        self.df = self.create_df(self.topo, ltc)
+        self.df = self.create_df(self.topo, self.ltc)
+        self.internal_to_external_mapping = {}
+        self.external_to_internal_mapping = {}
+        self.substations_elements = {}
         self.create_and_fill_internal_structures(self.obs, self.df)
 
     def get_substation_elements(self):
@@ -203,22 +214,22 @@ class Grid2opSimulation(Simulation):
             objects = obs.get_obj_connect_to(substation_id=substation_id)
             for gen_id in objects['generators_id']:
                 gen_state = obs.state_of(gen_id=gen_id)
-                elements_array.append(Production(gen_state['bus'], gen_state['p']))
+                elements_array.append(Production(gen_state['bus']-1, [gen_state['p']]))
             for load_id in objects['loads_id']:
                 load_state = obs.state_of(load_id=load_id)
-                elements_array.append(Consumption(load_state['bus'], load_state['p']))
+                elements_array.append(Consumption(load_state['bus']-1, [load_state['p']]))
             for line_id in objects['lines_or_id']:
                 line_state = obs.state_of(line_id=line_id)
                 orig = line_state['origin']
                 ext = line_state['extremity']
                 dest = ext['sub_id']
-                elements_array.append(self.get_model_obj_from_or(self.df, substation_id, dest, orig['bus']))
+                elements_array.append(self.get_model_obj_from_or(self.df, substation_id, dest, orig['bus']-1))
             for line_id in objects['lines_ex_id']:
                 line_state = obs.state_of(line_id=line_id)
                 orig = line_state['origin']
                 ext = line_state['extremity']
                 dest = orig['sub_id']
-                elements_array.append(self.get_model_obj_from_ext(self.df, substation_id, dest, ext['bus']))
+                elements_array.append(self.get_model_obj_from_ext(self.df, substation_id, dest, ext['bus']-1))
             self.substations_elements[substation_id] = elements_array
         pprint(self.substations_elements)
 
@@ -357,6 +368,16 @@ class Grid2opSimulation(Simulation):
     def plot_grid(self, obs):
         fig_obs = self.plot_helper.plot_obs(obs, line_info='p')
         return fig_obs
+
+    def change_nodes_configurations(self, new_configurations, node_ids):
+        change = []
+        for (conf, node) in zip(new_configurations, node_ids):
+            change.append((node, conf))
+        action = self.action_space({"set_bus": {"substations_id": change}})
+        new_obs, reward, done, info = self.env.step(action)
+        self.obs = new_obs
+        self.load()
+        return new_obs
 
 
 def build_powerflow_graph(topo, obs):
