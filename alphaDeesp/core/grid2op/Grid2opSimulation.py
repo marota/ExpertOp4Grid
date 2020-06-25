@@ -214,22 +214,22 @@ class Grid2opSimulation(Simulation):
             objects = obs.get_obj_connect_to(substation_id=substation_id)
             for gen_id in objects['generators_id']:
                 gen_state = obs.state_of(gen_id=gen_id)
-                elements_array.append(Production(gen_state['bus']-1, [gen_state['p']]))
+                elements_array.append(Production(gen_state['bus'], [gen_state['p']]))
             for load_id in objects['loads_id']:
                 load_state = obs.state_of(load_id=load_id)
-                elements_array.append(Consumption(load_state['bus']-1, [load_state['p']]))
+                elements_array.append(Consumption(load_state['bus'], [load_state['p']]))
             for line_id in objects['lines_or_id']:
                 line_state = obs.state_of(line_id=line_id)
                 orig = line_state['origin']
                 ext = line_state['extremity']
                 dest = ext['sub_id']
-                elements_array.append(self.get_model_obj_from_or(self.df, substation_id, dest, orig['bus']-1))
+                elements_array.append(self.get_model_obj_from_or(self.df, substation_id, dest, orig['bus']))
             for line_id in objects['lines_ex_id']:
                 line_state = obs.state_of(line_id=line_id)
                 orig = line_state['origin']
                 ext = line_state['extremity']
                 dest = orig['sub_id']
-                elements_array.append(self.get_model_obj_from_ext(self.df, substation_id, dest, ext['bus']-1))
+                elements_array.append(self.get_model_obj_from_ext(self.df, substation_id, dest, ext['bus']))
             self.substations_elements[substation_id] = elements_array
         pprint(self.substations_elements)
 
