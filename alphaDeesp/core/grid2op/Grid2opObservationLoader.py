@@ -1,11 +1,13 @@
 import grid2op
 from grid2op.PlotGrid import PlotMatplot
-
+from grid2op.Parameters import Parameters
 
 class Grid2opObservationLoader:
     def __init__(self, parameter_folder):
         self.parameter_folder = parameter_folder
-        self.env = grid2op.make(self.parameter_folder)
+        self.custom_params = Parameters()
+        self.custom_params.NO_OVERFLOW_DISCONNECTION = True
+        self.env = grid2op.make(self.parameter_folder, param = self.custom_params)
 
     def get_observation(self, timestep = 0):
         # Method fast_forward_chronics doesnt work properly
