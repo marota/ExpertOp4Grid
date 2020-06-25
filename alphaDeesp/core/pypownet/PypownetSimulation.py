@@ -11,20 +11,13 @@ from alphaDeesp.core.simulation import Simulation
 
 
 class PypownetSimulation(Simulation):
-    def __init__(self, param_options=None, debug=False, ltc=[9], param_folder=None):
+    def __init__(self, env, obs, action_space, param_options=None, debug=False, ltc=[9]):
         super().__init__()
         print("PypownetSimulation object created...")
+
         if not param_options or param_options is None:
             raise AttributeError("\nparam_options are empty or None, meaning the config file is not properly read.")
 
-        if not param_folder or param_folder is None:
-            raise AttributeError("\nThe parameters folder for Pypownet is empty or None.")
-        parameters_folder = param_folder
-        game_level = "level0"
-        chronic_looping_mode = 'natural'
-        chronic_starting_id = 0
-        game_over_mode = 'easy'
-        without_overflow_cuttof = True
         self.save_bag = []
         self.debug = debug
         self.args_number_of_simulated_topos = param_options["totalnumberofsimulatedtopos"]
@@ -32,24 +25,21 @@ class PypownetSimulation(Simulation):
         self.grid = None
         self.df = None
         self.topo = None  # a dict create in retrieve topology
-        self.lines_to_cut = None
+        self.lines_to_cut = ltc
         self.param_options = param_options
         #############################
-        self.environment = pypownet.environment.RunEnv(parameters_folder=parameters_folder, game_level=game_level,
-                                                       chronic_looping_mode=chronic_looping_mode,
-                                                       start_id=chronic_starting_id,
-                                                       game_over_mode=game_over_mode,
-                                                       without_overflow_cutoff=without_overflow_cuttof)
+        self.environment = env
+        self.action_space = action_space
+        # Run one step in the environment
+        self.obs = obs
+        self.obs_linecut = None
+
         print("HARD OVERFLOW = ", self.environment.game.hard_overflow_coefficient)
         print("")
-        action_space = self.environment.action_space
+
         observation_space = self.environment.observation_space
-        # Create do_nothing action.
-        action_do_nothing = action_space.get_do_nothing_action()
-        # Run one step in the environment
-        raw_simulated_obs = self.environment.simulate(action_do_nothing)
-        self.obs = self.environment.observation_space.array_to_observation(raw_simulated_obs[0])
-        self.obs_linecut = None
+
+
         #############################
         # new structures to omit querying Pypownet, they are filled in LOAD function.
         # for each substation, we get an array with (Prod, Cons, Line) Objects, representing the actual configuration
@@ -59,7 +49,7 @@ class PypownetSimulation(Simulation):
         self.external_to_internal_mapping = {}  # d[external_id] = internal_name_id
         print("current chronic name = ", self.environment.game.get_current_chronic_name())
         print(self.obs)
-        self.load(self.obs, ltc)
+        self.load()
 
     def get_layout(self):
         return [(-280, -81), (-100, -270), (366, -270), (366, -54), (-64, -54), (-64, 54), (366, 0),
@@ -474,7 +464,10 @@ class PypownetSimulation(Simulation):
 
             self.substations_elements[substation_id] = elements_array
 
-    def load(self, observation, lines_to_cut: list):
+    def load(self):
+        self.load_from_observation(self.obs, self.lines_to_cut)
+
+    def load_from_observation(self, observation, lines_to_cut: list):
         # first, load information into a data frame
         self.lines_to_cut = lines_to_cut
         # d is a dict containing topology

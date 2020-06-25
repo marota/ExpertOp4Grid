@@ -6,12 +6,13 @@ import configparser
 
 from alphaDeesp.core.alphadeesp import AlphaDeesp
 from alphaDeesp.core.pypownet.PypownetSimulation import PypownetSimulation
+from alphaDeesp.core.pypownet.PypownetObservationLoader import PypownetObservationLoader
 from alphaDeesp.core.printer import Printer
 from alphaDeesp.core.printer import shell_print_project_header
 from alphaDeesp.core.grid2op.Grid2opSimulation import Grid2opSimulation
 from alphaDeesp.core.grid2op.Grid2opObservationLoader import Grid2opObservationLoader
 
-def expert_operator(env, obs, action_space, ltc, plot = False):
+def expert_operator(env, obs, action_space, ltc, plot = False, debug = False):
     config = configparser.ConfigParser()
     config.read("./alphaDeesp/config.ini")
     print("#### PARAMETERS #####")
@@ -19,21 +20,20 @@ def expert_operator(env, obs, action_space, ltc, plot = False):
         print("key: {} = {}".format(key, config['DEFAULT'][key]))
     print("#### ########## #####\n")
 
-    # Load simulator
+    # ====================================================================
+    # Load the simulator given desired environment and config.ini
     sim = None
     if config["DEFAULT"]["simulatortype"] == "Pypownet":
-        # parameters_folder = "./alphaDeesp/ressources/parameters/default14_static"
-        parameters_folder = "./alphaDeesp/ressources/parameters/default14_static_ltc_8"
-        # parameters_folder = "./alphaDeesp/ressources/parameters/default14_static_ltc_9"
-        #sim = PypownetSimulation(config["DEFAULT"], args.debug, args.ltc, parameters_folder)
+        sim = PypownetSimulation(env, obs, action_space, param_options = config["DEFAULT"], debug = debug, ltc = ltc)
     elif config["DEFAULT"]["simulatortype"] == "Grid2OP":
         print("We init Grid2OP Simulation")
         sim = Grid2opSimulation(config["DEFAULT"], env, obs, action_space, ltc)
 
     custom_layout = sim.get_layout()
+    printer = Printer()
 
     # ====================================================================
-    # Simulation
+    # Simulation of Expert results with simulator and alphadeesp
 
     # Get data representing the grid before and after line cutting, and topologies
     df_of_g = sim.get_dataframe()
@@ -46,8 +46,7 @@ def expert_operator(env, obs, action_space, ltc, plot = False):
 
     if plot:
         # Printer API (for both Grid2op and Pypownet)
-        printer = Printer()
-        printer.display_geo(g_over, custom_layout, name="g_overflow_print")  # Doesnt work
+        printer.display_geo(g_over, custom_layout, name="g_overflow_print")
         printer.display_geo(g_pow, custom_layout, name="g_pow")
         printer.display_geo(g_pow_prime, custom_layout, name="g_pow_prime")
 
@@ -63,10 +62,23 @@ def expert_operator(env, obs, action_space, ltc, plot = False):
 
     # Expert results --> end dataframe
     expert_system_results = sim.compute_new_network_changes(ranked_combinations)
+    print("--------------------------------------------------------------------------------------------")
+    print("----------------------------------- END RESULT DATAFRAME -----------------------------------")
+    print("--------------------------------------------------------------------------------------------")
+    print(expert_system_results)
+
+    # Plot option
+    if plot:
+        for elem in sim.save_bag:  # elem[0] = name, elem[1] = graph
+            sim.load_from_observation(elem[1], ltc)
+            g_over_detailed = sim.build_detailed_graph_from_internal_structure(ltc)
+            printer.display_geo(g_over_detailed, custom_layout, name=elem[0])
 
     return ranked_combinations, expert_system_results
 
 def main():
+    # ###############################################################################################################
+    # Read parameters provided by manual mode (Shell - config.ini - param_folder for the grid)
     shell_print_project_header()
 
     parser = argparse.ArgumentParser(description="Expert System")
@@ -74,13 +86,13 @@ def main():
                         help="Prints additional information for debugging purposes")
     parser.add_argument("-s", "--snapshot", action="store_true",
                         help="Displays the main overflow graph at step i, ie, delta_flows_graph, diff between "
-                             "flows before and after cutting the constrained line")
+                             "flows before and after cutting the constrained line", default = True)
     # nargs '+' == 1 or more.
     # nargs '*' == 0 or more.
     # nargs '?' == 0 or 1.
     # ltc for: Lines To Cut
     parser.add_argument("-l", "--ltc", nargs="+", type=int,
-                        help="List of integers representing the lines to cut", default = [9])
+                        help="List of integers representing the lines to cut", default = [8])
     parser.add_argument("-t", "--timestep", type=int,
                         help="Number of the timestep to use", default = 0)
 
@@ -99,13 +111,20 @@ def main():
     print("-------------------------------------")
     print(f"Working on lines: {args.ltc} ")
     print("-------------------------------------\n")
+
+
     # ###############################################################################################################
-    sim = None
+    # Use Loaders API to load simulator environment in manual mode at desired timestep
+    env = None
+    obs = None
+    action_space = None
+
     if config["DEFAULT"]["simulatortype"] == "Pypownet":
         # parameters_folder = "./alphaDeesp/ressources/parameters/default14_static"
         parameters_folder = "./alphaDeesp/ressources/parameters/default14_static_ltc_8"
         # parameters_folder = "./alphaDeesp/ressources/parameters/default14_static_ltc_9"
-        sim = PypownetSimulation(config["DEFAULT"], args.debug, args.ltc, parameters_folder)
+        loader = PypownetObservationLoader(parameters_folder)
+        env, obs, action_space = loader.get_observation(args.timestep)
     elif config["DEFAULT"]["simulatortype"] == "Grid2OP":
         print("We init Grid2OP Simulation")
         # parameters_folder = "./alphaDeesp/ressources/parameters/l2rpn_2019_ltc_9"
@@ -113,59 +132,18 @@ def main():
         # parameters_folder = "./alphaDeesp/ressources/parameters/l2rpn_2019"
         loader = Grid2opObservationLoader(parameters_folder)
         env, obs, action_space = loader.get_observation(args.timestep)
-        plot_helper = loader.get_plot_helper()
-        sim = Grid2opSimulation(config["DEFAULT"], env,  obs, action_space, args.ltc, plot_helper = plot_helper)
+
     elif config["DEFAULT"]["simulatorType"] == "RTE":
         print("We init RTE Simulation")
-        # sim = RTESimulation(
+        # sim = RTESimulation()
         return
     else:
         print("Error simulator Type in config.ini not recognized...")
-    custom_layout = sim.get_layout()
 
-    printer = Printer()
-    # ====================================================================
-    # BELOW PART SHOULD BE UNAWARE OF WETHER WE WORK WITH RTE OR PYPOWNET
+    # ###############################################################################################################
+    # Call agent mode with plot facility
+    ranked_combinations, expert_system_results = expert_operator(env, obs, action_space, args.ltc, plot=args.snapshot, debug = args.debug)
 
-
-    # Get data representing the grid before and after line cutting, and topologies
-    df_of_g = sim.get_dataframe()
-    g_over = sim.build_graph_from_data_frame(args.ltc)
-    g_pow = sim.build_powerflow_graph_beforecut()
-    g_pow_prime = sim.build_powerflow_graph_aftercut()
-    simulator_data = {"substations_elements": sim.get_substation_elements(),
-                      "substation_to_node_mapping": sim.get_substation_to_node_mapping(),
-                      "internal_to_external_mapping": sim.get_internal_to_external_mapping()}
-
-    ## Plot the grids before and after line cutting
-
-    # Printer API (for both Grid2op and Pypownet)
-    # printer.display_geo(g_over, custom_layout, name="g_overflow_print") # Doesnt work
-    # printer.display_geo(g_pow, custom_layout, name="g_pow")
-    # printer.display_geo(g_pow_prime, custom_layout, name="g_pow_prime")
-
-    # Grid2op API (Grid2op only)
-    # fig_before = sim.plot_grid_beforecut()
-    # fig_before.show()
-    # fig_after = sim.plot_grid_aftercut()
-    # fig_after.show()
-
-    alphadeesp = AlphaDeesp(g_over, df_of_g, custom_layout, printer, simulator_data, debug=args.debug)
-    ranked_combinations = alphadeesp.get_ranked_combinations()
-
-    print("--------------------------------------------------------------------------------------------")
-    print("----------------------------------- END RESULT DATAFRAME -----------------------------------")
-    print("--------------------------------------------------------------------------------------------")
-    # expert_system_results is a DATAFRAME containing lots of information about the work done.
-    expert_system_results = sim.compute_new_network_changes(ranked_combinations)
-    print(expert_system_results)
-
-    # print("\n--------------------------------------- POST PROCESSING DEBUG ---------------------------------------\n")
-    if args.snapshot:
-        for elem in sim.save_bag:  # elem[0] = name, elem[1] = graph
-            sim.load(elem[1], args.ltc)
-            g_over_detailed = sim.build_detailed_graph_from_internal_structure(args.ltc)
-            printer.display_geo(g_over_detailed, custom_layout, name=elem[0])
 
 if __name__ == "__main__":
     main()

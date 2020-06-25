@@ -5,7 +5,10 @@ from math import fabs
 import networkx as nx
 from grid2op.dtypes import dt_int
 
+from grid2op.PlotGrid import PlotMatplot
+
 from alphaDeesp.core.simulation import Simulation
+from alphaDeesp.core.network import Network
 from alphaDeesp.core.elements import OriginLine, Consumption, Production, ExtremityLine
 
 
@@ -25,7 +28,7 @@ class Grid2opSimulation(Simulation):
         self.env = env
         self.obs = obs
         self.obs_linecut = None
-        self.plot_helper = plot_helper
+        self.plot_helper = self.get_plot_helper()
         self.action_space = action_space
 
         # Get Alphadeesp configuration
@@ -48,15 +51,20 @@ class Grid2opSimulation(Simulation):
         self.topo_linecut = None
         self.df = None
         self.load()
+        self.save_bag = []
 
     def load(self):
-        self.topo = self.extract_topo_from_obs(self.obs)
+        self.load_from_observation(self.obs, self.ltc)
+
+    def load_from_observation(self, obs, ltc):
+        #self.obs = obs
+        self.topo = self.extract_topo_from_obs(obs)
         self.topo_linecut = None
-        self.df = self.create_df(self.topo, self.ltc)
+        self.df = self.create_df(self.topo, ltc)
         self.internal_to_external_mapping = {}
         self.external_to_internal_mapping = {}
         self.substations_elements = {}
-        self.create_and_fill_internal_structures(self.obs, self.df)
+        self.create_and_fill_internal_structures(obs, self.df)
 
     def get_substation_elements(self):
         return self.substations_elements
@@ -66,6 +74,10 @@ class Grid2opSimulation(Simulation):
 
     def get_internal_to_external_mapping(self):
         return self.internal_to_external_mapping
+
+    def get_plot_helper(self):
+        plot_helper = PlotMatplot(self.env.observation_space)
+        return plot_helper
 
     @staticmethod
     def merge_two_dicts(x, y):
@@ -128,6 +140,9 @@ class Grid2opSimulation(Simulation):
                 score_topo = i
                 print("###########"" Compute new network changes on node [{}] with new topo [{}] ###########"
                       .format(internal_target_node, new_conf))
+
+                if score_topo == 11.66:
+                    print("LA")
                 action = self.get_action_from_topo(internal_target_node, new_conf, obs)
                 virtual_obs, reward, done, info = self.obs.simulate(action)
                 # Same as in Pypownet, this is not what we would want though, as we do the work for only one ltc
@@ -137,6 +152,11 @@ class Grid2opSimulation(Simulation):
                 flow_before = line_state_before["origin"]["p"]
                 flow_after = line_state_after["origin"]["p"]
                 delta_flow = flow_before - flow_after
+
+                # Fill save bag with observations for further analysis (detailed graph)
+                name = "".join(str(e) for e in new_conf)
+                name = str(internal_target_node) + "_" + name
+                self.save_bag.append([name, obs])
 
                 if done:    # Game over: no need to compute further operations
                     worsened_line_ids = []
@@ -329,6 +349,16 @@ class Grid2opSimulation(Simulation):
 
         return g
 
+    def build_detailed_graph_from_internal_structure(self, lines_to_cut):
+        """This function create a detailed graph from internal self structures as self.substations_elements..."""
+        g = nx.DiGraph()
+        network = Network(self.substations_elements)
+        print("Network = ", network)
+        build_nodes_v2(g, network.nodes_prod_values)
+        build_edges_v2(g, network.substation_id_busbar_id_node_id_mapping, self.substations_elements)
+        print("This graph is weakly connected : ", nx.is_weakly_connected(g))
+        return g
+
     def build_edges_from_df(self, g, lines_to_cut):
         i = 0
         for origin, extremity, reported_flow, gray_edge in zip(self.df["idx_or"], self.df["idx_ex"],
@@ -478,6 +508,76 @@ def build_edges(g, idx_or, idx_ex, edge_weights, gtype, gray_edges=None, lines_c
             i += 1
     else:
         raise RuntimeError("Graph's GType not understood, cannot build_edges!")
+
+def build_nodes_v2(g, nodes_prod_values: list):
+    """nodes_prod_values is a list of tuples, (graphical_node_id, prod_cons_total_value)
+        prod_cons_total_value is a float.
+        If the value is positive then it is a Production, if negative it is a Consumption
+    """
+    print("IN FUNCTION BUILD NODES V2222222222", nodes_prod_values)
+    for data in nodes_prod_values:
+        print("data = ", data)
+        i = int(data[0])
+        if data[1] is None or data[1] == "XXX":
+            prod_minus_load = 0.0  # It will end up as a white node
+        else:
+            prod_minus_load = data[1]
+        print("prod_minus_load = ", prod_minus_load)
+        if prod_minus_load > 0:  # PROD
+            g.add_node(i, pin=True, prod_or_load="prod", value=str(prod_minus_load), style="filled",
+                       fillcolor="#f30000")  # red color
+        elif prod_minus_load < 0:  # LOAD
+            g.add_node(i, pin=True, prod_or_load="load", value=str(prod_minus_load), style="filled",
+                       fillcolor="#478fd0")  # blue color
+        else:  # WHITE COLOR
+            g.add_node(i, pin=True, prod_or_load="load", value=str(prod_minus_load), style="filled",
+                       fillcolor="#ffffed")  # white color
+        i += 1
+
+
+def build_edges_v2(g, substation_id_busbar_id_node_id_mapping, substations_elements):
+    print("\nWE ARE IN BUILD EDGES V2")
+    substation_ids = sorted(list(substations_elements.keys()))
+    # loops through each substation, and creates an edge from (
+    for substation_id in substation_ids:
+        print("\nSUBSTATION ID = ", substation_id)
+        for element in substations_elements[substation_id]:
+            print(element)
+            origin = None
+            extremity = None
+            if isinstance(element, OriginLine):
+                # origin = substation_id
+                origin = int(substation_id_busbar_id_node_id_mapping[substation_id][element.busbar_id])
+                extremity = int(element.end_substation_id)
+                # check if extremity on busbar1, if it is,
+                # check with the substation substation_id_busbar_id_node_id_mapping dic what "graphical" node it is
+                print("substations_elements[extremity] = ", substations_elements[extremity])
+                for elem in substations_elements[extremity]:
+                    # if this true, we are talking about correct edge
+                    if isinstance(elem, ExtremityLine) and elem.flow_value == element.flow_value:
+                        if elem.busbar == 1:
+                            extremity = substation_id_busbar_id_node_id_mapping[extremity][1]
+                reported_flow = element.flow_value
+            elif origin is None or extremity is None:
+                continue
+            # in case we get on an element that is Production or Consumption
+            else:
+                continue
+            print("origin = ", origin)
+            print("extremity = ", extremity)
+            print("reported_flow = ", reported_flow)
+            pen_width = fabs(reported_flow[0]) / 10.0
+            if pen_width < 0.01:
+                pen_width = 0.1
+            print(f"#################### Edge created : ({origin}, {extremity}), with flow = {reported_flow},"
+                  f" pen_width = {pen_width} >>>")
+            if reported_flow[0] > 0:  # RED
+                g.add_edge(origin, extremity, capacity=float(reported_flow[0]), xlabel=reported_flow[0], color="red",
+                           penwidth="%.2f" % pen_width)
+            else:  # BLUE
+                g.add_edge(origin, extremity, capacity=float(reported_flow[0]), xlabel=reported_flow[0], color="blue",
+                           penwidth="%.2f" % pen_width)
+            g.add_edge(origin, extremity, capacity=float(reported_flow[0]), xlabel=reported_flow[0])
 
 def score_changes_between_two_observations(old_obs, new_obs):
     """This function takes two observations and computes a score to quantify the change between old_obs and new_obs.
