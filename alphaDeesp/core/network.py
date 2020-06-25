@@ -43,9 +43,9 @@ class Network:
                         if isinstance(element, Production) or isinstance(element, Consumption):
                             if first_time_bool:
                                 if isinstance(element, Production):
-                                    prods_minus_loads[busbar_id] = np.round(element.value[0], 2)
+                                    prods_minus_loads[busbar_id] = np.round(element.value, 2)
                                 elif isinstance(element, Consumption):
-                                    prods_minus_loads[busbar_id] = np.round(-element.value[0])
+                                    prods_minus_loads[busbar_id] = np.round(-element.value)
                                 first_time_bool = False
                             else:
                                 if isinstance(element, Production):
@@ -54,9 +54,9 @@ class Network:
                                 elif isinstance(element, Consumption):
                                     if prods_minus_loads[busbar_id] is not None:
                                         prods_minus_loads[busbar_id] = np.round(
-                                            prods_minus_loads[busbar_id] - element.value[0])
+                                            prods_minus_loads[busbar_id] - element.value)
                                     else:
-                                        prods_minus_loads[busbar_id] = np.round(-element.value[0])
+                                        prods_minus_loads[busbar_id] = np.round(-element.value)
 
                         # here we continue filling dictionary mapping_node_id_to_prod_minus_load with information
                         # from elements OriginLine and ExtremityLine
