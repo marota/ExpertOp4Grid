@@ -83,9 +83,9 @@ def main():
     ## Plot the grids before and after line cutting
 
     # Printer API (for both Grid2op and Pypownet)
-    printer.display_geo(g_over, custom_layout, name="g_overflow_print") # Doesnt work
-    printer.display_geo(g_pow, custom_layout, name="g_pow")
-    printer.display_geo(g_pow_prime, custom_layout, name="g_pow_prime")
+    # printer.display_geo(g_over, custom_layout, name="g_overflow_print") # Doesnt work
+    # printer.display_geo(g_pow, custom_layout, name="g_pow")
+    # printer.display_geo(g_pow_prime, custom_layout, name="g_pow_prime")
 
     # Grid2op API (Grid2op only)
     # fig_before = sim.plot_grid_beforecut()

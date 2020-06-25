@@ -214,10 +214,10 @@ class Grid2opSimulation(Simulation):
             objects = obs.get_obj_connect_to(substation_id=substation_id)
             for gen_id in objects['generators_id']:
                 gen_state = obs.state_of(gen_id=gen_id)
-                elements_array.append(Production(gen_state['bus'], [gen_state['p']]))
+                elements_array.append(Production(gen_state['bus'], gen_state['p']))
             for load_id in objects['loads_id']:
                 load_state = obs.state_of(load_id=load_id)
-                elements_array.append(Consumption(load_state['bus'], [load_state['p']]))
+                elements_array.append(Consumption(load_state['bus'], load_state['p']))
             for line_id in objects['lines_or_id']:
                 line_state = obs.state_of(line_id=line_id)
                 orig = line_state['origin']
