@@ -25,7 +25,7 @@ class PypownetSimulation(Simulation):
         self.grid = None
         self.df = None
         self.topo = None  # a dict create in retrieve topology
-        self.lines_to_cut = ltc
+        self.ltc = ltc
         self.param_options = param_options
         #############################
         self.environment = env
@@ -144,10 +144,10 @@ class PypownetSimulation(Simulation):
 
                 self.save_bag.append([name, obs])
 
-                delta_flow = saved_obs.active_flows_origin[self.lines_to_cut[0]] - \
-                             obs.active_flows_origin[self.lines_to_cut[0]]
+                delta_flow = saved_obs.active_flows_origin[self.ltc[0]] - \
+                             obs.active_flows_origin[self.ltc[0]]
 
-                print("self.lines to cut[0] = ", self.lines_to_cut[0])
+                print("self.lines to cut[0] = ", self.ltc[0])
                 print("self.obs.status line = ", self.obs.lines_status)
                 print(" simulated obs  = ", obs.lines_status)
                 print("saved flow = ", list(saved_obs.active_flows_origin.astype(int)))
@@ -171,9 +171,9 @@ class PypownetSimulation(Simulation):
                     worsened_line_ids = list(worsened_line_ids)
 
 
-                score_data = [self.lines_to_cut[0],
-                              saved_obs.active_flows_origin[self.lines_to_cut[0]],
-                              obs.active_flows_origin[self.lines_to_cut[0]],
+                score_data = [self.ltc[0],
+                              saved_obs.active_flows_origin[self.ltc[0]],
+                              obs.active_flows_origin[self.ltc[0]],
                               delta_flow,
                               worsened_line_ids,
                               redistribution_prod,
@@ -214,10 +214,10 @@ class PypownetSimulation(Simulation):
         redistribution_load = np.sum(np.absolute(new_obs.active_loads - old_obs.active_loads))
 
         if simulated_score in [4, 3, 2]:  # success
-            efficacity = fabs(delta_flow / new_obs.get_lines_capacity_usage()[self.lines_to_cut[0]])
+            efficacity = fabs(delta_flow / new_obs.get_lines_capacity_usage()[self.ltc[0]])
             pass
         elif simulated_score in [0, 1]:  # failure
-            efficacity = -fabs(delta_flow / new_obs.get_lines_capacity_usage()[self.lines_to_cut[0]])
+            efficacity = -fabs(delta_flow / new_obs.get_lines_capacity_usage()[self.ltc[0]])
             pass
         else:
             raise ValueError("Cannot compute efficacity, the score is wrong.")
@@ -465,11 +465,11 @@ class PypownetSimulation(Simulation):
             self.substations_elements[substation_id] = elements_array
 
     def load(self):
-        self.load_from_observation(self.obs, self.lines_to_cut)
+        self.load_from_observation(self.obs, self.ltc)
 
     def load_from_observation(self, observation, lines_to_cut: list):
         # first, load information into a data frame
-        self.lines_to_cut = lines_to_cut
+        self.ltc = lines_to_cut
         # d is a dict containing topology
         d = self.extract_topo_from_obs(observation)
         self.topo = d

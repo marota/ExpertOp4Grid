@@ -12,23 +12,13 @@ from alphaDeesp.core.printer import shell_print_project_header
 from alphaDeesp.core.grid2op.Grid2opSimulation import Grid2opSimulation
 from alphaDeesp.core.grid2op.Grid2opObservationLoader import Grid2opObservationLoader
 
-def expert_operator(env, obs, action_space, ltc, plot = False, debug = False):
-    config = configparser.ConfigParser()
-    config.read("./alphaDeesp/config.ini")
-    print("#### PARAMETERS #####")
-    for key in config["DEFAULT"]:
-        print("key: {} = {}".format(key, config['DEFAULT'][key]))
-    print("#### ########## #####\n")
+def expert_operator(sim, plot = False, debug = False):
+
 
     # ====================================================================
     # Load the simulator given desired environment and config.ini
-    sim = None
-    if config["DEFAULT"]["simulatortype"] == "Pypownet":
-        sim = PypownetSimulation(env, obs, action_space, param_options = config["DEFAULT"], debug = debug, ltc = ltc)
-    elif config["DEFAULT"]["simulatortype"] == "Grid2OP":
-        print("We init Grid2OP Simulation")
-        sim = Grid2opSimulation(config["DEFAULT"], env, obs, action_space, ltc)
 
+    ltc = sim.ltc
     custom_layout = sim.get_layout()
     printer = Printer()
 
@@ -57,7 +47,7 @@ def expert_operator(env, obs, action_space, ltc, plot = False, debug = False):
         # fig_after.show()
 
     # Launch alphadeesp core
-    alphadeesp = AlphaDeesp(g_over, df_of_g, custom_layout, printer, simulator_data, debug = False)
+    alphadeesp = AlphaDeesp(g_over, df_of_g, custom_layout, printer, simulator_data, debug = debug)
     ranked_combinations = alphadeesp.get_ranked_combinations()
 
     # Expert results --> end dataframe
@@ -86,15 +76,17 @@ def main():
                         help="Prints additional information for debugging purposes")
     parser.add_argument("-s", "--snapshot", action="store_true",
                         help="Displays the main overflow graph at step i, ie, delta_flows_graph, diff between "
-                             "flows before and after cutting the constrained line", default = True)
+                             "flows before and after cutting the constrained line", default = False)
     # nargs '+' == 1 or more.
     # nargs '*' == 0 or more.
     # nargs '?' == 0 or 1.
     # ltc for: Lines To Cut
     parser.add_argument("-l", "--ltc", nargs="+", type=int,
-                        help="List of integers representing the lines to cut", default = [8])
+                        help="List of integers representing the lines to cut", default = [9])
     parser.add_argument("-t", "--timestep", type=int,
                         help="Number of the timestep to use", default = 0)
+    parser.add_argument("-g", "--gridpath",
+                        help="Path to access to files representing a grid", default="")
 
     args = parser.parse_args()
     config = configparser.ConfigParser()
@@ -107,6 +99,8 @@ def main():
     if args.ltc is None or len(args.ltc) != 1:
         raise ValueError("Input arg error, --ltc, for the moment, we allow cutting only one line.\n\nPlease select"
                          " one line to cut ex: python3 -m alphaDeesp.main -l 9")
+    if args.gridpath is None:
+        raise ValueError("Input arg error, --gridpath, please provide a path for access a grid configuration")
 
     print("-------------------------------------")
     print(f"Working on lines: {args.ltc} ")
@@ -115,23 +109,22 @@ def main():
 
     # ###############################################################################################################
     # Use Loaders API to load simulator environment in manual mode at desired timestep
-    env = None
-    obs = None
-    action_space = None
-
+    sim = None
+    parameters_folder = args.gridpath
     if config["DEFAULT"]["simulatortype"] == "Pypownet":
-        # parameters_folder = "./alphaDeesp/ressources/parameters/default14_static"
-        parameters_folder = "./alphaDeesp/ressources/parameters/default14_static_ltc_8"
-        # parameters_folder = "./alphaDeesp/ressources/parameters/default14_static_ltc_9"
+        print("We init Pypownet Simulation")
+        #parameters_folder = "./alphaDeesp/ressources/parameters/default14_static_ltc_9"
         loader = PypownetObservationLoader(parameters_folder)
         env, obs, action_space = loader.get_observation(args.timestep)
+        sim = PypownetSimulation(env, obs, action_space, param_options=config["DEFAULT"], debug=args.debug,
+                                 ltc=args.ltc)
     elif config["DEFAULT"]["simulatortype"] == "Grid2OP":
         print("We init Grid2OP Simulation")
-        # parameters_folder = "./alphaDeesp/ressources/parameters/l2rpn_2019_ltc_9"
-        parameters_folder = "./alphaDeesp/ressources/parameters/l2rpn_2019_ltc_8"
-        # parameters_folder = "./alphaDeesp/ressources/parameters/l2rpn_2019"
+        #parameters_folder = "./alphaDeesp/ressources/parameters/l2rpn_2019_ltc_9"
         loader = Grid2opObservationLoader(parameters_folder)
         env, obs, action_space = loader.get_observation(args.timestep)
+        sim = Grid2opSimulation(env, obs, action_space, param_options=config["DEFAULT"], debug=args.debug,
+                                 ltc=args.ltc)
 
     elif config["DEFAULT"]["simulatorType"] == "RTE":
         print("We init RTE Simulation")
@@ -142,8 +135,9 @@ def main():
 
     # ###############################################################################################################
     # Call agent mode with possible plot and debug fonctionalities
-    ranked_combinations, expert_system_results = expert_operator(env, obs, action_space, args.ltc, plot=args.snapshot, debug = args.debug)
+    ranked_combinations, expert_system_results = expert_operator(sim, plot=args.snapshot, debug = args.debug)
 
+    return ranked_combinations, expert_system_results
 
 if __name__ == "__main__":
     main()

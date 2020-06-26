@@ -22,7 +22,8 @@ def build_sim(ltc, param_folder):
 
     loader = Grid2opObservationLoader(param_folder)
     env, obs, action_space = loader.get_observation()
-    sim = Grid2opSimulation(config["DEFAULT"], env, obs, action_space, [ltc])
+    sim = Grid2opSimulation(env, obs, action_space, param_options=config["DEFAULT"], debug=False,
+                            ltc=[ltc])
     return sim
 
 

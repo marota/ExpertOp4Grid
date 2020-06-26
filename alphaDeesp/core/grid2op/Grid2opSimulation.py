@@ -19,7 +19,7 @@ class Grid2opSimulation(Simulation):
                 (-280, -151), (-100, -340), (366, -340), (390, -110), (-14, -104), (-184, 54), (400, -80),
                 (438, 100), (326, 140), (200, 8), (79, 12), (-152, 170), (-70, 200), (222, 200)]
 
-    def __init__(self, config, env, obs, action_space, ltc=None):
+    def __init__(self, env, obs, action_space, param_options=None, debug = False, ltc=[9]):
         super().__init__()
 
         # Get Grid2op objects
@@ -33,9 +33,9 @@ class Grid2opSimulation(Simulation):
 
         # Get Alphadeesp configuration
         self.ltc = ltc
-        self.param_options = config
-        self.args_number_of_simulated_topos = config["totalnumberofsimulatedtopos"]
-        self.args_inner_number_of_simulated_topos_per_node = config["numberofsimulatedtopospernode"]
+        self.param_options = param_options
+        self.args_number_of_simulated_topos = param_options["totalnumberofsimulatedtopos"]
+        self.args_inner_number_of_simulated_topos_per_node = param_options["numberofsimulatedtopospernode"]
 
         print("Number of generators of the powergrid: {}".format(self.obs.n_gen))
         print("Number of loads of the powergrid: {}".format(self.obs.n_load))
@@ -353,9 +353,9 @@ class Grid2opSimulation(Simulation):
         g = nx.DiGraph()
 
         # Reduce busbar_ids by -1 (Grid2op: 1,2 / Pypownet: 0,1)
-        for key in self.substations_elements.keys():
-            for elt in self.substations_elements[key]:
-                elt.busbar_id -= 1
+        # for key in self.substations_elements.keys():
+        #     for elt in self.substations_elements[key]:
+        #         elt.busbar_id -= 1
 
         network = Network(self.substations_elements)
 
