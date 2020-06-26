@@ -1,5 +1,6 @@
 import configparser
 from alphaDeesp.core.printer import Printer
+from alphaDeesp.core.pypownet.PypownetObservationLoader import PypownetObservationLoader
 from alphaDeesp.core.pypownet.PypownetSimulation import PypownetSimulation
 from alphaDeesp.core.alphadeesp import AlphaDeesp
 import pandas as pd
@@ -98,38 +99,26 @@ def test_integration_dataframe_results_with_line_9_cut():
     """
 
     #import os
-    #os.chdir('../../')
+    #os.chdir('../../../')
 
+    # Some manual configuration
     line_to_cut = [9]
+    timestep = 0
+    debug = False
+    param_folder = "./alphaDeesp/tests/ressources_for_tests/default14_static_line9"
 
     # read config file and parameters folder for Pypownet
     config = configparser.ConfigParser()
     config.read("./alphaDeesp/tests/ressources_for_tests/config_for_tests.ini")
-    param_folder = "./alphaDeesp/tests/ressources_for_tests/default14_static_line9"
 
     # run Pypownet
+    loader = PypownetObservationLoader(param_folder)
+    env, obs, action_space = loader.get_observation(timestep=timestep)
     sim = PypownetSimulation(
-        config["DEFAULT"], debug=False, param_folder=param_folder
+        env, obs, action_space, param_options = config["DEFAULT"], debug = debug, ltc = line_to_cut
     )
 
-    # retrieve Topology as an Observation object from Pypownet
-    _current_observation = sim.obs
-
-    # new configuration creation
-    # new_configuration = [[1, 1, 0], [1, 1, 0, 0, 0]]
-    # node_ids = [1, 5]
-
-    # change network Topology and retrieve an Obersation object from Pypownet
-    # _current_observation = sim.change_nodes_configurations(new_configuration, node_ids)
-    ####################################################################################################################
-    # ------------------------------------------------------------------------------------------------------------------
-    ####################################################################################################################
-
-    # load Observation into Simulation Class
-    sim.load(_current_observation, line_to_cut)
-
     # create NetworkX graph g_over, and DataFrame df_of_g
-
     df_of_g = sim.get_dataframe()
     g_over = sim.build_graph_from_data_frame(line_to_cut)
 
@@ -146,7 +135,6 @@ def test_integration_dataframe_results_with_line_9_cut():
     # This removes the first XXX line (used to construct initial dataframe structure)
     expert_system_results = expert_system_results.drop(0, axis=0)
 
-    # expert_system_results.to_csv("alphaDeesp/tests/ressources_for_tests/END_RESULT_DATAFRAME.csv")
     # print("--------------------------------------------------------------------------------------------")
     # print("----------------------------------- END RESULT DATAFRAME -----------------------------------")
     # print("--------------------------------------------------------------------------------------------")
@@ -158,6 +146,7 @@ def test_integration_dataframe_results_with_line_9_cut():
     #expert_system_results.to_csv("./alphaDeesp/tests/ressources_for_tests/END_RESULT_DATAFRAME_for_test_with_line_9_cut.csv")
 
     saved_df = pd.read_csv(path_to_saved_end_result_dataframe, index_col=0)
+    saved_df = saved_df.drop(0, axis=0)
 
 
     print("--------------------------------------------------------------------------------------------")
@@ -176,43 +165,58 @@ def test_integration_dataframe_results_with_line_8_cut():
     """
 
     #import os
-    #os.chdir('../../')
+    #os.chdir('../../../')
 
+    # Some manual configuration
     line_to_cut = [8]
+    timestep = 0
+    debug = False
+    param_folder = "./alphaDeesp/tests/ressources_for_tests/default14_static_line8"
 
     # read config file and parameters folder for Pypownet
     config = configparser.ConfigParser()
     config.read("./alphaDeesp/tests/ressources_for_tests/config_for_tests.ini")
-    param_folder = "./alphaDeesp/tests/ressources_for_tests/default14_static_line8"
 
     # run Pypownet
+    loader = PypownetObservationLoader(param_folder)
+    env, obs, action_space = loader.get_observation(timestep=timestep)
     sim = PypownetSimulation(
-        config["DEFAULT"], debug=False, param_folder=param_folder
+        env, obs, action_space, param_options=config["DEFAULT"], debug=debug, ltc=line_to_cut
     )
 
-    print(sim.obs.thermal_limits) # Check thermal limits
-
-    # retrieve Topology as an Observation object from Pypownet
-    _current_observation = sim.obs
-    # load Observation into Simulation Class
-    sim.load(_current_observation, line_to_cut)
     # create NetworkX graph g_over, and DataFrame df_of_g
     df_of_g = sim.get_dataframe()
     g_over = sim.build_graph_from_data_frame(line_to_cut)
+
     simulator_data = {"substations_elements": sim.substations_elements,
                       "substation_to_node_mapping": sim.substation_to_node_mapping,
                       "internal_to_external_mapping": sim.internal_to_external_mapping}
+
     # create AlphaDeesp
     alphadeesp = AlphaDeesp(g_over, df_of_g, simulator_data=simulator_data)
+
     ranked_combinations = alphadeesp.get_ranked_combinations()
+
     expert_system_results = sim.compute_new_network_changes(ranked_combinations)
     # This removes the first XXX line (used to construct initial dataframe structure)
     expert_system_results = expert_system_results.drop(0, axis=0)
+
+    # print("--------------------------------------------------------------------------------------------")
+    # print("----------------------------------- END RESULT DATAFRAME -----------------------------------")
+    # print("--------------------------------------------------------------------------------------------")
+    # print(expert_system_results)
+
     path_to_saved_end_result_dataframe = \
         Path.cwd() / "alphaDeesp/tests/ressources_for_tests/END_RESULT_DATAFRAME_for_test_with_line_8_cut.csv"
+
+    # expert_system_results.to_csv("./alphaDeesp/tests/ressources_for_tests/END_RESULT_DATAFRAME_for_test_with_line_9_cut.csv")
+
     saved_df = pd.read_csv(path_to_saved_end_result_dataframe, index_col=0)
+    saved_df = saved_df.drop(0, axis=0)
+
+    print("--------------------------------------------------------------------------------------------")
+    print("-------------------------------- SAVED END RESULT DATAFRAME --------------------------------")
+    print("--------------------------------------------------------------------------------------------")
+    print(saved_df)
+
     print("The two dataframes are equal: ", are_dataframes_equal(expert_system_results, saved_df))
-
-
-
-#test_integration_dataframe_results_with_line_8_cut()

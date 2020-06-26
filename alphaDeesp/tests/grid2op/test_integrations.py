@@ -4,6 +4,7 @@ from alphaDeesp.core.alphadeesp import AlphaDeesp
 import pandas as pd
 from pathlib import Path
 import ast
+import csv
 
 from alphaDeesp.core.grid2op.Grid2opObservationLoader import Grid2opObservationLoader
 from alphaDeesp.core.grid2op.Grid2opSimulation import Grid2opSimulation
@@ -21,7 +22,7 @@ def build_sim(ltc, param_folder):
 
     loader = Grid2opObservationLoader(param_folder)
     env, obs, action_space = loader.get_observation()
-    sim = Grid2opSimulation(config["DEFAULT"], env, obs, action_space, [ltc], plot_helper=loader.get_plot_helper())
+    sim = Grid2opSimulation(config["DEFAULT"], env, obs, action_space, [ltc])
     return sim
 
 
@@ -88,10 +89,7 @@ def are_dataframes_equal(df1, df2):
                 row_tab.append(round(elem, 2))
             elif isinstance(elem, str):
                 # string evaluation are used for arrays in string form, they get transformed into arrays
-                try:
-                    row_tab.append(ast.literal_eval(elem))
-                except:
-                    print("PROBLEME")
+                row_tab.append(ast.literal_eval(elem))
             else:
                 row_tab.append(elem)
 
@@ -109,6 +107,9 @@ def test_integration_dataframe_results_with_line_9_cut():
     Line 9 is between Node 4 and 5 [internal node ID indexing]
     Test
     """
+    #import os
+    #os.chdir('../../../')
+
     ltc = 9
     param_folder = "./alphaDeesp/tests/resources_for_tests_grid2op/l2rpn_2019_ltc_9"
 
@@ -124,12 +125,20 @@ def test_integration_dataframe_results_with_line_9_cut():
     alphadeesp = AlphaDeesp(g_over, df_of_g, simulator_data=simulator_data)
     ranked_combinations = alphadeesp.get_ranked_combinations()
     expert_system_results = sim.compute_new_network_changes(ranked_combinations)
-    # This removes the first XXX line (used to construct initial dataframe structure)
-    expert_system_results = expert_system_results.drop(0, axis=0)
+
+    # expert_system_results.to_csv("alphaDeesp/tests/resources_for_tests_grid2op/END_RESULT_DATAFRAME_G2OP_LTC8_8CAPA_88_generated.csv")
+
     path_to_saved_end_result_dataframe = \
         Path.cwd() / "alphaDeesp/tests/resources_for_tests_grid2op/END_RESULT_DATAFRAME_G2OP_LTC9_9CAPA_230.csv"
 
     saved_df = pd.read_csv(path_to_saved_end_result_dataframe, index_col=0)
+
+    # This removes the first XXX line (used to construct initial dataframe structure)
+    expert_system_results = expert_system_results.drop(0, axis=0)
+    saved_df = saved_df.drop(0, axis=0)
+
+    # List understandable format
+    saved_df["Topology applied"] = saved_df["Topology applied"].str.replace(" ", ",")
 
     print("The two dataframes are equal: ", are_dataframes_equal(expert_system_results, saved_df))
 
@@ -140,8 +149,9 @@ def test_integration_dataframe_results_with_line_8_cut():
     Line 8 is between Node 4 and 5 [internal node ID indexing]
     Test
     """
-    import os
-    os.chdir('../../../')
+
+    # import os
+    # os.chdir('../../../')
 
     ltc = 8
     param_folder = "./alphaDeesp/tests/resources_for_tests_grid2op/l2rpn_2019_ltc_8"
@@ -159,7 +169,7 @@ def test_integration_dataframe_results_with_line_8_cut():
     ranked_combinations = alphadeesp.get_ranked_combinations()
     expert_system_results = sim.compute_new_network_changes(ranked_combinations)
 
-    expert_system_results.to_csv("alphaDeesp/tests/resources_for_tests_grid2op/END_RESULT_DATAFRAME_G2OP_LTC8_8CAPA_88.csv")
+    #expert_system_results.to_csv("alphaDeesp/tests/resources_for_tests_grid2op/END_RESULT_DATAFRAME_G2OP_LTC8_8CAPA_88_generated.csv")
 
     path_to_saved_end_result_dataframe = \
         Path.cwd() / "alphaDeesp/tests/resources_for_tests_grid2op/END_RESULT_DATAFRAME_G2OP_LTC8_8CAPA_88.csv"
@@ -169,6 +179,9 @@ def test_integration_dataframe_results_with_line_8_cut():
     # This removes the first XXX line (used to construct initial dataframe structure)
     expert_system_results = expert_system_results.drop(0, axis=0)
     saved_df = saved_df.drop(0, axis=0)
+
+    # List understandable format
+    saved_df["Topology applied"] = saved_df["Topology applied"].str.replace(" ", ",")
 
     print("The two dataframes are equal: ", are_dataframes_equal(expert_system_results, saved_df))
 

@@ -141,7 +141,7 @@ def main():
         print("Error simulator Type in config.ini not recognized...")
 
     # ###############################################################################################################
-    # Call agent mode with plot facility
+    # Call agent mode with possible plot and debug fonctionalities
     ranked_combinations, expert_system_results = expert_operator(env, obs, action_space, args.ltc, plot=args.snapshot, debug = args.debug)
 
 

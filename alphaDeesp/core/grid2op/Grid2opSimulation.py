@@ -19,7 +19,7 @@ class Grid2opSimulation(Simulation):
                 (-280, -151), (-100, -340), (366, -340), (390, -110), (-14, -104), (-184, 54), (400, -80),
                 (438, 100), (326, 140), (200, 8), (79, 12), (-152, 170), (-70, 200), (222, 200)]
 
-    def __init__(self, config, env, obs, action_space, ltc=None, plot_helper=None):
+    def __init__(self, config, env, obs, action_space, ltc=None):
         super().__init__()
 
         # Get Grid2op objects
@@ -141,8 +141,6 @@ class Grid2opSimulation(Simulation):
                 print("###########"" Compute new network changes on node [{}] with new topo [{}] ###########"
                       .format(internal_target_node, new_conf))
 
-                if score_topo == 11.66:
-                    print("LA")
                 action = self.get_action_from_topo(internal_target_node, new_conf, obs)
                 virtual_obs, reward, done, info = self.obs.simulate(action)
                 # Same as in Pypownet, this is not what we would want though, as we do the work for only one ltc
@@ -156,7 +154,7 @@ class Grid2opSimulation(Simulation):
                 # Fill save bag with observations for further analysis (detailed graph)
                 name = "".join(str(e) for e in new_conf)
                 name = str(internal_target_node) + "_" + name
-                self.save_bag.append([name, obs])
+                self.save_bag.append([name, virtual_obs])
 
                 if done:    # Game over: no need to compute further operations
                     worsened_line_ids = []
@@ -194,6 +192,7 @@ class Grid2opSimulation(Simulation):
                 end_result_dataframe.loc[max_index] = score_data
                 ii += 1
                 j += 1
+
         end_result_dataframe.to_csv("./END_RESULT_DATAFRAME.csv", index=True)
         return end_result_dataframe
 
@@ -352,7 +351,14 @@ class Grid2opSimulation(Simulation):
     def build_detailed_graph_from_internal_structure(self, lines_to_cut):
         """This function create a detailed graph from internal self structures as self.substations_elements..."""
         g = nx.DiGraph()
+
+        # Reduce busbar_ids by -1 (Grid2op: 1,2 / Pypownet: 0,1)
+        for key in self.substations_elements.keys():
+            for elt in self.substations_elements[key]:
+                elt.busbar_id -= 1
+
         network = Network(self.substations_elements)
+
         print("Network = ", network)
         build_nodes_v2(g, network.nodes_prod_values)
         build_edges_v2(g, network.substation_id_busbar_id_node_id_mapping, self.substations_elements)
