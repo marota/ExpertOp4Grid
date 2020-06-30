@@ -86,7 +86,7 @@ def main():
     parser.add_argument("-t", "--timestep", type=int,
                         help="Number of the timestep to use", default = 0)
     parser.add_argument("-c", "--chronicscenario",
-                        help="Chronic scenario to consider. Default is 'a'", default="a")
+                        help="Chronic scenario to consider. By default, the first available chronic scenario will be chosen", default="")
 
     args = parser.parse_args()
     config = configparser.ConfigParser()
