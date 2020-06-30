@@ -9,10 +9,12 @@ class Grid2opObservationLoader:
         self.env = grid2op.make(self.parameter_folder, param = self.custom_params)
 
 
-    def get_observation(self, timestep = 0):
+    def get_observation(self, chronic_scenario = "a", timestep = 0):
         # Method fast_forward_chronics doesnt work properly
         # self.env.fast_forward_chronics(nb_timestep= timestep)
         # obs = self.env.get_obs()
+
+        # TODO: chopper le bon scenario
 
         # So we prefer just doing nothing during timesteps to skip
         if timestep == 0:

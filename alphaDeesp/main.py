@@ -85,8 +85,8 @@ def main():
                         help="List of integers representing the lines to cut", default = [9])
     parser.add_argument("-t", "--timestep", type=int,
                         help="Number of the timestep to use", default = 0)
-    parser.add_argument("-g", "--gridpath",
-                        help="Path to access to files representing a grid", default="")
+    parser.add_argument("-c", "--chronicscenario",
+                        help="Chronic scenario to consider. Default is 'a'", default="a")
 
     args = parser.parse_args()
     config = configparser.ConfigParser()
@@ -99,8 +99,7 @@ def main():
     if args.ltc is None or len(args.ltc) != 1:
         raise ValueError("Input arg error, --ltc, for the moment, we allow cutting only one line.\n\nPlease select"
                          " one line to cut ex: python3 -m alphaDeesp.main -l 9")
-    if args.gridpath is None:
-        raise ValueError("Input arg error, --gridpath, please provide a path for access a grid configuration")
+
 
     print("-------------------------------------")
     print(f"Working on lines: {args.ltc} ")
@@ -110,19 +109,19 @@ def main():
     # ###############################################################################################################
     # Use Loaders API to load simulator environment in manual mode at desired timestep
     sim = None
-    parameters_folder = args.gridpath
+
     if config["DEFAULT"]["simulatortype"] == "Pypownet":
         print("We init Pypownet Simulation")
-        #parameters_folder = "./alphaDeesp/ressources/parameters/default14_static_ltc_9"
+        parameters_folder = config["DEFAULT"]["gridPath"]
         loader = PypownetObservationLoader(parameters_folder)
         env, obs, action_space = loader.get_observation(args.timestep)
         sim = PypownetSimulation(env, obs, action_space, param_options=config["DEFAULT"], debug=args.debug,
                                  ltc=args.ltc)
     elif config["DEFAULT"]["simulatortype"] == "Grid2OP":
         print("We init Grid2OP Simulation")
-        #parameters_folder = "./alphaDeesp/ressources/parameters/l2rpn_2019_ltc_9"
+        parameters_folder = config["DEFAULT"]["gridPath"]
         loader = Grid2opObservationLoader(parameters_folder)
-        env, obs, action_space = loader.get_observation(args.timestep)
+        env, obs, action_space = loader.get_observation(chronic_scenario= args.chronicscenario, timestep=args.timestep)
         sim = Grid2opSimulation(env, obs, action_space, param_options=config["DEFAULT"], debug=args.debug,
                                  ltc=args.ltc)
 
