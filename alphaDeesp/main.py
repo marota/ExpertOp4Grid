@@ -72,11 +72,11 @@ def main():
     shell_print_project_header()
 
     parser = argparse.ArgumentParser(description="Expert System")
-    parser.add_argument("-d", "--debug", action="store_true",
-                        help="Prints additional information for debugging purposes")
-    parser.add_argument("-s", "--snapshot", action="store_true",
-                        help="Displays the main overflow graph at step i, ie, delta_flows_graph, diff between "
-                             "flows before and after cutting the constrained line", default = False)
+    parser.add_argument("-d", "--debug", type=int,
+                        help="If 1, prints additional information for debugging purposes. If 0, doesn't print any info", default = 0)
+    parser.add_argument("-s", "--snapshot", type=int,
+                        help="If 1, displays the main overflow graph at step i, ie, delta_flows_graph, diff between "
+                             "flows before and after cutting the constrained line. If 0, doesn't display the graphs", default = 0)
     # nargs '+' == 1 or more.
     # nargs '*' == 0 or more.
     # nargs '?' == 0 or 1.
@@ -84,9 +84,9 @@ def main():
     parser.add_argument("-l", "--ltc", nargs="+", type=int,
                         help="List of integers representing the lines to cut", default = [9])
     parser.add_argument("-t", "--timestep", type=int,
-                        help="Number of the timestep to use", default = 0)
-    parser.add_argument("-c", "--chronicscenario",
-                        help="Chronic scenario to consider. By default, the first available chronic scenario will be chosen", default="")
+                        help="ID of the timestep to use, starting from 0. Default is 0, i.e. the first time step will be considered", default = 0)
+    parser.add_argument("-c", "--chronicscenario", type=int,
+                        help="ID of chronic scenario to consider, starting from 0. By default, the first available chronic scenario will be chosen, i.e. ID 0", default=0)
 
     args = parser.parse_args()
     config = configparser.ConfigParser()
@@ -100,6 +100,12 @@ def main():
         raise ValueError("Input arg error, --ltc, for the moment, we allow cutting only one line.\n\nPlease select"
                          " one line to cut ex: python3 -m alphaDeesp.main -l 9")
 
+    if args.snapshot > 1:
+        raise ValueError("Input arg error, --snapshot, options are 0 or 1")
+
+    if args.debug > 1:
+        raise ValueError("Input arg error, --debug, options are 0 or 1")
+
 
     print("-------------------------------------")
     print(f"Working on lines: {args.ltc} ")
@@ -109,6 +115,8 @@ def main():
     # ###############################################################################################################
     # Use Loaders API to load simulator environment in manual mode at desired timestep
     sim = None
+    args.debug = bool(args.debug)
+    args.snapshot = bool(args.snapshot)
 
     if config["DEFAULT"]["simulatortype"] == "Pypownet":
         print("We init Pypownet Simulation")
