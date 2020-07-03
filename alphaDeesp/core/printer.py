@@ -17,6 +17,8 @@ class Printer:
         # self.default_output_path = "./alphaDeesp/ressources/output/"
         # self.default_output_path = "/home/mozgawamar/Documents/alphaDeesp/alphaDeesp/ressources/output/"
         self.default_output_path = Path.cwd() / "alphaDeesp/ressources/output"
+        self.base_output_path = self.default_output_path / "Base graph"
+        self.results_output_path = self.default_output_path / "Result graph"
         print("self.default output path = ", self.default_output_path)
 
         if not self.default_output_path.exists():
@@ -27,7 +29,10 @@ class Printer:
         """This function displays the graph g in a "geographical" way"""
 
         "filenames are pathlib.Paths objects"
-        filename_dot, filename_pdf = self.create_namefile("geo", name=name)
+        type_ = "results"
+        if name in ["g_pow", "g_overflow_print", "g_pow_prime"]:
+            type_ = "base"
+        filename_dot, filename_pdf = self.create_namefile("geo", name=name, type = type_)
 
         dic_pos_attributes = {}
         if custom_layout is not None:
@@ -100,7 +105,7 @@ class Printer:
     def display_elec(self, g, save=False):
         pass
 
-    def create_namefile(self, display_type, name=None):
+    def create_namefile(self, display_type, name=None, type = "results"):
         """return dot and pdf filenames"""
         # filename_dot = "graph_result_" + display_type + "_" + current_date + ".dot"
         # filename_pdf = "graph_result_" + display_type + "_" + current_date + ".pdf"
@@ -114,9 +119,16 @@ class Printer:
         print("name = ", name)
         filename_dot = name + "_" + display_type + "_" + current_date + ".dot"
         filename_pdf = name + "_" + display_type + "_" + current_date + ".pdf"
-        hard_filename_dot = self.default_output_path / filename_dot
+
+        if type == "results":
+            output_path = self.results_output_path
+        elif type == "base":
+            output_path = self.base_output_path
+        else:
+            output_path = self.default_output_path
+        hard_filename_dot = output_path / filename_dot
         # hard_filename_dot = filename_dot
-        hard_filename_pdf = self.default_output_path / filename_pdf
+        hard_filename_pdf = output_path / filename_pdf
 
         print("============================= FUNCTION create_namefile =============================")
         print("hard_filename = ", hard_filename_pdf)

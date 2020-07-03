@@ -8,6 +8,7 @@ from pypownet.environment import ElementType
 from alphaDeesp.core.elements import *
 from alphaDeesp.core.network import Network
 from alphaDeesp.core.simulation import Simulation
+from alphaDeesp.core.printer import Printer
 
 
 class PypownetSimulation(Simulation):
@@ -27,6 +28,7 @@ class PypownetSimulation(Simulation):
         self.topo = None  # a dict create in retrieve topology
         self.ltc = ltc
         self.param_options = param_options
+        self.printer = Printer()
         #############################
         self.environment = env
         self.action_space = action_space
@@ -71,6 +73,46 @@ class PypownetSimulation(Simulation):
         :return: pandas dataframe with topology information before and after line cutting
         """
         return self.df
+
+    def plot_grid_beforecut(self):
+        """
+        Plots the grid with alphadeesp.printer API for Observation before lines have been cut
+        :return: Figure
+        """
+        g_pow = self.build_powerflow_graph_beforecut()
+        return self.plot_grid(g_pow, name = "g_pow")
+
+    def plot_grid_aftercut(self):
+        """
+        Plots the grid with alphadeesp.printer API for Observation after lines have been cut
+        :return: Figure
+        """
+        g_pow_prime = self.build_powerflow_graph_aftercut()
+        return self.plot_grid(g_pow_prime, name = "g_pow_prime")
+
+    def plot_grid_delta(self):
+        """
+        Plots the grid with alphadeesp.printer API for delta between Observations before and after lines have been cut
+        :return: Figure
+        """
+        g_over = self.build_graph_from_data_frame(self.ltc)
+        return self.plot_grid(g_over, name="g_overflow_print")
+
+    def plot_grid_from_obs(self, obs, name):
+        """
+        Plots the grid with alphadeesp.printer API from given observation
+        :return: Figure
+        """
+        # Pypownet needs to rebuild its internal structure to produce objects to plot
+        self.load_from_observation(obs, self.ltc)
+        g_over_detailed = self.build_detailed_graph_from_internal_structure(self.ltc)
+        return self.plot_grid(g_over_detailed, name=name)
+
+    def plot_grid(self, g, name):
+        # Use printer API to plot (graphviz/neato)
+        self.printer.display_geo(g, self.get_layout(), name=name)
+
+
 
     def compute_new_network_changes(self, ranked_combinations):
         """this function takes a dataframe ranked_combinations,

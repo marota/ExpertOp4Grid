@@ -4,7 +4,8 @@ from alphaDeesp.core.alphadeesp import AlphaDeesp
 import pandas as pd
 from pathlib import Path
 import ast
-import csv
+import numpy as np
+import pandas as pd
 
 from alphaDeesp.core.grid2op.Grid2opObservationLoader import Grid2opObservationLoader
 from alphaDeesp.core.grid2op.Grid2opSimulation import Grid2opSimulation
@@ -74,9 +75,14 @@ def are_dataframes_equal(df1, df2):
             # print("elem = ", elem)
             # print("type = ", type(elem))
             if isinstance(elem, float):
-                row_tab.append(round(elem, 2))
-            else:
-                row_tab.append(elem)
+                elem = round(elem, 2)
+
+            if type(elem).__module__ == np.__name__:  # Has been identified as numpy array : has to be converted in list
+                elem = elem.tolist()
+            if type(elem) != list:
+                if pd.isnull(elem): # NaN cant be equal to anything, even NaN themselves
+                    elem = str(elem)
+            row_tab.append(elem)
 
         generated_bag_rounded.append(row_tab)
 
@@ -87,12 +93,19 @@ def are_dataframes_equal(df1, df2):
 
         for elem in row:
             if isinstance(elem, float):
-                row_tab.append(round(elem, 2))
+                elem = round(elem, 2)
             elif isinstance(elem, str):
                 # string evaluation are used for arrays in string form, they get transformed into arrays
-                row_tab.append(ast.literal_eval(elem))
-            else:
-                row_tab.append(elem)
+                elem = ast.literal_eval(elem)
+
+            if type(elem).__module__ == np.__name__:  # Has been identified as numpy array : has to be converted in list
+                elem = elem.tolist()
+            if type(elem) != list:
+                if pd.isnull(elem): # NaN cant be equal to anything, even NaN themselves
+                    elem = str(elem)
+
+            row_tab.append(elem)
+
 
         saved_bag_rounded.append(row_tab)
 
@@ -126,8 +139,8 @@ def test_integration_dataframe_results_with_line_9_cut():
     alphadeesp = AlphaDeesp(g_over, df_of_g, simulator_data=simulator_data)
     ranked_combinations = alphadeesp.get_ranked_combinations()
     expert_system_results = sim.compute_new_network_changes(ranked_combinations)
-
-    # expert_system_results.to_csv("alphaDeesp/tests/resources_for_tests_grid2op/END_RESULT_DATAFRAME_G2OP_LTC8_8CAPA_88_generated.csv")
+    #expert_system_results = expert_system_results.drop(0, axis=0)
+    #expert_system_results.to_csv("alphaDeesp/tests/resources_for_tests_grid2op/END_RESULT_DATAFRAME_G2OP_LTC9_9CAPA_230.csv")
 
     path_to_saved_end_result_dataframe = \
         Path.cwd() / "alphaDeesp/tests/resources_for_tests_grid2op/END_RESULT_DATAFRAME_G2OP_LTC9_9CAPA_230.csv"
@@ -136,12 +149,12 @@ def test_integration_dataframe_results_with_line_9_cut():
 
     # This removes the first XXX line (used to construct initial dataframe structure)
     expert_system_results = expert_system_results.drop(0, axis=0)
-    saved_df = saved_df.drop(0, axis=0)
 
     # List understandable format
     saved_df["Topology applied"] = saved_df["Topology applied"].str.replace(" ", ",")
 
-    print("The two dataframes are equal: ", are_dataframes_equal(expert_system_results, saved_df))
+    #print("The two dataframes are equal: ", are_dataframes_equal(expert_system_results, saved_df))
+    assert are_dataframes_equal(expert_system_results, saved_df)
 
 
 def test_integration_dataframe_results_with_line_8_cut():
@@ -169,8 +182,8 @@ def test_integration_dataframe_results_with_line_8_cut():
     alphadeesp = AlphaDeesp(g_over, df_of_g, simulator_data=simulator_data)
     ranked_combinations = alphadeesp.get_ranked_combinations()
     expert_system_results = sim.compute_new_network_changes(ranked_combinations)
-
-    #expert_system_results.to_csv("alphaDeesp/tests/resources_for_tests_grid2op/END_RESULT_DATAFRAME_G2OP_LTC8_8CAPA_88_generated.csv")
+    #expert_system_results = expert_system_results.drop(0, axis=0)
+    #expert_system_results.to_csv("alphaDeesp/tests/resources_for_tests_grid2op/END_RESULT_DATAFRAME_G2OP_LTC8_8CAPA_88.csv")
 
     path_to_saved_end_result_dataframe = \
         Path.cwd() / "alphaDeesp/tests/resources_for_tests_grid2op/END_RESULT_DATAFRAME_G2OP_LTC8_8CAPA_88.csv"
@@ -179,11 +192,72 @@ def test_integration_dataframe_results_with_line_8_cut():
 
     # This removes the first XXX line (used to construct initial dataframe structure)
     expert_system_results = expert_system_results.drop(0, axis=0)
-    saved_df = saved_df.drop(0, axis=0)
 
     # List understandable format
     saved_df["Topology applied"] = saved_df["Topology applied"].str.replace(" ", ",")
 
-    print("The two dataframes are equal: ", are_dataframes_equal(expert_system_results, saved_df))
+    #print("The two dataframes are equal: ", are_dataframes_equal(expert_system_results, saved_df))
+    assert are_dataframes_equal(expert_system_results, saved_df)
+
+
+def test_integration_dataframe_results_with_modified_substation4():
+    """
+    In the initial state of the network, all substations are on busbar1
+    Line 9 is between Node 4 and 5 [internal node ID indexing]
+    Test
+    """
+
+    #import os
+    #os.chdir('../../../')
+
+    timestep = 5
+    ltc = 8
+    param_folder = "./alphaDeesp/tests/resources_for_tests_grid2op/l2rpn_2019_ltc_8_modify_substation_4"
+    config = configparser.ConfigParser()
+    config.read("./alphaDeesp/tests/resources_for_tests_grid2op/config_for_tests.ini")
+
+    ## Read Grid2op environment at timestep
+    loader = Grid2opObservationLoader(param_folder)
+    env, obs, action_space = loader.get_observation(timestep=timestep)
+
+    ## Modify buses
+    action = action_space({"set_bus": {'lines_ex_id': [(1, 2)], "lines_or_id": [(9, 2)]}})
+    #action = action_space({"set_bus": {'lines_ex_id': [(1, 2),(6,2)]}})
+    new_obs, reward, done, info = env.step(action)
+
+    ## Build simulator and generate objects for alphadeesp
+    sim = Grid2opSimulation(env, new_obs, action_space, param_options=config["DEFAULT"], debug=False,
+                            ltc=[ltc])
+    #sim.plot_grid(new_obs)
+    df_of_g = sim.get_dataframe()
+    g_over = sim.build_graph_from_data_frame([ltc])
+    g_pow = sim.build_powerflow_graph_beforecut()
+    g_pow_prime = sim.build_powerflow_graph_aftercut()
+    simulator_data = {"substations_elements": sim.get_substation_elements(),
+                      "substation_to_node_mapping": sim.get_substation_to_node_mapping(),
+                      "internal_to_external_mapping": sim.get_internal_to_external_mapping()}
+
+    ## Launch AlphaDeesp and get expert results
+    alphadeesp = AlphaDeesp(g_over, df_of_g, simulator_data=simulator_data)
+    ranked_combinations = alphadeesp.get_ranked_combinations()
+    expert_system_results = sim.compute_new_network_changes(ranked_combinations)
+    # =============
+    #expert_system_results = expert_system_results.drop(0, axis=0)
+    #expert_system_results.to_csv("alphaDeesp/tests/resources_for_tests_grid2op/END_RESULT_DATAFRAME_G2OP_MODIFIED_SUBSTATION4.csv")
+
+    # Read desired results
+    path_to_saved_end_result_dataframe = \
+        Path.cwd() / "alphaDeesp/tests/resources_for_tests_grid2op/END_RESULT_DATAFRAME_G2OP_MODIFIED_SUBSTATION4.csv"
+    saved_df = pd.read_csv(path_to_saved_end_result_dataframe, index_col=0)
+
+    ## Properly compare the two dataframes
+    # This removes the first XXX line (used to construct initial dataframe structure)
+    expert_system_results = expert_system_results.drop(0, axis=0)
+    # List understandable format
+    saved_df["Topology applied"] = saved_df["Topology applied"].str.replace(" ", ",")
+    #print("The two dataframes are equal: ", are_dataframes_equal(expert_system_results, saved_df))
+    assert are_dataframes_equal(expert_system_results, saved_df)
+
+
 
 

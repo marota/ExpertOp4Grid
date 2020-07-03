@@ -10,6 +10,7 @@ from grid2op.PlotGrid import PlotMatplot
 from alphaDeesp.core.simulation import Simulation
 from alphaDeesp.core.network import Network
 from alphaDeesp.core.elements import OriginLine, Consumption, Production, ExtremityLine
+from alphaDeesp.core.printer import Printer
 
 
 class Grid2opSimulation(Simulation):
@@ -26,6 +27,7 @@ class Grid2opSimulation(Simulation):
         if ltc is None:
             ltc = [9]
         self.env = env
+        self.printer = Printer()
         self.obs = obs
         self.obs_linecut = None
         self.plot_helper = self.get_plot_helper()
@@ -392,18 +394,41 @@ class Grid2opSimulation(Simulation):
         Plots the grid with Grid2op PlotHelper for Observations, before lines are cut
         :return: Figure
         """
-        return self.plot_grid(self.obs)
+        return self.plot_grid(self.obs, name = "g_pow")
 
     def plot_grid_aftercut(self):
         """
         Plots the grid with Grid2op PlotHelper for Observations, after lines have been cut
         :return: Figure
         """
-        return self.plot_grid(self.obs_linecut)
+        return self.plot_grid(self.obs_linecut, name = "g_pow_prime")
 
-    def plot_grid(self, obs):
-        fig_obs = self.plot_helper.plot_obs(obs, line_info='p')
-        return fig_obs
+    def plot_grid_delta(self):
+        """
+        Plots the grid with alphadeesp.printer API for delta between Observations before and after lines have been cut
+        :return: Figure
+        """
+        return self.plot_grid(None, name="g_overflow_print")
+
+    def plot_grid_from_obs(self, obs, name):
+        """
+        Plots the grid with Grid2op PlotHelper from given observation
+        :return: Figure
+        """
+        return self.plot_grid(obs, name=name)
+
+    def plot_grid(self, obs, name):
+        type_ = "results"
+        if name in ["g_pow", "g_overflow_print", "g_pow_prime"]:
+            type_ = "base"
+
+        if name == "g_overflow_print":  # Use printer API to plot g_over (graphviz/neato)
+            g_over = self.build_graph_from_data_frame(self.ltc)
+            self.printer.display_geo(g_over, self.get_layout(), name=name)
+        else:   # Use grid2op plot functionalities to plot all other graphs
+            output_name = self.printer.create_namefile("geo", name = name, type = type_)
+            fig_obs = self.plot_helper.plot_obs(obs, line_info='p')
+            fig_obs.savefig(output_name[1])
 
     def change_nodes_configurations(self, new_configurations, node_ids):
         change = []

@@ -35,16 +35,10 @@ def expert_operator(sim, plot = False, debug = False):
                       "internal_to_external_mapping": sim.get_internal_to_external_mapping()}
 
     if plot:
-        # Printer API (for both Grid2op and Pypownet)
-        printer.display_geo(g_over, custom_layout, name="g_overflow_print")
-        printer.display_geo(g_pow, custom_layout, name="g_pow")
-        printer.display_geo(g_pow_prime, custom_layout, name="g_pow_prime")
-
-        # Grid2op API (Grid2op only)
-        # fig_before = sim.plot_grid_beforecut()
-        # fig_before.show()
-        # fig_after = sim.plot_grid_aftercut()
-        # fig_after.show()
+        # Common plot API
+        sim.plot_grid_beforecut()
+        sim.plot_grid_aftercut()
+        sim.plot_grid_delta()
 
     # Launch alphadeesp core
     alphadeesp = AlphaDeesp(g_over, df_of_g, custom_layout, printer, simulator_data, debug = debug)
@@ -60,9 +54,11 @@ def expert_operator(sim, plot = False, debug = False):
     # Plot option
     if plot:
         for elem in sim.save_bag:  # elem[0] = name, elem[1] = graph
-            sim.load_from_observation(elem[1], ltc)
-            g_over_detailed = sim.build_detailed_graph_from_internal_structure(ltc)
-            printer.display_geo(g_over_detailed, custom_layout, name=elem[0])
+            sim.plot_grid_from_obs(elem[1], elem[0])
+            # sim.load_from_observation(elem[1], ltc)
+            # g_over_detailed = sim.build_detailed_graph_from_internal_structure(ltc)
+            # printer.display_geo(g_over_detailed, custom_layout, name=elem[0])
+
 
     return ranked_combinations, expert_system_results
 
@@ -76,7 +72,7 @@ def main():
                         help="If 1, prints additional information for debugging purposes. If 0, doesn't print any info", default = 0)
     parser.add_argument("-s", "--snapshot", type=int,
                         help="If 1, displays the main overflow graph at step i, ie, delta_flows_graph, diff between "
-                             "flows before and after cutting the constrained line. If 0, doesn't display the graphs", default = 0)
+                             "flows before and after cutting the constrained line. If 0, doesn't display the graphs", default = 1)
     # nargs '+' == 1 or more.
     # nargs '*' == 0 or more.
     # nargs '?' == 0 or 1.
@@ -118,14 +114,14 @@ def main():
     args.debug = bool(args.debug)
     args.snapshot = bool(args.snapshot)
 
-    if config["DEFAULT"]["simulatortype"] == "Pypownet":
+    if config["DEFAULT"]["simulatorType"] == "Pypownet":
         print("We init Pypownet Simulation")
         parameters_folder = config["DEFAULT"]["gridPath"]
         loader = PypownetObservationLoader(parameters_folder)
         env, obs, action_space = loader.get_observation(args.timestep)
         sim = PypownetSimulation(env, obs, action_space, param_options=config["DEFAULT"], debug=args.debug,
                                  ltc=args.ltc)
-    elif config["DEFAULT"]["simulatortype"] == "Grid2OP":
+    elif config["DEFAULT"]["simulatorType"] == "Grid2OP":
         print("We init Grid2OP Simulation")
         parameters_folder = config["DEFAULT"]["gridPath"]
         loader = Grid2opObservationLoader(parameters_folder)

@@ -1,5 +1,4 @@
 ,overflow ID,Flows before,Flows after,Delta flows,Worsened line,Prod redispatched,Load redispatched,Topology applied,Substation ID,Rank Substation ID,Topology score,Topology simulated score,Efficacity
-0,XX,XX,"['X', 'X', 'X']","['X', 'X', 'X']","['X', 'X', 'X']",X,X,X,X,X,X,X,X
 1,9,40.768272399902344,-7.599999904632568,48.36827087402344,[6],4.1723480224609375,0.0,[2 2 1 1 1],4,1,40.29,1,-249.5369873046875
 2,9,40.768272399902344,-7.599999904632568,48.36827087402344,[6],4.1723480224609375,0.0,[1 1 2 2 2],4,1,40.29,1,-249.5369873046875
 3,9,40.768272399902344,48.56959533691406,-7.801322937011719,[9],0.832244873046875,0.0,[2 2 2 1 1],4,1,39.02,0,-6.4611897468566895
