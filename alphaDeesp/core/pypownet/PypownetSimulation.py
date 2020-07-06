@@ -1,4 +1,5 @@
 from math import fabs
+import ast
 
 import networkx as nx
 import pypownet.environment
@@ -36,6 +37,9 @@ class PypownetSimulation(Simulation):
         self.obs = obs
         self.obs_linecut = None
 
+        # Layout of the grid
+        self.layout = self.compute_layout()
+
         print("HARD OVERFLOW = ", self.environment.game.hard_overflow_coefficient)
         print("")
 
@@ -53,11 +57,20 @@ class PypownetSimulation(Simulation):
         print(self.obs)
         self.load()
 
+    def compute_layout(self):
+        try:
+            layout = self.param_options['CustomLayout']
+            # Conversion from string to list
+            layout = ast.literal_eval(layout)
+        except:
+            layout = [(-280, -81), (-100, -270), (366, -270), (366, -54), (-64, -54), (-64, 54), (366, 0),
+                    (438, 0), (326, 54), (222, 108), (79, 162), (-152, 270), (-64, 270), (222, 216),
+                    (-280, -151), (-100, -340), (366, -340), (390, -110), (-14, -104), (-184, 54), (400, -80),
+                    (438, 100), (326, 140), (200, 8), (79, 12), (-152, 170), (-70, 200), (222, 200)]
+        return layout
+
     def get_layout(self):
-        return [(-280, -81), (-100, -270), (366, -270), (366, -54), (-64, -54), (-64, 54), (366, 0),
-                (438, 0), (326, 54), (222, 108), (79, 162), (-152, 270), (-64, 270), (222, 216),
-                (-280, -151), (-100, -340), (366, -340), (390, -110), (-14, -104), (-184, 54), (400, -80),
-                (438, 100), (326, 140), (200, 8), (79, 12), (-152, 170), (-70, 200), (222, 200)]
+        return self.layout
 
     def get_substation_elements(self):
         return self.substations_elements
@@ -98,7 +111,7 @@ class PypownetSimulation(Simulation):
         g_over = self.build_graph_from_data_frame(self.ltc)
         return self.plot_grid(g_over, name="g_overflow_print")
 
-    def plot_grid_from_obs(self, obs, name):
+    def plot_grid_from_obs(self, obs, name, create_result_folder = None):
         """
         Plots the grid with alphadeesp.printer API from given observation
         :return: Figure
@@ -106,11 +119,11 @@ class PypownetSimulation(Simulation):
         # Pypownet needs to rebuild its internal structure to produce objects to plot
         self.load_from_observation(obs, self.ltc)
         g_over_detailed = self.build_detailed_graph_from_internal_structure(self.ltc)
-        return self.plot_grid(g_over_detailed, name=name)
+        return self.plot_grid(g_over_detailed, name=name, create_result_folder = create_result_folder)
 
-    def plot_grid(self, g, name):
+    def plot_grid(self, g, name, create_result_folder = None):
         # Use printer API to plot (graphviz/neato)
-        self.printer.display_geo(g, self.get_layout(), name=name)
+        self.printer.display_geo(g, self.get_layout(), name=name, create_result_folder = create_result_folder)
 
 
 

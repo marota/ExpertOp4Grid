@@ -25,14 +25,14 @@ class Printer:
             print(f"{self.default_output_path} folder does not exist. Printer has created a new folder.")
             self.default_output_path.mkdir()
 
-    def display_geo(self, g, custom_layout=None, axial_symetry=False, save=False, name=None):
+    def display_geo(self, g, custom_layout=None, axial_symetry=False, save=False, name=None, create_result_folder = None):
         """This function displays the graph g in a "geographical" way"""
 
         "filenames are pathlib.Paths objects"
         type_ = "results"
         if name in ["g_pow", "g_overflow_print", "g_pow_prime"]:
             type_ = "base"
-        filename_dot, filename_pdf = self.create_namefile("geo", name=name, type = type_)
+        filename_dot, filename_pdf = self.create_namefile("geo", name=name, type = type_, create_result_folder = create_result_folder)
 
         dic_pos_attributes = {}
         if custom_layout is not None:
@@ -105,7 +105,7 @@ class Printer:
     def display_elec(self, g, save=False):
         pass
 
-    def create_namefile(self, display_type, name=None, type = "results"):
+    def create_namefile(self, display_type, name=None, type = "results", create_result_folder = None):
         """return dot and pdf filenames"""
         # filename_dot = "graph_result_" + display_type + "_" + current_date + ".dot"
         # filename_pdf = "graph_result_" + display_type + "_" + current_date + ".pdf"
@@ -122,6 +122,9 @@ class Printer:
 
         if type == "results":
             output_path = self.results_output_path
+            if create_result_folder is not None:
+                output_path = output_path / create_result_folder
+                os.makedirs(output_path, exist_ok=True)
         elif type == "base":
             output_path = self.base_output_path
         else:

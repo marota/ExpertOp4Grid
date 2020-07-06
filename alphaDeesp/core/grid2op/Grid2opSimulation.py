@@ -1,4 +1,5 @@
 from pprint import pprint
+import ast
 
 import numpy as np
 from math import fabs
@@ -14,11 +15,24 @@ from alphaDeesp.core.printer import Printer
 
 
 class Grid2opSimulation(Simulation):
+    def compute_layout(self):
+        try:
+            layout = self.param_options['CustomLayout']
+            # Conversion from string to list
+            layout = ast.literal_eval(layout)
+        except:
+            try:
+                # Grid2op Layout if exists
+                layout = list(self.obs.grid_layout.values())
+            except:
+                layout = [(-280, -81), (-100, -270), (366, -270), (366, -54), (-64, -54), (-64, 54), (366, 0),
+                          (438, 0), (326, 54), (222, 108), (79, 162), (-152, 270), (-64, 270), (222, 216),
+                          (-280, -151), (-100, -340), (366, -340), (390, -110), (-14, -104), (-184, 54), (400, -80),
+                          (438, 100), (326, 140), (200, 8), (79, 12), (-152, 170), (-70, 200), (222, 200)]
+        return layout
+
     def get_layout(self):
-        return [(-280, -81), (-100, -270), (366, -270), (366, -54), (-64, -54), (-64, 54), (366, 0),
-                (438, 0), (326, 54), (222, 108), (79, 162), (-152, 270), (-64, 270), (222, 216),
-                (-280, -151), (-100, -340), (366, -340), (390, -110), (-14, -104), (-184, 54), (400, -80),
-                (438, 100), (326, 140), (200, 8), (79, 12), (-152, 170), (-70, 200), (222, 200)]
+        return self.layout
 
     def __init__(self, env, obs, action_space, param_options=None, debug = False, ltc=[9]):
         super().__init__()
@@ -47,6 +61,9 @@ class Grid2opSimulation(Simulation):
         self.internal_to_external_mapping = {}
         self.external_to_internal_mapping = {}
         self.substations_elements = {}
+
+        # Layout of the grid
+        self.layout = self.compute_layout()
 
         # Compute data structure representing grid an dtopology
         self.topo = None
@@ -410,14 +427,14 @@ class Grid2opSimulation(Simulation):
         """
         return self.plot_grid(None, name="g_overflow_print")
 
-    def plot_grid_from_obs(self, obs, name):
+    def plot_grid_from_obs(self, obs, name, create_result_folder = None):
         """
         Plots the grid with Grid2op PlotHelper from given observation
         :return: Figure
         """
-        return self.plot_grid(obs, name=name)
+        return self.plot_grid(obs, name=name, create_result_folder = create_result_folder)
 
-    def plot_grid(self, obs, name):
+    def plot_grid(self, obs, name, create_result_folder = None):
         type_ = "results"
         if name in ["g_pow", "g_overflow_print", "g_pow_prime"]:
             type_ = "base"
@@ -426,7 +443,7 @@ class Grid2opSimulation(Simulation):
             g_over = self.build_graph_from_data_frame(self.ltc)
             self.printer.display_geo(g_over, self.get_layout(), name=name)
         else:   # Use grid2op plot functionalities to plot all other graphs
-            output_name = self.printer.create_namefile("geo", name = name, type = type_)
+            output_name = self.printer.create_namefile("geo", name = name, type = type_, create_result_folder = create_result_folder)
             fig_obs = self.plot_helper.plot_obs(obs, line_info='p')
             fig_obs.savefig(output_name[1])
 
