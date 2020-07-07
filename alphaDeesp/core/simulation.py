@@ -54,19 +54,19 @@ class Simulation(ABC):
         """This function creates initial structure for the dataframe"""
 
         end_result_dataframe_structure_initiation = {
-            "overflow ID": ["XX"],
-            "Flows before": ["XX"],
-            "Flows after": [["X", "X", "X"]],
-            "Delta flows": [["X", "X", "X"]],
-            "Worsened line": [["X", "X", "X"]],
-            "Prod redispatched": ["X"],
-            "Load redispatched": ["X"],
-            "Topology applied": ["X"],
-            "Substation ID": ["X"],
-            "Rank Substation ID": ["X"],
-            "Topology score": ["X"],
-            "Topology simulated score": ["X"],
-            "Efficacity": ["X"],
+            "overflow ID": [],
+            "Flows before": [],
+            "Flows after": [],
+            "Delta flows": [],
+            "Worsened line": [],
+            "Prod redispatched": [],
+            "Load redispatched": [],
+            "Topology applied": [],
+            "Substation ID": [],
+            "Rank Substation ID": [],
+            "Topology score": [],
+            "Topology simulated score": [],
+            "Efficacity": [],
         }
         end_result_data_frame = pd.DataFrame(end_result_dataframe_structure_initiation)
 

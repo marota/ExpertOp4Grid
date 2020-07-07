@@ -19,17 +19,17 @@ class Grid2opSimulation(Simulation):
                 (-280, -151), (-100, -340), (366, -340), (390, -110), (-14, -104), (-184, 54), (400, -80),
                 (438, 100), (326, 140), (200, 8), (79, 12), (-152, 170), (-70, 200), (222, 200)]
 
-    def __init__(self, env, obs, action_space, param_options=None, debug = False, ltc=[9]):
+    def __init__(self, obs, action_space, observation_space, param_options=None, debug = False, ltc=[9]):
         super().__init__()
 
         # Get Grid2op objects
         if ltc is None:
             ltc = [9]
-        self.env = env
         self.obs = obs
         self.obs_linecut = None
-        self.plot_helper = self.get_plot_helper()
         self.action_space = action_space
+        self.observation_space = observation_space
+        self.plot_helper = self.get_plot_helper()
 
         # Get Alphadeesp configuration
         self.ltc = ltc
@@ -76,7 +76,7 @@ class Grid2opSimulation(Simulation):
         return self.internal_to_external_mapping
 
     def get_plot_helper(self):
-        plot_helper = PlotMatplot(self.env.observation_space)
+        plot_helper = PlotMatplot(self.observation_space)
         return plot_helper
 
     @staticmethod
@@ -123,7 +123,7 @@ class Grid2opSimulation(Simulation):
         print("##########...........COMPUTE NEW NETWORK CHANGES..........####################")
         print("##############################################################################")
         end_result_dataframe = self.create_end_result_empty_dataframe()
-        print(self.env.backend.get_thermal_limit())
+        actions = []
         j = 0
         for df in ranked_combinations:
             ii = 0
@@ -174,6 +174,7 @@ class Grid2opSimulation(Simulation):
                         efficacity = -fabs(delta_flow / virtual_obs.rho[self.ltc[0]])
 
                 # To store in data frame
+                actions.append(action)
                 score_data = [only_line,
                               flow_before,
                               flow_after,
@@ -194,7 +195,7 @@ class Grid2opSimulation(Simulation):
                 j += 1
 
         end_result_dataframe.to_csv("./END_RESULT_DATAFRAME.csv", index=True)
-        return end_result_dataframe
+        return end_result_dataframe, actions
 
     @staticmethod
     def create_boolean_array_of_worsened_line_ids(old_obs, new_obs):
@@ -405,12 +406,12 @@ class Grid2opSimulation(Simulation):
         fig_obs = self.plot_helper.plot_obs(obs, line_info='p')
         return fig_obs
 
-    def change_nodes_configurations(self, new_configurations, node_ids):
+    def change_nodes_configurations(self, new_configurations, node_ids, env):
         change = []
         for (conf, node) in zip(new_configurations, node_ids):
             change.append((node, conf))
         action = self.action_space({"set_bus": {"substations_id": change}})
-        new_obs, reward, done, info = self.env.step(action)
+        new_obs, reward, done, info = env.step(action)
         self.obs = new_obs
         self.load()
         return new_obs
