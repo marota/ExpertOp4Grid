@@ -23,7 +23,8 @@ def build_sim(ltc, param_folder):
 
     loader = Grid2opObservationLoader(param_folder)
     env, obs, action_space = loader.get_observation()
-    sim = Grid2opSimulation(env, obs, action_space, param_options=config["DEFAULT"], debug=False,
+    observation_space = env.observation_space
+    sim = Grid2opSimulation(obs, action_space, observation_space, param_options=config["DEFAULT"], debug=False,
                             ltc=[ltc])
     return sim
 
@@ -138,9 +139,9 @@ def test_integration_dataframe_results_with_line_9_cut():
     # create AlphaDeesp
     alphadeesp = AlphaDeesp(g_over, df_of_g, simulator_data=simulator_data)
     ranked_combinations = alphadeesp.get_ranked_combinations()
-    expert_system_results = sim.compute_new_network_changes(ranked_combinations)
-    #expert_system_results = expert_system_results.drop(0, axis=0)
-    #expert_system_results.to_csv("alphaDeesp/tests/resources_for_tests_grid2op/END_RESULT_DATAFRAME_G2OP_LTC9_9CAPA_230.csv")
+    expert_system_results, actions = sim.compute_new_network_changes(ranked_combinations)
+
+    # expert_system_results.to_csv("alphaDeesp/tests/resources_for_tests_grid2op/END_RESULT_DATAFRAME_G2OP_LTC8_8CAPA_88_generated.csv")
 
     path_to_saved_end_result_dataframe = \
         Path.cwd() / "alphaDeesp/tests/resources_for_tests_grid2op/END_RESULT_DATAFRAME_G2OP_LTC9_9CAPA_230.csv"
@@ -182,8 +183,8 @@ def test_integration_dataframe_results_with_line_8_cut():
     alphadeesp = AlphaDeesp(g_over, df_of_g, simulator_data=simulator_data)
     ranked_combinations = alphadeesp.get_ranked_combinations()
     expert_system_results = sim.compute_new_network_changes(ranked_combinations)
-    #expert_system_results = expert_system_results.drop(0, axis=0)
-    #expert_system_results.to_csv("alphaDeesp/tests/resources_for_tests_grid2op/END_RESULT_DATAFRAME_G2OP_LTC8_8CAPA_88.csv")
+
+    #expert_system_results.to_csv("alphaDeesp/tests/resources_for_tests_grid2op/END_RESULT_DATAFRAME_G2OP_LTC8_8CAPA_88_generated.csv")
 
     path_to_saved_end_result_dataframe = \
         Path.cwd() / "alphaDeesp/tests/resources_for_tests_grid2op/END_RESULT_DATAFRAME_G2OP_LTC8_8CAPA_88.csv"

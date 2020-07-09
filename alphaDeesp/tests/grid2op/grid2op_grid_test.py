@@ -16,13 +16,14 @@ def build_sim():
 
     loader = Grid2opObservationLoader(param_folder)
     env, obs, action_space = loader.get_observation()
-    sim = Grid2opSimulation(env, obs, action_space, param_options=config["DEFAULT"], debug=False,
+    observation_space = env.observation_space
+    sim = Grid2opSimulation(obs, action_space, observation_space, param_options=config["DEFAULT"], debug=False,
                                  ltc=[9])
-    return sim
+    return sim, env
 
 
 def test_powerflow_graph():
-    sim = build_sim()
+    sim, env = build_sim()
 
     g_pow = build_powerflow_graph(sim.topo, sim.obs)
 
@@ -39,7 +40,7 @@ def test_powerflow_graph():
 def test_overflow_grid():
     """This function, given the input folder in test/path,
     it computes the overflow graph and compares it with the saved graph: saved_overflow_graph.dot"""
-    sim = build_sim()
+    sim, env = build_sim()
     g_over = sim.build_graph_from_data_frame([9])
     path_to_saved_graph = "./alphaDeesp/tests/resources_for_tests_grid2op/saved_graphs/g_over.dot"
 
@@ -57,7 +58,7 @@ def test_overflow_grid():
 
 def test_new_flows_after_network_cut():
     """After closing one electric line, the flows should change on the network."""
-    sim = build_sim()
+    sim, env = build_sim()
 
     new_flows = sim.cut_lines_and_recomputes_flows([9])
 
@@ -106,10 +107,10 @@ def test_detailed_graph_with_node_0_split_in_two():
     with node 0 split in two, we should have 15 nodes
     :return:
     """
-    sim = build_sim()
+    sim, env = build_sim()
     new_configuration = [[2, 2, 2, 1, 1]]
     node_id = [4]
-    _current_observation = sim.change_nodes_configurations(new_configuration, node_id)
+    _current_observation = sim.change_nodes_configurations(new_configuration, node_id, env)
     print(_current_observation)
 
     network = Network(sim.substations_elements)

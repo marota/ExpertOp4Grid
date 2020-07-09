@@ -30,6 +30,7 @@ custom_params.NO_OVERFLOW_DISCONNECTION = True
 env = grid2op.make(grid_folder, param = custom_params)
 
 # Go to a timestep by doing nothing
+observation_space = env.observation_space
 action_space = env.action_space
 do_nothing = action_space()
 obs = None
@@ -40,7 +41,7 @@ for i in range(1,timestep+1):
 
 # =============================================================================================================
 # Call ExpertOp4Grid
-simulator = Grid2opSimulation(env, obs, action_space, param_options=config, debug = debug, ltc=lines_to_cut)
+simulator = Grid2opSimulation(obs, action_space, observation_space, param_options=config, debug = debug, ltc=lines_to_cut)
 ranked_combinations, expert_system_results = expertOp4grid.expert_operator(simulator, plot=plot, debug = debug)
 # =============================================================================================================
 
