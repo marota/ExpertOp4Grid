@@ -10,9 +10,7 @@ def expert_operator(sim, plot=False, debug=False):
 
     ltc = sim.ltc
     custom_layout = sim.get_layout()
-    printer = None
-    if plot:
-        printer = Printer()
+    printer = Printer()
 
     # ====================================================================
     # Simulation of Expert results with simulator and alphadeesp
@@ -27,19 +25,13 @@ def expert_operator(sim, plot=False, debug=False):
                       "internal_to_external_mapping": sim.get_internal_to_external_mapping()}
 
     if plot:
-        # Printer API (for both Grid2op and Pypownet)
-        printer.display_geo(g_over, custom_layout, name="g_overflow_print")
-        printer.display_geo(g_pow, custom_layout, name="g_pow")
-        printer.display_geo(g_pow_prime, custom_layout, name="g_pow_prime")
-
-        # Grid2op API (Grid2op only)
-        # fig_before = sim.plot_grid_beforecut()
-        # fig_before.show()
-        # fig_after = sim.plot_grid_aftercut()
-        # fig_after.show()
+        # Common plot API
+        sim.plot_grid_beforecut()
+        sim.plot_grid_aftercut()
+        sim.plot_grid_delta()
 
     # Launch alphadeesp core
-    alphadeesp = AlphaDeesp(g_over, df_of_g, custom_layout, printer, simulator_data, debug=debug)
+    alphadeesp = AlphaDeesp(g_over, df_of_g, custom_layout, printer, simulator_data, debug = debug)
     ranked_combinations = alphadeesp.get_ranked_combinations()
 
     # Expert results --> end dataframe
@@ -52,8 +44,8 @@ def expert_operator(sim, plot=False, debug=False):
     # Plot option
     if plot:
         for elem in sim.save_bag:  # elem[0] = name, elem[1] = graph
-            sim.load_from_observation(elem[1], ltc)
-            g_over_detailed = sim.build_detailed_graph_from_internal_structure(ltc)
-            printer.display_geo(g_over_detailed, custom_layout, name=elem[0])
+            name = elem[0]
+            simulated_obs = elem[1]
+            sim.plot_grid_from_obs(simulated_obs, name)
 
     return ranked_combinations, expert_system_results, actions
