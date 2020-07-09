@@ -182,7 +182,7 @@ def test_integration_dataframe_results_with_line_8_cut():
     # create AlphaDeesp
     alphadeesp = AlphaDeesp(g_over, df_of_g, simulator_data=simulator_data)
     ranked_combinations = alphadeesp.get_ranked_combinations()
-    expert_system_results = sim.compute_new_network_changes(ranked_combinations)
+    expert_system_results, actions = sim.compute_new_network_changes(ranked_combinations)
 
     #expert_system_results.to_csv("alphaDeesp/tests/resources_for_tests_grid2op/END_RESULT_DATAFRAME_G2OP_LTC8_8CAPA_88_generated.csv")
 
@@ -241,7 +241,7 @@ def test_integration_dataframe_results_with_modified_substation4():
     ## Launch AlphaDeesp and get expert results
     alphadeesp = AlphaDeesp(g_over, df_of_g, simulator_data=simulator_data)
     ranked_combinations = alphadeesp.get_ranked_combinations()
-    expert_system_results = sim.compute_new_network_changes(ranked_combinations)
+    expert_system_results, actions = sim.compute_new_network_changes(ranked_combinations)
     # =============
     #expert_system_results = expert_system_results.drop(0, axis=0)
     #expert_system_results.to_csv("alphaDeesp/tests/resources_for_tests_grid2op/END_RESULT_DATAFRAME_G2OP_MODIFIED_SUBSTATION4.csv")
