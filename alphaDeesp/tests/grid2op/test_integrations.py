@@ -148,9 +148,6 @@ def test_integration_dataframe_results_with_line_9_cut():
 
     saved_df = pd.read_csv(path_to_saved_end_result_dataframe, index_col=0)
 
-    # This removes the first XXX line (used to construct initial dataframe structure)
-    expert_system_results = expert_system_results.drop(0, axis=0)
-
     # List understandable format
     saved_df["Topology applied"] = saved_df["Topology applied"].str.replace(" ", ",")
 
@@ -191,9 +188,6 @@ def test_integration_dataframe_results_with_line_8_cut():
 
     saved_df = pd.read_csv(path_to_saved_end_result_dataframe, index_col=0)
 
-    # This removes the first XXX line (used to construct initial dataframe structure)
-    expert_system_results = expert_system_results.drop(0, axis=0)
-
     # List understandable format
     saved_df["Topology applied"] = saved_df["Topology applied"].str.replace(" ", ",")
 
@@ -223,13 +217,11 @@ def test_integration_dataframe_results_with_modified_substation4():
 
     ## Modify buses
     action = action_space({"set_bus": {'lines_ex_id': [(1, 2)], "lines_or_id": [(9, 2)]}})
-    #action = action_space({"set_bus": {'lines_ex_id': [(1, 2),(6,2)]}})
     new_obs, reward, done, info = env.step(action)
 
     ## Build simulator and generate objects for alphadeesp
-    sim = Grid2opSimulation(env, new_obs, action_space, param_options=config["DEFAULT"], debug=False,
+    sim = Grid2opSimulation(new_obs, action_space, env.observation_space, param_options=config["DEFAULT"], debug=False,
                             ltc=[ltc])
-    #sim.plot_grid(new_obs)
     df_of_g = sim.get_dataframe()
     g_over = sim.build_graph_from_data_frame([ltc])
     g_pow = sim.build_powerflow_graph_beforecut()
@@ -243,17 +235,12 @@ def test_integration_dataframe_results_with_modified_substation4():
     ranked_combinations = alphadeesp.get_ranked_combinations()
     expert_system_results, actions = sim.compute_new_network_changes(ranked_combinations)
     # =============
-    #expert_system_results = expert_system_results.drop(0, axis=0)
-    #expert_system_results.to_csv("alphaDeesp/tests/resources_for_tests_grid2op/END_RESULT_DATAFRAME_G2OP_MODIFIED_SUBSTATION4.csv")
-
     # Read desired results
     path_to_saved_end_result_dataframe = \
         Path.cwd() / "alphaDeesp/tests/resources_for_tests_grid2op/END_RESULT_DATAFRAME_G2OP_MODIFIED_SUBSTATION4.csv"
     saved_df = pd.read_csv(path_to_saved_end_result_dataframe, index_col=0)
 
     ## Properly compare the two dataframes
-    # This removes the first XXX line (used to construct initial dataframe structure)
-    expert_system_results = expert_system_results.drop(0, axis=0)
     # List understandable format
     saved_df["Topology applied"] = saved_df["Topology applied"].str.replace(" ", ",")
     #print("The two dataframes are equal: ", are_dataframes_equal(expert_system_results, saved_df))
