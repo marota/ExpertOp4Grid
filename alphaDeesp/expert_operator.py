@@ -10,7 +10,9 @@ def expert_operator(sim, plot=False, debug=False):
 
     ltc = sim.ltc
     custom_layout = sim.get_layout()
-    printer = Printer()
+    printer = None
+    if plot:
+        printer = Printer()
 
     # ====================================================================
     # Simulation of Expert results with simulator and alphadeesp

@@ -34,13 +34,14 @@ class Grid2opSimulation(Simulation):
     def get_layout(self):
         return self.layout
 
-    def __init__(self, obs, action_space, observation_space, param_options=None, debug = False, ltc=[9]):
+    def __init__(self, obs, action_space, observation_space, param_options=None, debug = False, ltc=[9], plot=False):
         super().__init__()
 
         # Get Grid2op objects
         if ltc is None:
             ltc = [9]
-        self.printer = Printer()
+        if plot:
+            self.printer = Printer()
         self.obs = obs
         self.obs_linecut = None
         self.action_space = action_space

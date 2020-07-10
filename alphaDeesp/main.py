@@ -79,7 +79,7 @@ def main():
         env, obs, action_space = loader.get_observation(chronic_scenario= args.chronicscenario, timestep=args.timestep)
         observation_space = env.observation_space
         sim = Grid2opSimulation(obs, action_space, observation_space, param_options=config["DEFAULT"], debug=args.debug,
-                                 ltc=args.ltc)
+                                 ltc=args.ltc, plot=args.snapshot)
 
     elif config["DEFAULT"]["simulatorType"] == "RTE":
         print("We init RTE Simulation")
