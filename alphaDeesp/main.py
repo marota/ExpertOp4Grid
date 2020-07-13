@@ -33,7 +33,8 @@ def main():
     parser.add_argument("-t", "--timestep", type=int,
                         help="ID of the timestep to use, starting from 0. Default is 0, i.e. the first time step will be considered", default = 0)
     parser.add_argument("-c", "--chronicscenario", type=int,
-                        help="ID of chronic scenario to consider, starting from 0. By default, the first available chronic scenario will be chosen, i.e. ID 0", default=0)
+                        help="ID of chronic scenario to consider, starting from 0. By default, the first available chronic scenario will be chosen, i.e. ID 0",
+                        default=0)
 
     args = parser.parse_args()
     config = configparser.ConfigParser()
@@ -90,9 +91,9 @@ def main():
 
     # ###############################################################################################################
     # Call agent mode with possible plot and debug fonctionalities
-    ranked_combinations, expert_system_results = expert_operator(sim, plot=args.snapshot, debug = args.debug)
+    ranked_combinations, expert_system_results, action = expert_operator(sim, plot=args.snapshot)
 
-    return ranked_combinations, expert_system_results
+    return ranked_combinations, expert_system_results, action
 
 if __name__ == "__main__":
     main()

@@ -64,13 +64,29 @@ python setup.py install
 ```
 
 ##### Install graphviz (for neato package, it allows to transform a dot file into a pdf file):
-`dzdo dnf install graphviz
+
+First install separate dependency
+
+On Linux
+
+`apt-get install graphviz
 `
 
-or
+On Windows, thanks to package finder
+
+`winget install graphviz
+`
+
+Then ensure that graphviz and neato are in the path. You often have to set it manually. For example on windows you can use the following command line:
+
+`setx /M path "%path%;'C:\Users\username\graphviz-2.38\release\bin"
+`
+
+Then install python package
 
 `pipenv install graphviz
 `
+
 ## To execute code, from parent folder, type:
 python3 -m alphaDeesp.main -l 9 
 
