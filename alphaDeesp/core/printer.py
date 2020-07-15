@@ -17,17 +17,24 @@ class Printer:
         # self.default_output_path = "./alphaDeesp/ressources/output/"
         # self.default_output_path = "/home/mozgawamar/Documents/alphaDeesp/alphaDeesp/ressources/output/"
         self.default_output_path = Path.cwd() / "alphaDeesp/ressources/output"
+        self.base_output_path = self.default_output_path / "Base graph"
+        os.makedirs(self.base_output_path, exist_ok=True)
+        self.results_output_path = self.default_output_path / "Result graph"
+        os.makedirs(self.results_output_path, exist_ok=True)
         print("self.default output path = ", self.default_output_path)
 
         if not self.default_output_path.exists():
             print(f"{self.default_output_path} folder does not exist. Printer has created a new folder.")
             self.default_output_path.mkdir()
 
-    def display_geo(self, g, custom_layout=None, axial_symetry=False, save=False, name=None):
+    def display_geo(self, g, custom_layout=None, axial_symetry=False, save=False, name=None, create_result_folder = None):
         """This function displays the graph g in a "geographical" way"""
 
         "filenames are pathlib.Paths objects"
-        filename_dot, filename_pdf = self.create_namefile("geo", name=name)
+        type_ = "results"
+        if name in ["g_pow", "g_overflow_print", "g_pow_prime"]:
+            type_ = "base"
+        filename_dot, filename_pdf = self.create_namefile("geo", name=name, type = type_, create_result_folder = create_result_folder)
 
         dic_pos_attributes = {}
         if custom_layout is not None:
@@ -69,9 +76,9 @@ class Printer:
         nx.drawing.nx_pydot.write_dot(g, filename_dot)
 
         if custom_layout is None:
-            cmd_line = "neato -Tpdf " + str(filename_dot) + " -o " + str(filename_pdf)
+            cmd_line = 'neato -Tpdf "' + str(filename_dot) + '" -o "' + str(filename_pdf) + '"'
         else:
-            cmd_line = "neato -n -Tpdf " + str(filename_dot) + " -o " + str(filename_pdf)
+            cmd_line = 'neato -n -Tpdf "' + str(filename_dot) + '" -o "' + str(filename_pdf) + '"'
         print("we print the cmd line = ", cmd_line)
 
         assert alphadeesp.execute_command(cmd_line)
@@ -100,7 +107,7 @@ class Printer:
     def display_elec(self, g, save=False):
         pass
 
-    def create_namefile(self, display_type, name=None):
+    def create_namefile(self, display_type, name=None, type = "results", create_result_folder = None):
         """return dot and pdf filenames"""
         # filename_dot = "graph_result_" + display_type + "_" + current_date + ".dot"
         # filename_pdf = "graph_result_" + display_type + "_" + current_date + ".pdf"
@@ -114,9 +121,19 @@ class Printer:
         print("name = ", name)
         filename_dot = name + "_" + display_type + "_" + current_date + ".dot"
         filename_pdf = name + "_" + display_type + "_" + current_date + ".pdf"
-        hard_filename_dot = self.default_output_path / filename_dot
+
+        if type == "results":
+            output_path = self.results_output_path
+            if create_result_folder is not None:
+                output_path = output_path / create_result_folder
+                os.makedirs(output_path, exist_ok=True)
+        elif type == "base":
+            output_path = self.base_output_path
+        else:
+            output_path = self.default_output_path
+        hard_filename_dot = output_path / filename_dot
         # hard_filename_dot = filename_dot
-        hard_filename_pdf = self.default_output_path / filename_pdf
+        hard_filename_pdf = output_path / filename_pdf
 
         print("============================= FUNCTION create_namefile =============================")
         print("hard_filename = ", hard_filename_pdf)
