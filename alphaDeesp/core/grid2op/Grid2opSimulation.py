@@ -129,7 +129,7 @@ class Grid2opSimulation(Simulation):
                 final_dict["lines_ex_id"] = []
             final_dict["lines_ex_id"].append((line_id, new_conf[i]))
             i += 1
-        print(final_dict)
+        # print(final_dict)
         return self.action_space({"set_bus": final_dict})
 
     def compute_new_network_changes(self, ranked_combinations):
@@ -208,7 +208,7 @@ class Grid2opSimulation(Simulation):
                               score_topo,
                               simulated_score,
                               efficacity]
-                print(score_data)
+                #print(score_data)
                 max_index = end_result_dataframe.shape[0]  # rows
                 end_result_dataframe.loc[max_index] = score_data
                 ii += 1
@@ -271,7 +271,7 @@ class Grid2opSimulation(Simulation):
                 dest = orig['sub_id']
                 elements_array.append(self.get_model_obj_from_ext(self.df, substation_id, dest, ext['bus']-1))
             self.substations_elements[substation_id] = elements_array
-        pprint(self.substations_elements)
+        # pprint(self.substations_elements)
 
     @staticmethod
     def extract_topo_from_obs(obs):
@@ -308,11 +308,11 @@ class Grid2opSimulation(Simulation):
         d["nodes"]["loads_values"] = loads_values
 
         # Debug
-        for key in d.keys():
-            print(key)
-            for key2 in d[key].keys():
-                print(key2)
-                print(d[key][key2])
+        # for key in d.keys():
+        #     print(key)
+        #     for key2 in d[key].keys():
+        #         print(key2)
+        #         print(d[key][key2])
         return d
 
     def cut_lines_and_recomputes_flows(self, ids: list):
@@ -380,10 +380,10 @@ class Grid2opSimulation(Simulation):
 
         network = Network(self.substations_elements)
 
-        print("Network = ", network)
+        # print("Network = ", network)
         build_nodes_v2(g, network.nodes_prod_values)
         build_edges_v2(g, network.substation_id_busbar_id_node_id_mapping, self.substations_elements)
-        print("This graph is weakly connected : ", nx.is_weakly_connected(g))
+        # print("This graph is weakly connected : ", nx.is_weakly_connected(g))
         return g
 
     def build_edges_from_df(self, g, lines_to_cut):
@@ -486,7 +486,7 @@ def build_powerflow_graph(topo, obs):
 
 def build_nodes(g, are_prods, are_loads, prods_values, loads_values, debug=False):
     # =========================================== NODE PART ===========================================
-    print(f"There are {len(are_loads)} nodes")
+    # print(f"There are {len(are_loads)} nodes")
     prods_iter, loads_iter = iter(prods_values), iter(loads_values)
     i = 0
     # We color the nodes depending if they are production or consumption
@@ -564,15 +564,15 @@ def build_nodes_v2(g, nodes_prod_values: list):
         prod_cons_total_value is a float.
         If the value is positive then it is a Production, if negative it is a Consumption
     """
-    print("IN FUNCTION BUILD NODES V2222222222", nodes_prod_values)
+    # print("IN FUNCTION BUILD NODES V2222222222", nodes_prod_values)
     for data in nodes_prod_values:
-        print("data = ", data)
+        # print("data = ", data)
         i = int(data[0])
         if data[1] is None or data[1] == "XXX":
             prod_minus_load = 0.0  # It will end up as a white node
         else:
             prod_minus_load = data[1]
-        print("prod_minus_load = ", prod_minus_load)
+        # print("prod_minus_load = ", prod_minus_load)
         if prod_minus_load > 0:  # PROD
             g.add_node(i, pin=True, prod_or_load="prod", value=str(prod_minus_load), style="filled",
                        fillcolor="#f30000")  # red color
@@ -586,13 +586,13 @@ def build_nodes_v2(g, nodes_prod_values: list):
 
 
 def build_edges_v2(g, substation_id_busbar_id_node_id_mapping, substations_elements):
-    print("\nWE ARE IN BUILD EDGES V2")
+    # print("\nWE ARE IN BUILD EDGES V2")
     substation_ids = sorted(list(substations_elements.keys()))
     # loops through each substation, and creates an edge from (
     for substation_id in substation_ids:
-        print("\nSUBSTATION ID = ", substation_id)
+        # print("\nSUBSTATION ID = ", substation_id)
         for element in substations_elements[substation_id]:
-            print(element)
+            # print(element)
             origin = None
             extremity = None
             if isinstance(element, OriginLine):
@@ -601,7 +601,7 @@ def build_edges_v2(g, substation_id_busbar_id_node_id_mapping, substations_eleme
                 extremity = int(element.end_substation_id)
                 # check if extremity on busbar1, if it is,
                 # check with the substation substation_id_busbar_id_node_id_mapping dic what "graphical" node it is
-                print("substations_elements[extremity] = ", substations_elements[extremity])
+                # print("substations_elements[extremity] = ", substations_elements[extremity])
                 for elem in substations_elements[extremity]:
                     # if this true, we are talking about correct edge
                     if isinstance(elem, ExtremityLine) and elem.flow_value == element.flow_value:
@@ -613,14 +613,14 @@ def build_edges_v2(g, substation_id_busbar_id_node_id_mapping, substations_eleme
             # in case we get on an element that is Production or Consumption
             else:
                 continue
-            print("origin = ", origin)
-            print("extremity = ", extremity)
-            print("reported_flow = ", reported_flow)
+            # print("origin = ", origin)
+            # print("extremity = ", extremity)
+            # print("reported_flow = ", reported_flow)
             pen_width = fabs(reported_flow[0]) / 10.0
             if pen_width < 0.01:
                 pen_width = 0.1
-            print(f"#################### Edge created : ({origin}, {extremity}), with flow = {reported_flow},"
-                  f" pen_width = {pen_width} >>>")
+            # print(f"#################### Edge created : ({origin}, {extremity}), with flow = {reported_flow},"
+            #       f" pen_width = {pen_width} >>>")
             if reported_flow[0] > 0:  # RED
                 g.add_edge(origin, extremity, capacity=float(reported_flow[0]), xlabel=reported_flow[0], color="red",
                            penwidth="%.2f" % pen_width)
@@ -698,21 +698,21 @@ def score_changes_between_two_observations(old_obs, new_obs):
     # ################################ END OF PREPROCESSING #################################
     # score 0 if no overloads were alleviated or if it resulted in some load shedding or production distribution.
     if old_number_of_overloads == 0:
-        print("return NaN: No overflow at initial state of grid")
+        # print("return NaN: No overflow at initial state of grid")
         return float('nan')
     elif redistribution_load > 0: # (boolean_overload_relieved == 0).all()
-        print("return 0: no overloads were alleviated or some load shedding occured.")
+        # print("return 0: no overloads were alleviated or some load shedding occured.")
         return 0
 
     # score 1 if overload was relieved but another one appeared and got worse
     elif (boolean_overload_relieved == 1).any() and ((boolean_overload_created == 1).any() or
                                                      (boolean_constraint_worsened == 1).any()):
-        print("return 1: an overload was relieved but another one appeared")
+        # print("return 1: an overload was relieved but another one appeared")
         return 1
 
     # 4: if every overload disappeared
     elif old_number_of_overloads > 0 and new_number_of_overloads == 0:
-        print("return 4: every overload disappeared")
+        # print("return 4: every overload disappeared")
         return 4
 
     # 3: if an overload disappeared without stressing the network, ie,
@@ -722,13 +722,13 @@ def score_changes_between_two_observations(old_obs, new_obs):
     elif new_number_of_overloads < old_number_of_overloads and \
             (boolean_constraint_worsened == 0).all() and \
             (new_obs.are_loads_cut == 0).all():
-        print("return 3: an overload disappeared without stressing the network")
+        # print("return 3: an overload disappeared without stressing the network")
         return 3
 
     # 2: if at least 30% of an overload was relieved
     elif (boolean_overload_30percent_relieved == 1).any():
-        print("return 2: at least 30% of line [{}] was relieved".format(
-            np.where(boolean_overload_30percent_relieved == 1)[0]))
+        # print("return 2: at least 30% of line [{}] was relieved".format(
+        #     np.where(boolean_overload_30percent_relieved == 1)[0]))
         return 2
 
     # score 0

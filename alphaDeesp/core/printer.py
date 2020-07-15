@@ -18,7 +18,9 @@ class Printer:
         # self.default_output_path = "/home/mozgawamar/Documents/alphaDeesp/alphaDeesp/ressources/output/"
         self.default_output_path = Path.cwd() / "alphaDeesp/ressources/output"
         self.base_output_path = self.default_output_path / "Base graph"
+        os.makedirs(self.base_output_path, exist_ok=True)
         self.results_output_path = self.default_output_path / "Result graph"
+        os.makedirs(self.results_output_path, exist_ok=True)
         print("self.default output path = ", self.default_output_path)
 
         if not self.default_output_path.exists():
