@@ -3,38 +3,27 @@ __author__ = "MarcM"
 
 import argparse
 import configparser
-
 from alphaDeesp.core.alphadeesp import AlphaDeesp
-from alphaDeesp.core.pypownet.PypownetSimulation import PypownetSimulation
-from alphaDeesp.core.pypownet.PypownetObservationLoader import PypownetObservationLoader
+from alphaDeesp.core.pypownet import PypownetSimulation
 from alphaDeesp.core.printer import Printer
 from alphaDeesp.core.printer import shell_print_project_header
-from alphaDeesp.core.grid2op.Grid2opSimulation import Grid2opSimulation
-from alphaDeesp.core.grid2op.Grid2opObservationLoader import Grid2opObservationLoader
-from alphaDeesp.expert_operator import expert_operator
+
 
 def main():
-    # ###############################################################################################################
-    # Read parameters provided by manual mode (Shell - config.ini - param_folder for the grid)
     shell_print_project_header()
 
     parser = argparse.ArgumentParser(description="Expert System")
-    parser.add_argument("-d", "--debug", type=int,
-                        help="If 1, prints additional information for debugging purposes. If 0, doesn't print any info", default = 0)
-    parser.add_argument("-s", "--snapshot", type=int,
-                        help="If 1, displays the main overflow graph at step i, ie, delta_flows_graph, diff between "
-                             "flows before and after cutting the constrained line. If 0, doesn't display the graphs", default = 1)
+    parser.add_argument("-d", "--debug", action="store_true",
+                        help="Prints additional information for debugging purposes")
+    parser.add_argument("-s", "--snapshot", action="store_true",
+                        help="Displays the main overflow graph at step i, ie, delta_flows_graph, diff between "
+                             "flows before and after cutting the constrained line")
     # nargs '+' == 1 or more.
     # nargs '*' == 0 or more.
     # nargs '?' == 0 or 1.
     # ltc for: Lines To Cut
     parser.add_argument("-l", "--ltc", nargs="+", type=int,
-                        help="List of integers representing the lines to cut", default = [9])
-    parser.add_argument("-t", "--timestep", type=int,
-                        help="ID of the timestep to use, starting from 0. Default is 0, i.e. the first time step will be considered", default = 0)
-    parser.add_argument("-c", "--chronicscenario", type=int,
-                        help="ID of chronic scenario to consider, starting from 0. By default, the first available chronic scenario will be chosen, i.e. ID 0",
-                        default=0)
+                        help="List of integers representing the lines to cut")
 
     args = parser.parse_args()
     config = configparser.ConfigParser()
@@ -48,47 +37,68 @@ def main():
         raise ValueError("Input arg error, --ltc, for the moment, we allow cutting only one line.\n\nPlease select"
                          " one line to cut ex: python3 -m alphaDeesp.main -l 9")
 
-    if args.snapshot > 1:
-        raise ValueError("Input arg error, --snapshot, options are 0 or 1")
-
-    if args.debug > 1:
-        raise ValueError("Input arg error, --debug, options are 0 or 1")
-
-
     print("-------------------------------------")
     print(f"Working on lines: {args.ltc} ")
     print("-------------------------------------\n")
 
+    custom_layout = [(-280, -81), (-100, -270), (366, -270), (366, -54), (-64, -54), (-64, 54), (366, 0),
+                     (438, 0), (326, 54), (222, 108), (79, 162), (-152, 270), (-64, 270), (222, 216),
+                     (-280, -151), (-100, -340), (366, -340), (390, -110), (-14, -104), (-184, 54), (400, -80),
+                     (438, 100), (326, 140), (200, 8), (79, 12), (-152, 170), (-70, 200), (222, 200)]
+
+    custom_layout2 = {
+        '6661': (-280, -151),
+        '6662': (-100, -340),
+        '6663': (366, -340),
+        '6664': (390, -110),
+        '6665': (-14, -74),
+        '6666': (-184, 54),
+        '6667': (400, -80),
+        '6668': (438, 100),
+        '6669': (326, 140),
+        '66610': (200, 8),
+        '66611': (79, 12),
+        '66612': (-152, 170),
+        '66613': (-70, 200),
+        '66614': (222, 200)
+    }
+    axially_symetric = False
+    if axially_symetric:
+        x_inversed_layout = []
+        for x in custom_layout:
+            x_inversed_layout.append((x[0] * -1, x[1]))
+        custom_layout = x_inversed_layout
 
     # ###############################################################################################################
-    # Use Loaders API to load simulator environment in manual mode at desired timestep
+    # ###############################################################################################################
+    # ###############################################################################################################
     sim = None
-    args.debug = bool(args.debug)
-    args.snapshot = bool(args.snapshot)
 
-    if config["DEFAULT"]["simulatorType"] == "Pypownet":
-        print("We init Pypownet Simulation")
-        parameters_folder = config["DEFAULT"]["gridPath"]
-        loader = PypownetObservationLoader(parameters_folder)
-        env, obs, action_space = loader.get_observation(args.timestep)
-        sim = PypownetSimulation(env, obs, action_space, param_options=config["DEFAULT"], debug=args.debug,
-                                 ltc=args.ltc)
-    elif config["DEFAULT"]["simulatorType"] == "Grid2OP":
-        print("We init Grid2OP Simulation")
-        parameters_folder = config["DEFAULT"]["gridPath"]
-        loader = Grid2opObservationLoader(parameters_folder)
-        env, obs, action_space = loader.get_observation(chronic_scenario= args.chronicscenario, timestep=args.timestep)
-        observation_space = env.observation_space
-        sim = Grid2opSimulation(obs, action_space, observation_space, param_options=config["DEFAULT"], debug=args.debug,
-                                 ltc=args.ltc, plot=args.snapshot)
+    if config["DEFAULT"]["simulatortype"] == "Pypownet":
+        parameters_folder = "./alphaDeesp/ressources/parameters/default14_static"
+        sim = PypownetSimulation(config["DEFAULT"], args.debug, parameters_folder)
+
+        print("current chronic name = ", sim.environment.game.get_current_chronic_name())
+
+        _current_observation = sim.obs
+
+        print(_current_observation)
+
+        print("args ltc = ", args.ltc)
+        print("type = ", type(args.ltc))
+
+        if args.debug:
+            print("current obs = ")
+            print(_current_observation)
+
+        sim.load(_current_observation, args.ltc)
 
     elif config["DEFAULT"]["simulatorType"] == "RTE":
         print("We init RTE Simulation")
-        # sim = RTESimulation()
+        # sim = RTESimulation(
         return
     else:
         print("Error simulator Type in config.ini not recognized...")
-
     # ====================================================================
     # ====================================================================
     # BELOW PART SHOULD BE UNAWARE OF WETHER WE WORK WITH RTE OR PYPOWNET
@@ -171,11 +181,6 @@ def main():
     # print("internal to external mapping ")
     # print(sim.internal_to_external_mapping)
 
-    # ###############################################################################################################
-    # Call agent mode with possible plot and debug fonctionalities
-    ranked_combinations, expert_system_results, action = expert_operator(sim, plot=args.snapshot)
-
-    return ranked_combinations, expert_system_results, action
 
 if __name__ == "__main__":
     main()
