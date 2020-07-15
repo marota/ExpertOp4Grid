@@ -4,13 +4,7 @@ __author__ = "MarcM"
 import argparse
 import configparser
 
-from alphaDeesp.core.alphadeesp import AlphaDeesp
-from alphaDeesp.core.pypownet.PypownetSimulation import PypownetSimulation
-from alphaDeesp.core.pypownet.PypownetObservationLoader import PypownetObservationLoader
-from alphaDeesp.core.printer import Printer
 from alphaDeesp.core.printer import shell_print_project_header
-from alphaDeesp.core.grid2op.Grid2opSimulation import Grid2opSimulation
-from alphaDeesp.core.grid2op.Grid2opObservationLoader import Grid2opObservationLoader
 from alphaDeesp.expert_operator import expert_operator
 
 def main():
@@ -34,7 +28,7 @@ def main():
                         help="ID of the timestep to use, starting from 0. Default is 0, i.e. the first time step will be considered", default = 0)
     parser.add_argument("-c", "--chronicscenario", type=int,
                         help="ID of chronic scenario to consider, starting from 0. By default, the first available chronic scenario will be chosen, i.e. ID 0",
-                        default=1)
+                        default=0)
 
     args = parser.parse_args()
     config = configparser.ConfigParser()
@@ -68,6 +62,9 @@ def main():
 
     if config["DEFAULT"]["simulatorType"] == "Pypownet":
         print("We init Pypownet Simulation")
+        from alphaDeesp.core.pypownet.PypownetSimulation import PypownetSimulation
+        from alphaDeesp.core.pypownet.PypownetObservationLoader import PypownetObservationLoader
+
         parameters_folder = config["DEFAULT"]["gridPath"]
         loader = PypownetObservationLoader(parameters_folder)
         env, obs, action_space = loader.get_observation(args.timestep)
@@ -75,6 +72,9 @@ def main():
                                  ltc=args.ltc)
     elif config["DEFAULT"]["simulatorType"] == "Grid2OP":
         print("We init Grid2OP Simulation")
+        from alphaDeesp.core.grid2op.Grid2opSimulation import Grid2opSimulation
+        from alphaDeesp.core.grid2op.Grid2opObservationLoader import Grid2opObservationLoader
+
         parameters_folder = config["DEFAULT"]["gridPath"]
         loader = Grid2opObservationLoader(parameters_folder)
         env, obs, action_space = loader.get_observation(chronic_scenario= args.chronicscenario, timestep=args.timestep)
