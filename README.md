@@ -33,25 +33,44 @@ Important to know.
 ## Installation
 To install AlphaDeesp execute the following lines: 
 ##### First clone the repos
-git clone the https://devin-source.rte-france.com/mozgawam/AlphaDeesp.git
-
+`git clone the https://devin-source.rte-france.com/mozgawam/AlphaDeesp.git
+`
 ##### Then, being at the root of the project folder,
-pip3 install -r requirements.txt --user
+`pip3 install -r requirements.txt --user
+`
+or
 
-##### Install octave:
-dzdo dnf install octave-devel
-
+`pipenv install -r requirements.txt
+`
 ##### Install pypownet_fork from libs.
-You can find the version in AlphaDeesp/pypownet_folder/
+
+Clone pypownet somewhere else :
+
+`cd ..
+git clone https://github.com/MarvinLer/pypownet.git`
 
 Install from within that folder: 
-Follow installation guide from pypownet. It should be just one command: 
-python3 setup.py install --user
+
+`python setup.py install --user
+`
+
+or 
+
+```
+cd ExpertOp4Grid
+pipenv shell
+cd ../pypownet
+python setup.py install
+```
 
 ##### Install graphviz (for neato package, it allows to transform a dot file into a pdf file):
-dzdo dnf install graphviz
+`dzdo dnf install graphviz
+`
 
+or
 
+`pipenv install graphviz
+`
 ## To execute code, from parent folder, type:
 python3 -m alphaDeesp.main -l 9 
 
