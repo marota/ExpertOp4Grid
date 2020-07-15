@@ -171,10 +171,6 @@ class Grid2opSimulation(Simulation):
                 flow_after = line_state_after["origin"]["p"]
                 delta_flow = flow_before - flow_after
 
-                # Fill save bag with observations for further analysis (detailed graph)
-                name = "".join(str(e) for e in new_conf)
-                name = str(internal_target_node) + "_" + name
-                self.save_bag.append([name, virtual_obs])
 
                 if done:    # Game over: no need to compute further operations
                     worsened_line_ids = []
@@ -184,6 +180,10 @@ class Grid2opSimulation(Simulation):
                     efficacity = float('nan')
 
                 else:
+                    # Fill save bag with observations for further analysis (detailed graph)
+                    name = "".join(str(e) for e in new_conf)
+                    name = str(internal_target_node) + "_" + name
+                    self.save_bag.append([name, virtual_obs])
                     worsened_line_ids = self.create_boolean_array_of_worsened_line_ids(obs, virtual_obs)
                     simulated_score = score_changes_between_two_observations(obs, virtual_obs)
                     redistribution_prod = np.sum(np.absolute(virtual_obs.prod_p - obs.prod_p))
