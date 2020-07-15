@@ -1,4 +1,5 @@
 from math import fabs
+import ast
 
 import networkx as nx
 import pypownet.environment
@@ -8,23 +9,17 @@ from pypownet.environment import ElementType
 from alphaDeesp.core.elements import *
 from alphaDeesp.core.network import Network
 from alphaDeesp.core.simulation import Simulation
+from alphaDeesp.core.printer import Printer
 
 
 class PypownetSimulation(Simulation):
-    def __init__(self, param_options=None, debug=False, ltc=9, param_folder=None):
+    def __init__(self, env, obs, action_space, param_options=None, debug=False, ltc=[9]):
         super().__init__()
         print("PypownetSimulation object created...")
+
         if not param_options or param_options is None:
             raise AttributeError("\nparam_options are empty or None, meaning the config file is not properly read.")
 
-        if not param_folder or param_folder is None:
-            raise AttributeError("\nThe parameters folder for Pypownet is empty or None.")
-        parameters_folder = param_folder
-        game_level = "level0"
-        chronic_looping_mode = 'natural'
-        chronic_starting_id = 0
-        game_over_mode = 'easy'
-        without_overflow_cuttof = True
         self.save_bag = []
         self.debug = debug
         self.args_number_of_simulated_topos = param_options["totalnumberofsimulatedtopos"]
@@ -32,23 +27,25 @@ class PypownetSimulation(Simulation):
         self.grid = None
         self.df = None
         self.topo = None  # a dict create in retrieve topology
-        self.lines_to_cut = None
+        self.ltc = ltc
         self.param_options = param_options
+        self.printer = Printer()
         #############################
-        self.environment = pypownet.environment.RunEnv(parameters_folder=parameters_folder, game_level=game_level,
-                                                       chronic_looping_mode=chronic_looping_mode,
-                                                       start_id=chronic_starting_id,
-                                                       game_over_mode=game_over_mode,
-                                                       without_overflow_cutoff=without_overflow_cuttof)
+        self.environment = env
+        self.action_space = action_space
+        # Run one step in the environment
+        self.obs = obs
+        self.obs_linecut = None
+
+        # Layout of the grid
+        self.layout = self.compute_layout()
+
         print("HARD OVERFLOW = ", self.environment.game.hard_overflow_coefficient)
         print("")
-        action_space = self.environment.action_space
+
         observation_space = self.environment.observation_space
-        # Create do_nothing action.
-        action_do_nothing = action_space.get_do_nothing_action()
-        # Run one step in the environment
-        raw_simulated_obs = self.environment.simulate(action_do_nothing)
-        self.obs = self.environment.observation_space.array_to_observation(raw_simulated_obs[0])
+
+
         #############################
         # new structures to omit querying Pypownet, they are filled in LOAD function.
         # for each substation, we get an array with (Prod, Cons, Line) Objects, representing the actual configuration
@@ -58,13 +55,22 @@ class PypownetSimulation(Simulation):
         self.external_to_internal_mapping = {}  # d[external_id] = internal_name_id
         print("current chronic name = ", self.environment.game.get_current_chronic_name())
         print(self.obs)
-        self.load(self.obs, ltc)
+        self.load()
+
+    def compute_layout(self):
+        try:
+            layout = self.param_options['CustomLayout']
+            # Conversion from string to list
+            layout = ast.literal_eval(layout)
+        except:
+            layout = [(-280, -81), (-100, -270), (366, -270), (366, -54), (-64, -54), (-64, 54), (366, 0),
+                    (438, 0), (326, 54), (222, 108), (79, 162), (-152, 270), (-64, 270), (222, 216),
+                    (-280, -151), (-100, -340), (366, -340), (390, -110), (-14, -104), (-184, 54), (400, -80),
+                    (438, 100), (326, 140), (200, 8), (79, 12), (-152, 170), (-70, 200), (222, 200)]
+        return layout
 
     def get_layout(self):
-        return [(-280, -81), (-100, -270), (366, -270), (366, -54), (-64, -54), (-64, 54), (366, 0),
-                (438, 0), (326, 54), (222, 108), (79, 162), (-152, 270), (-64, 270), (222, 216),
-                (-280, -151), (-100, -340), (366, -340), (390, -110), (-14, -104), (-184, 54), (400, -80),
-                (438, 100), (326, 140), (200, 8), (79, 12), (-152, 170), (-70, 200), (222, 200)]
+        return self.layout
 
     def get_substation_elements(self):
         return self.substations_elements
@@ -74,6 +80,52 @@ class PypownetSimulation(Simulation):
 
     def get_internal_to_external_mapping(self):
         return self.internal_to_external_mapping
+
+    def get_dataframe(self):
+        """
+        :return: pandas dataframe with topology information before and after line cutting
+        """
+        return self.df
+
+    def plot_grid_beforecut(self):
+        """
+        Plots the grid with alphadeesp.printer API for Observation before lines have been cut
+        :return: Figure
+        """
+        g_pow = self.build_powerflow_graph_beforecut()
+        return self.plot_grid(g_pow, name = "g_pow")
+
+    def plot_grid_aftercut(self):
+        """
+        Plots the grid with alphadeesp.printer API for Observation after lines have been cut
+        :return: Figure
+        """
+        g_pow_prime = self.build_powerflow_graph_aftercut()
+        return self.plot_grid(g_pow_prime, name = "g_pow_prime")
+
+    def plot_grid_delta(self):
+        """
+        Plots the grid with alphadeesp.printer API for delta between Observations before and after lines have been cut
+        :return: Figure
+        """
+        g_over = self.build_graph_from_data_frame(self.ltc)
+        return self.plot_grid(g_over, name="g_overflow_print")
+
+    def plot_grid_from_obs(self, obs, name, create_result_folder = None):
+        """
+        Plots the grid with alphadeesp.printer API from given observation
+        :return: Figure
+        """
+        # Pypownet needs to rebuild its internal structure to produce objects to plot
+        self.load_from_observation(obs, self.ltc)
+        g_over_detailed = self.build_detailed_graph_from_internal_structure(self.ltc)
+        return self.plot_grid(g_over_detailed, name=name, create_result_folder = create_result_folder)
+
+    def plot_grid(self, g, name, create_result_folder = None):
+        # Use printer API to plot (graphviz/neato)
+        self.printer.display_geo(g, self.get_layout(), name=name, create_result_folder = create_result_folder)
+
+
 
     def compute_new_network_changes(self, ranked_combinations):
         """this function takes a dataframe ranked_combinations,
@@ -147,10 +199,10 @@ class PypownetSimulation(Simulation):
 
                 self.save_bag.append([name, obs])
 
-                delta_flow = saved_obs.active_flows_origin[self.lines_to_cut[0]] - \
-                             obs.active_flows_origin[self.lines_to_cut[0]]
+                delta_flow = saved_obs.active_flows_origin[self.ltc[0]] - \
+                             obs.active_flows_origin[self.ltc[0]]
 
-                print("self.lines to cut[0] = ", self.lines_to_cut[0])
+                print("self.lines to cut[0] = ", self.ltc[0])
                 print("self.obs.status line = ", self.obs.lines_status)
                 print(" simulated obs  = ", obs.lines_status)
                 print("saved flow = ", list(saved_obs.active_flows_origin.astype(int)))
@@ -173,9 +225,10 @@ class PypownetSimulation(Simulation):
                 elif isinstance(worsened_line_ids, np.ndarray):
                     worsened_line_ids = list(worsened_line_ids)
 
-                score_data = [self.lines_to_cut[0],
-                              saved_obs.active_flows_origin[self.lines_to_cut[0]],
-                              obs.active_flows_origin[self.lines_to_cut[0]],
+
+                score_data = [self.ltc[0],
+                              saved_obs.active_flows_origin[self.ltc[0]],
+                              obs.active_flows_origin[self.ltc[0]],
                               delta_flow,
                               worsened_line_ids,
                               redistribution_prod,
@@ -216,10 +269,10 @@ class PypownetSimulation(Simulation):
         redistribution_load = np.sum(np.absolute(new_obs.active_loads - old_obs.active_loads))
 
         if simulated_score in [4, 3, 2]:  # success
-            efficacity = fabs(delta_flow / new_obs.get_lines_capacity_usage()[self.lines_to_cut[0]])
+            efficacity = fabs(delta_flow / new_obs.get_lines_capacity_usage()[self.ltc[0]])
             pass
         elif simulated_score in [0, 1]:  # failure
-            efficacity = -fabs(delta_flow / new_obs.get_lines_capacity_usage()[self.lines_to_cut[0]])
+            efficacity = -fabs(delta_flow / new_obs.get_lines_capacity_usage()[self.ltc[0]])
             pass
         else:
             raise ValueError("Cannot compute efficacity, the score is wrong.")
@@ -359,7 +412,7 @@ class PypownetSimulation(Simulation):
             self.internal_to_external_mapping[i] = substation_id
 
         if self.internal_to_external_mapping:
-            self.external_to_internal_mapping = invert_dict_keys_values(self.internal_to_external_mapping)
+            self.external_to_internal_mapping = self.invert_dict_keys_values(self.internal_to_external_mapping)
 
         # prod values
         prod_nodes = obs.productions_substations_ids
@@ -466,9 +519,12 @@ class PypownetSimulation(Simulation):
 
             self.substations_elements[substation_id] = elements_array
 
-    def load(self, observation, lines_to_cut: list):
+    def load(self):
+        self.load_from_observation(self.obs, self.ltc)
+
+    def load_from_observation(self, observation, lines_to_cut: list):
         # first, load information into a data frame
-        self.lines_to_cut = lines_to_cut
+        self.ltc = lines_to_cut
         # d is a dict containing topology
         d = self.extract_topo_from_obs(observation)
         self.topo = d
@@ -490,7 +546,7 @@ class PypownetSimulation(Simulation):
         # all_edges_xlabel_attributes = nx.get_edge_attributes(g, "xlabel")  # dict[edge]
         # print("all_edges_xlabel_attributes = ", all_edges_xlabel_attributes)
 
-        return g, self.df
+        return g
 
     def build_detailed_graph_from_internal_structure(self, lines_to_cut):
         """This function create a detailed graph from internal self structures as self.substations_elements..."""
@@ -546,6 +602,23 @@ class PypownetSimulation(Simulation):
         d["nodes"]["loads_values"] = loads_values
         return d
 
+    def build_powerflow_graph_beforecut(self):
+        """
+        Builds a graph of the grid and its powerflow before the lines are cut
+        :return: NetworkX Graph of representing the grid
+        """
+        g = self.build_powerflow_graph(self.obs)
+        return g
+
+    def build_powerflow_graph_aftercut(self):
+        """
+        Builds a graph of the grid and its powerflow after the lines have been cut
+        :return: NetworkX Graph of representing the grid
+        """
+        g = self.build_powerflow_graph(self.obs_linecut)
+        return g
+
+
     def build_powerflow_graph(self, obs):
         """This function takes a pypownet Observation and returns a NetworkX Graph"""
         g = nx.DiGraph()
@@ -586,6 +659,8 @@ class PypownetSimulation(Simulation):
         if raw_simulated_obs[0] is None:
             raise ValueError("The simulation step of Pypownet returnt a None... Something")
         obs = self.environment.observation_space.array_to_observation(raw_simulated_obs[0])
+        self.obs_linecut = obs
+
         return obs.active_flows_origin
 
     def build_edges_from_df(self, g, lines_to_cut):
@@ -756,9 +831,6 @@ def build_edges(g, idx_or, idx_ex, edge_weights, gtype, gray_edges=None, lines_c
             i += 1
     else:
         raise RuntimeError("Graph's GType not understood, cannot build_edges!")
-
-def invert_dict_keys_values(d):
-    return dict([(v, k) for k, v in d.items()])
 
 
 def get_differencial_topology(new_conf, old_conf):

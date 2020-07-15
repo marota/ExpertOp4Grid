@@ -10,6 +10,9 @@ from alphaDeesp.core.elements import *
 from math import fabs, ceil
 import subprocess
 
+import os
+os.environ['PATH'] += os.pathsep + r'C:\Users\nmegel\graphviz-2.38\release\bin'
+
 
 class AlphaDeesp:  # AKA SOLVER
     def __init__(self, _g, df_of_g, printer=None, custom_layout=None, simulator_data=None, debug=False):
@@ -36,30 +39,30 @@ class AlphaDeesp:  # AKA SOLVER
 
         e_amont, constrained_edge, e_aval = self.get_constrained_path()
         self.constrained_path = ConstrainedPath(e_amont, constrained_edge, e_aval)
-        print("n_amont = ", self.constrained_path.n_amont())
-        print("n_aval = ", self.constrained_path.n_aval())
+        # print("n_amont = ", self.constrained_path.n_amont())
+        # print("n_aval = ", self.constrained_path.n_aval())
 
         self.hubs = self.get_hubs()
 
         # red_loops is a dataFrame
         self.red_loops = self.get_loops()
-        print("self.red_loops = ")
-        print(self.red_loops)
+        # print("self.red_loops = ")
+        # print(self.red_loops)
 
         # this function takes the dataFrame self.red_loops and adds the min cut_values to it.
         self.rank_red_loops()
 
         # here we classify nodes into 4 categories
         self.structured_topological_actions = self.identify_routing_buses()  # it is a dict
-        print("#########################################################################")
-        print("structured_top_actions =", self.structured_topological_actions)
-        print("#########################################################################")
+        # print("#########################################################################")
+        # print("structured_top_actions =", self.structured_topological_actions)
+        # print("#########################################################################")
 
         self.ranked_combinations = self.compute_best_topologies()
 
-        for ranked_comb in self.ranked_combinations:
-            print("---------------------------")
-            print(ranked_comb)
+        # for ranked_comb in self.ranked_combinations:
+            # print("---------------------------")
+            # print(ranked_comb)
 
         if self.boolean_dump_data_to_file:
             self.ranked_combinations[0].to_csv("./result_ranked_combinations.csv", index=True)
@@ -90,34 +93,34 @@ class AlphaDeesp:  # AKA SOLVER
 
         selected_ranked_nodes = []
 
-        print("Nodes to explore in order are: ")
+        # print("Nodes to explore in order are: ")
         for key_indice in list(self.structured_topological_actions.keys()):
             res = self.structured_topological_actions[key_indice]
             if res is not None:
                 if res:
                     for elem in res:
                         selected_ranked_nodes.append(elem)
-                print(self.structured_topological_actions[key_indice])
+                # print(self.structured_topological_actions[key_indice])
 
-        print("selected ranked nodes = ", selected_ranked_nodes)
+        # print("selected ranked nodes = ", selected_ranked_nodes)
         res_container = []
 
         for node in selected_ranked_nodes:
             all_combinations = self.compute_all_combinations(node)
             ranked_combinations = self.rank_topologies(all_combinations, self.g, node)
-            print(ranked_combinations)
+            # print(ranked_combinations)
 
             # best_topologies = best_topologies.append(ranked_combinations)
             # pd.concat([best_topologies, *ranked_combinations])
 
-            print("\n##############################################################################")
-            print("##########............BEST_TOPOLOGIES COMPUTED............####################")
-            print("##############################################################################")
+            # print("\n##############################################################################")
+            # print("##########............BEST_TOPOLOGIES COMPUTED............####################")
+            # print("##############################################################################")
 
             # best_topologies = self.clean_and_sort_best_topologies(best_topologies)
             best_topologies = self.clean_and_sort_best_topologies(ranked_combinations)
             res_container.append(best_topologies)
-            # print(best_topologies)
+            # # print(best_topologies)
 
         return res_container
 
@@ -136,7 +139,7 @@ class AlphaDeesp:  # AKA SOLVER
 
         # ## check that current topology is not in this list
         node_configuration = self.simulator_data["substations_elements"][node]
-        print("Inside compute_all_comb : for node [{}], node_configuration = {}".format(node, node_configuration))
+        # print("Inside compute_all_comb : for node [{}], node_configuration = {}".format(node, node_configuration))
         length = len(node_configuration)
         if length == 0 or length == 1:
             raise ValueError("Cannot generate combinations out of a configuration with len = 1 or 2")
@@ -172,32 +175,32 @@ class AlphaDeesp:  # AKA SOLVER
         }
         ranked_combinations = pd.DataFrame(ranked_combinations_structure_initiation)
         for topo in all_combinations:
-            print("################################################################################")
-            print("################################################################################")
-            print("################################################################################")
+            # print("################################################################################")
+            # print("################################################################################")
+            # print("################################################################################")
             # NO EFFICIENT IF MANY NODES IN THE GRAPH, WE COULD ONLY EXTRACT THE NODE TO CHANGE
             g_copy = self.g.copy()
 
             # WARNING the internal_repr is not used further in the code. It is not up to date with the new_graph.
             # Only the original one.
             # the new_graph has new_topo, but has no simulated values from pypownet, only old values with new topo
-            print("BEFOREEEEEEEEEEEEEEEEEEEEEEE")
+            # print("BEFOREEEEEEEEEEEEEEEEEEEEEEE")
             all_edges_xlabel_attributes = nx.get_edge_attributes(g_copy, "xlabel")  # dict[edge]
-            print("all_edges_xlabel_attributes = ", all_edges_xlabel_attributes)
+            # print("all_edges_xlabel_attributes = ", all_edges_xlabel_attributes)
 
             new_graph, internal_repr = self.apply_new_topo_to_graph(g_copy, topo, node_to_change)
 
-            print("AFTERRRRRRRRRRRRRRRRRRRRRRRRRR")
+            # print("AFTERRRRRRRRRRRRRRRRRRRRRRRRRR")
             all_edges_xlabel_attributes = nx.get_edge_attributes(new_graph, "xlabel")  # dict[edge]
-            print("all_edges_xlabel_attributes = ", all_edges_xlabel_attributes)
+            # print("all_edges_xlabel_attributes = ", all_edges_xlabel_attributes)
 
             if nx.is_weakly_connected(new_graph):
-                print("we are inside weakly connected")
+                # print("we are inside weakly connected")
                 score = self.rank_current_topo_at_node_x(new_graph, node_to_change)
             else:
-                print("\n=============================================================================")
-                print("WARNING, GRAPH WITH TOPO {} IS NOT CONNECTED, WE SKIP IT".format(topo))
-                print("=============================================================================")
+                # print("\n=============================================================================")
+                # print("WARNING, GRAPH WITH TOPO {} IS NOT CONNECTED, WE SKIP IT".format(topo))
+                # print("=============================================================================")
                 continue
 
             if self.debug:
@@ -250,10 +253,10 @@ class AlphaDeesp:  # AKA SOLVER
         # then, parsing element by element, reconnect the graph.
         for internal_elem, element, element_type in zip(internal_repr_dict[node_to_change], new_topology, element_types):
             if element == 0:
-                # print("we were in 0")
+                # # print("we were in 0")
                 internal_elem.busbar_id = 0
             elif element == 1:
-                # print("we were in 1")
+                # # print("we were in 1")
                 internal_elem.busbar_id = 1
 
         # WE RECONSTRUCT INTERNAL REPR
@@ -309,15 +312,15 @@ class AlphaDeesp:  # AKA SOLVER
         i = 0
         # then, parsing element by element, reconnect the graph.
         for element, element_type in zip(new_topology, element_types):
-            print("element = ", element)
-            print("element type = ", element_type)
+            # print("element = ", element)
+            # print("element type = ", element_type)
             reported_flow = None
             edge_color = None
             penwidth = None
             if isinstance(element_type, OriginLine) or isinstance(element_type, ExtremityLine):
-                # print("element_type.flow_value=", element_type.flow_value)
+                # # print("element_type.flow_value=", element_type.flow_value)
                 reported_flow = element_type.flow_value[0]
-                # print("reported_flow = ", reported_flow)
+                # # print("reported_flow = ", reported_flow)
                 penwidth = fabs(reported_flow) / 10
                 if penwidth == 0.0:
                     penwidth = 0.1
@@ -362,15 +365,15 @@ class AlphaDeesp:  # AKA SOLVER
         """This function ranks current topology at node X"""
 
         # if self.debug:
-        print("\n-------------------------------------------------------------------------------------------------")
-        print("------------------------------- INSIDE RANK_CURRENT_TOPO_AT_NODE_X ------------------------------")
-        print("-------------------------------------------------------------------------------------------------\n")
+        # print("\n-------------------------------------------------------------------------------------------------")
+        # print("------------------------------- INSIDE RANK_CURRENT_TOPO_AT_NODE_X ------------------------------")
+        # print("-------------------------------------------------------------------------------------------------\n")
 
         final_score = 0.0
         all_nodes_value_attributes = nx.get_node_attributes(graph, "value")  # dict[node]
         all_edges_color_attributes = nx.get_edge_attributes(graph, "color")  # dict[edge]
         all_edges_xlabel_attributes = nx.get_edge_attributes(graph, "xlabel")  # dict[edge]
-        print("all_edges_xlabel_attributes = ", all_edges_xlabel_attributes)
+        # print("all_edges_xlabel_attributes = ", all_edges_xlabel_attributes)
 
         #  ########## IS IN AMONT ##########
         if node in self.constrained_path.n_amont():
@@ -383,16 +386,16 @@ class AlphaDeesp:  # AKA SOLVER
             # pick the node that does not belong to cpath.
             # first identify the node that is not connected to cpath. either node or 666+node
 
-            print("OUT EDGES = ", graph.out_edges(node))
+            # print("OUT EDGES = ", graph.out_edges(node))
             for edge in graph.out_edges(node):
                 edge_color = all_edges_color_attributes[edge]
                 edge_value = all_edges_xlabel_attributes[edge]
                 # if there is a outgoing negative blue or black edge this means we are connected to cpath.
                 # therefore change to twin node 666+node
-                print("EDGE VALUE = ", edge_value)
+                # print("EDGE VALUE = ", edge_value)
                 # if float(edge_value) < 0 and (edge_color == "blue" or edge_color == "black"):
                 if edge_color == "blue" or edge_color == "black":
-                    print("WE GOT IN THE IF")
+                    # print("WE GOT IN THE IF")
                     if self.debug:
                         print("\n######################################################")
                         print("Node [{}] is not connected to cpath. Twin node selected...".format(node))
@@ -405,7 +408,7 @@ class AlphaDeesp:  # AKA SOLVER
                         node = int("666" + str(node))
 
             # somme des reports négatifs entrants + sommes des reports positifs entrants
-            # print("g in edges({}) = {}".format(node, list(graph.in_edges(node))))
+            # # print("g in edges({}) = {}".format(node, list(graph.in_edges(node))))
             for edge in graph.in_edges(node):
                 edge_flow_value = float(all_edges_xlabel_attributes[edge])
                 if edge_flow_value < 0:
@@ -420,11 +423,11 @@ class AlphaDeesp:  # AKA SOLVER
                     out_positive_flows.append(edge_flow_value)
 
             # if self.debug:
-            print("incoming negative flows node [{}] = ".format(node))
-            print(in_negative_flows)
-            print("sum in_negative_flows = ", sum(in_negative_flows))
-            print("sum in_positive_flows = ", sum(in_positive_flows))
-            print("sum out_positive_flows = ", sum(out_positive_flows))
+            # print("incoming negative flows node [{}] = ".format(node))
+            # print(in_negative_flows)
+            # print("sum in_negative_flows = ", sum(in_negative_flows))
+            # print("sum in_positive_flows = ", sum(in_positive_flows))
+            # print("sum out_positive_flows = ", sum(out_positive_flows))
             diff_sums = float(all_nodes_value_attributes[node])
             max_pos_in_or_out_flows = max(sum(out_positive_flows), sum(in_positive_flows))
             final_score = np.around(sum(in_negative_flows) + max_pos_in_or_out_flows + diff_sums, decimals=2)
@@ -516,7 +519,7 @@ class AlphaDeesp:  # AKA SOLVER
         # g = self.g
         g = graph
         amont_constrained_node = self.constrained_path.constrained_edge[0]
-        print("constrained path = ", self.constrained_path)
+        # print("constrained path = ", self.constrained_path)
         if node == amont_constrained_node:
             return True
         if node in list(g.predecessors(amont_constrained_node)):
@@ -535,8 +538,8 @@ class AlphaDeesp:  # AKA SOLVER
             for t in p:
                 if isinstance(t, int):
                     nodes_succ.add(t)
-        print("successors = ", successors)
-        print("nodes successors = ", nodes_succ)
+        # print("successors = ", successors)
+        # print("nodes successors = ", nodes_succ)
         if node in nodes_succ:
             return True
         else:
@@ -551,8 +554,8 @@ class AlphaDeesp:  # AKA SOLVER
                 if isinstance(t, int):
                     nodes_pred.add(t)
 
-        print("predecessors = ", predecessors)
-        print("nodes predcessors = ", nodes_pred)
+        # print("predecessors = ", predecessors)
+        # print("nodes predcessors = ", nodes_pred)
         if node in nodes_pred:
             return True
         else:
@@ -560,7 +563,7 @@ class AlphaDeesp:  # AKA SOLVER
 
     def sort_hubs(self, hubs):
         # creates a DATAFRAME and sort it, returns the sorted hubs
-        print("================= sort_hubs =================")
+        # print("================= sort_hubs =================")
         if hubs:
             df = pd.DataFrame()
             df["hubs"] = hubs
@@ -572,7 +575,7 @@ class AlphaDeesp:  # AKA SOLVER
                 flow_compute_ingoing = []
                 flow_compute_outgoing = []
 
-                print("node = ", node)
+                # print("node = ", node)
 
                 for i, row in self.df.iterrows():
                     if row["idx_or"] == node:
@@ -582,12 +585,12 @@ class AlphaDeesp:  # AKA SOLVER
                         flow_compute_ingoing.append(fabs(row["delta_flows"]))
 
                 max_result = max(sum(flow_compute_ingoing), sum(flow_compute_outgoing))
-                print("all flows = ", max_result)
+                # print("all flows = ", max_result)
                 flows.append(max_result)
 
             df["max_flows"] = flows
             df.sort_values("max_flows", ascending=False, inplace=True)
-            print(df)
+            # print(df)
 
             return df
 
@@ -622,28 +625,28 @@ class AlphaDeesp:  # AKA SOLVER
             target = row["Target"]
             p = row["Path"]
 
-            print("=============== source: {}, target: {}".format(source, target))
+            # print("=============== source: {}, target: {}".format(source, target))
 
             cut_value, partition = nx.minimum_cut(self.g_only_red_components, source, target)
             reachable, non_reachable = partition
-            print("cut_value: {}, partition: {}".format(cut_value, partition))
+            # print("cut_value: {}, partition: {}".format(cut_value, partition))
 
             # info from doc - ‘partition’ here is a tuple with the two sets of nodes that define the minimum cut.
             # You can compute the cut set of edges that induce the minimum cut as follows:
             cutset = set()
             for u, nbrs in ((n, self.g_only_red_components[n]) for n in reachable):
                 cutset.update((u, v) for v in nbrs if v in non_reachable)
-            print("sorted(cutset) = ", sorted(cutset))
+            # print("sorted(cutset) = ", sorted(cutset))
 
             cut_values.append(cut_value)
             cut_sets.append(list(cutset)[0])
 
-        print("cut_values = ", cut_values)
+        # print("cut_values = ", cut_values)
 
         self.red_loops["min_cut_values"] = cut_values
         self.red_loops["min_cut_edges"] = cut_sets
-        print("======================= cut_values added =======================")
-        print(self.red_loops)
+        # print("======================= cut_values added =======================")
+        # print(self.red_loops)
 
     def joke(self):
         print("Heard about the new restaurant called Karma ?...")
@@ -660,8 +663,8 @@ class AlphaDeesp:  # AKA SOLVER
 
     def get_aval_blue_edges(self, g, node):
         res = []
-        print("debug AlphaDeesp get aval blue edges")
-        print(list(nx.edge_dfs(g, node, orientation="original")))
+        # print("debug AlphaDeesp get aval blue edges")
+        # print(list(nx.edge_dfs(g, node, orientation="original")))
         for e in nx.edge_dfs(g, node, orientation="original"):
             if g.edges[(e[0], e[1])]["color"] == "blue":
                 res.append((e[0], e[1]))
@@ -682,7 +685,7 @@ class AlphaDeesp:  # AKA SOLVER
 
         # delete from graph positive edges
         # this extracts the (u,v) from pos_edges
-        # print("pos_edges test = ", list(zip(*pos_edges))[1])
+        # # print("pos_edges test = ", list(zip(*pos_edges))[1])
         if pos_edges:
             g.remove_edges_from(list(zip(*pos_edges))[1])
         return g
@@ -797,14 +800,14 @@ class AlphaDeesp:  # AKA SOLVER
                     hubs.append(node)
                     break
 
-        print("get_hubs = ", hubs)
+        # print("get_hubs = ", hubs)
         return hubs
 
     def get_loops(self):
         """This function returns all parallel paths. After discussing with Antoine, start with the most "en Aval" node,
         and walk in reverse for loops and parallel path returns a dict with all data """
 
-        print("==================== In function get_loops ====================")
+        # print("==================== In function get_loops ====================")
         g = self.g_only_red_components
         c_path_n = self.constrained_path.full_n_constrained_path()
         all_loop_paths = {}
@@ -813,19 +816,19 @@ class AlphaDeesp:  # AKA SOLVER
         for i in range(len(c_path_n)):
             for j in reversed(range(len(c_path_n))):
                 if i < j:
-                    # print(i, j)
-                    # print("we compare paths from source: {} to target: {}".format(c_path_n[i], c_path_n[j]))
+                    # # print(i, j)
+                    # # print("we compare paths from source: {} to target: {}".format(c_path_n[i], c_path_n[j]))
                     try:
                         res = nx.all_shortest_paths(g, c_path_n[i], c_path_n[j])
                         for p in res:
-                            print("path = ", p)
+                            # print("path = ", p)
                             all_loop_paths[ii] = p
                             ii += 1
                     except nx.NetworkXNoPath:
                         print("shortest path between {0} and {1} failed".format(c_path_n[i], c_path_n[j]))
 
-        print("### Print in get_loops ###, all_loop_paths")
-        pprint.pprint(all_loop_paths)
+        # print("### Print in get_loops ###, all_loop_paths")
+        # pprint.pprint(all_loop_paths)
 
         data_for_df = {"Source": [], "Target": [], "Path": []}
         for path in list(all_loop_paths.keys()):
@@ -844,7 +847,7 @@ class AlphaDeesp:  # AKA SOLVER
         i = 1
         for e in nx.edge_bfs(g, node, orientation=orientation):
             if g.edges[(e[0], e[1])]["color"] == _color:
-                print(e)
+                # print(e)
                 if not res[0]:  # if empty
                     res[0].append((e[0], e[1]))
 
@@ -858,19 +861,19 @@ class AlphaDeesp:  # AKA SOLVER
                     # we check in res, or new branch
                     found = False
                     for p in list(res.keys()):
-                        print("we check res[p] = ", res[p])
+                        # print("we check res[p] = ", res[p])
 
                         path = list(res[p])
                         if e[1] == path[-1][0]:
                             res[p].append((e[0], e[1]))
-                            print("we append e = ", e)
+                            # print("we append e = ", e)
                             found = True
                             break
 
                     if not found:
                         # create new list
                         res[i] = [(e[0], e[1])]
-                        print("we create new list for e = ", e)
+                        # print("we create new list for e = ", e)
                         i += 1
 
         i += 1
@@ -882,7 +885,7 @@ class AlphaDeesp:  # AKA SOLVER
     def write_g(self, g):
         """This saves file g"""
         nx.write_edgelist(self.g, "./alphaDeesp/tmp/save.graph")
-        print("file saved")
+        # print("file saved")
         pass
 
     def read_g(self):
@@ -900,7 +903,7 @@ def execute_command(command: str):
     @return True if command went through
     """
 
-    # print("command = ", command)
+    # # print("command = ", command)
     sub_p = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
     stdout, stderr = sub_p.communicate()
     exit_code = sub_p.returncode
@@ -909,15 +912,15 @@ def execute_command(command: str):
     output = stdout.decode()
     error = stderr.decode()
 
-    print("--------------------\n output is:", output)
-    print("--------------------\n stderr is:", error)
-    print("--------------------\n exit code is:", exit_code)
-    # print("--------------------\n pid is:", pid)
+    # print("--------------------\n output is:", output)
+    # print("--------------------\n stderr is:", error)
+    # print("--------------------\n exit code is:", exit_code)
+    # # print("--------------------\n pid is:", pid)
 
     if not error:
         # string error is empty
         return True
     else:
         # string error is full
-        # print(f"Error {error}")
+        # # print(f"Error {error}")
         return False

@@ -39,24 +39,24 @@ class Network:
             for element in substations_elements[substation_id]:
                 print(element)
                 for busbar_id in [0, 1]:  # TODO IMPORTANT, DO A PREPROCESSING OR CONFIG INI TO GET NB TOTAL BUSBARS
-                    # print("type of busbar id ", element.busbar_id)
-                    # print(busbar_id)
-                    # print(element.busbar_id)
                     if element.busbar_id == busbar_id:
                         if isinstance(element, Production) or isinstance(element, Consumption):
                             if first_time_bool:
                                 if isinstance(element, Production):
-                                    prods_minus_loads[busbar_id] = np.round(element.value[0], 2)
+                                    prods_minus_loads[busbar_id] = np.round(element.value, 2)
                                 elif isinstance(element, Consumption):
-                                    prods_minus_loads[busbar_id] = np.round(-element.value[0])
+                                    prods_minus_loads[busbar_id] = np.round(-element.value)
                                 first_time_bool = False
                             else:
                                 if isinstance(element, Production):
                                     prods_minus_loads[busbar_id] = np.round(
                                         prods_minus_loads[busbar_id] + element.value[0], 2)
                                 elif isinstance(element, Consumption):
-                                    prods_minus_loads[busbar_id] = np.round(
-                                        prods_minus_loads[busbar_id] - element.value[0])
+                                    if prods_minus_loads[busbar_id] is not None:
+                                        prods_minus_loads[busbar_id] = np.round(
+                                            prods_minus_loads[busbar_id] - element.value)
+                                    else:
+                                        prods_minus_loads[busbar_id] = np.round(-element.value)
 
                         # here we continue filling dictionary mapping_node_id_to_prod_minus_load with information
                         # from elements OriginLine and ExtremityLine
