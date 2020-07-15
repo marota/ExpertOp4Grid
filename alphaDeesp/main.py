@@ -34,7 +34,7 @@ def main():
                         help="ID of the timestep to use, starting from 0. Default is 0, i.e. the first time step will be considered", default = 0)
     parser.add_argument("-c", "--chronicscenario", type=int,
                         help="ID of chronic scenario to consider, starting from 0. By default, the first available chronic scenario will be chosen, i.e. ID 0",
-                        default=0)
+                        default=1)
 
     args = parser.parse_args()
     config = configparser.ConfigParser()

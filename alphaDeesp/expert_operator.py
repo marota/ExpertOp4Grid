@@ -48,6 +48,9 @@ def expert_operator(sim, plot=False, debug=False):
         for elem in sim.save_bag:  # elem[0] = name, elem[1] = graph
             name = elem[0]
             simulated_obs = elem[1]
-            sim.plot_grid_from_obs(simulated_obs, name)
+            try:
+                sim.plot_grid_from_obs(simulated_obs, name)
+            except:
+                print("LA")
 
     return ranked_combinations, expert_system_results, actions
