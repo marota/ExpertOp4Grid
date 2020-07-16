@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-__author__ = "MarcM"
+__author__ = "MarcM, NMegel, mjothy"
 
 import argparse
 import configparser
