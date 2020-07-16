@@ -6,8 +6,8 @@ class Grid2opObservationLoader:
         self.parameter_folder = parameter_folder
         self.custom_params = Parameters()
         self.custom_params.NO_OVERFLOW_DISCONNECTION = True
-        self.custom_params.HARD_OVERFLOW_THRESHOLD = 9999999
-        self.custom_params.NB_TIMESTEP_OVERFLOW_ALLOWED = 9999999
+        #self.custom_params.HARD_OVERFLOW_THRESHOLD = 9999999
+        #self.custom_params.NB_TIMESTEP_OVERFLOW_ALLOWED = 9999999
         
         try:
             from lightsim2grid.LightSimBackend import LightSimBackend
