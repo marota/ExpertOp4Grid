@@ -594,8 +594,8 @@ class AlphaDeesp:  # AKA SOLVER
 
             return df
 
-        else:
-            raise ValueError("There are no hubs")
+        #else:
+         #   raise ValueError("There are no hubs")
 
     def identify_routing_buses(self):
         """Categories 1 to 4
@@ -609,12 +609,15 @@ class AlphaDeesp:  # AKA SOLVER
         # for nodes in interesting_nodes:
         #   classify to category 1, 2, 3, 4.
         df_sorted_hubs = self.sort_hubs(self.hubs)
-        category1 = list(df_sorted_hubs["hubs"])
-        set_category2 = set(self.constrained_path.full_n_constrained_path()) - set(category1)
-        set_category3 = set()  # @TODO
-        set_category4 = set(self.constrained_path.n_aval()) - (set(category1) | set_category2 | set_category3)
+        if df_sorted_hubs is None:
+            return {}
+        else:
+            category1 = list(df_sorted_hubs["hubs"])
+            set_category2 = set(self.constrained_path.full_n_constrained_path()) - set(category1)
+            set_category3 = set()  # @TODO
+            set_category4 = set(self.constrained_path.n_aval()) - (set(category1) | set_category2 | set_category3)
 
-        d = {1: category1, 2: set_category2, 3: set_category3, 4: set_category4}
+            d = {1: category1, 2: set_category2, 3: set_category3, 4: set_category4}
         return d
 
     def rank_red_loops(self):

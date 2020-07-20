@@ -215,6 +215,10 @@ class Grid2opSimulation(Simulation):
                 j += 1
 
         end_result_dataframe.to_csv("./END_RESULT_DATAFRAME.csv", index=True)
+
+        # Case there are no hubs --> action do nothing
+        if len(actions) == 0:
+            actions = [self.action_space()]
         return end_result_dataframe, actions
 
     @staticmethod
