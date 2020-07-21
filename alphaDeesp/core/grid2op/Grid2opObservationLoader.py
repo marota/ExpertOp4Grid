@@ -1,13 +1,13 @@
 import grid2op
-from grid2op.Parameters import Parameters
+#from grid2op.Parameters import Parameters
 
 class Grid2opObservationLoader:
     def __init__(self, parameter_folder, difficulty = 0):
         self.parameter_folder = parameter_folder
-        self.custom_params = Parameters()
-        self.custom_params.NO_OVERFLOW_DISCONNECTION = False
-        self.custom_params.HARD_OVERFLOW_THRESHOLD = 9999999
-        self.custom_params.NB_TIMESTEP_OVERFLOW_ALLOWED = 9999999
+        #self.custom_params = Parameters()
+        #self.custom_params.NO_OVERFLOW_DISCONNECTION = False
+        #self.custom_params.HARD_OVERFLOW_THRESHOLD = 9999999
+        #self.custom_params.NB_TIMESTEP_OVERFLOW_ALLOWED = 9999999
         
         try:
             from lightsim2grid.LightSimBackend import LightSimBackend
@@ -17,9 +17,8 @@ class Grid2opObservationLoader:
             backend = PandaPowerBackend()
             print("You might need to install the LightSimBackend (provisory name) to gain massive speed up")
         
-        self.env = grid2op.make(self.parameter_folder,backend=backend, param = self.custom_params)
-        #self.env = grid2op.make(self.parameter_folder, backend=backend, difficulty=difficulty)
-
+        #self.env = grid2op.make(self.parameter_folder,backend=backend, param = self.custom_params)
+        self.env = grid2op.make(self.parameter_folder, backend=backend, difficulty=difficulty)
 
     def get_observation(self, chronic_scenario = 0, timestep = 0):
 
