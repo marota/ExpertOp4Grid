@@ -13,7 +13,7 @@ from alphaDeesp.core.printer import Printer
 
 
 class PypownetSimulation(Simulation):
-    def __init__(self, env, obs, action_space, param_options=None, debug=False, ltc=[9]):
+    def __init__(self, env, obs, action_space, param_options=None, debug=False, ltc=[9], plot_folder = None):
         super().__init__()
         print("PypownetSimulation object created...")
 
@@ -29,7 +29,7 @@ class PypownetSimulation(Simulation):
         self.topo = None  # a dict create in retrieve topology
         self.ltc = ltc
         self.param_options = param_options
-        self.printer = Printer()
+        self.printer = Printer(plot_folder)
         #############################
         self.environment = env
         self.action_space = action_space
@@ -111,7 +111,7 @@ class PypownetSimulation(Simulation):
         g_over = self.build_graph_from_data_frame(self.ltc)
         return self.plot_grid(g_over, name="g_overflow_print")
 
-    def plot_grid_from_obs(self, obs, name, create_result_folder = None):
+    def plot_grid_from_obs(self, obs, name):
         """
         Plots the grid with alphadeesp.printer API from given observation
         :return: Figure
@@ -119,11 +119,11 @@ class PypownetSimulation(Simulation):
         # Pypownet needs to rebuild its internal structure to produce objects to plot
         self.load_from_observation(obs, self.ltc)
         g_over_detailed = self.build_detailed_graph_from_internal_structure(self.ltc)
-        return self.plot_grid(g_over_detailed, name=name, create_result_folder = create_result_folder)
+        return self.plot_grid(g_over_detailed, name=name)
 
-    def plot_grid(self, g, name, create_result_folder = None):
+    def plot_grid(self, g, name):
         # Use printer API to plot (graphviz/neato)
-        self.printer.display_geo(g, self.get_layout(), name=name, create_result_folder = create_result_folder)
+        self.printer.display_geo(g, self.get_layout(), name=name)
 
 
 
