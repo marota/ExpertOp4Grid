@@ -27,14 +27,14 @@ class Printer:
             print(f"{self.default_output_path} folder does not exist. Printer has created a new folder.")
             self.default_output_path.mkdir()
 
-    def display_geo(self, g, custom_layout=None, axial_symetry=False, save=False, name=None, create_result_folder = None):
+    def display_geo(self, g, custom_layout=None, axial_symetry=False, save=False, name=None, result_folder = None):
         """This function displays the graph g in a "geographical" way"""
 
         "filenames are pathlib.Paths objects"
         type_ = "results"
         if name in ["g_pow", "g_overflow_print", "g_pow_prime"]:
             type_ = "base"
-        filename_dot, filename_pdf = self.create_namefile("geo", name=name, type = type_, create_result_folder = create_result_folder)
+        filename_dot, filename_pdf = self.create_namefile("geo", name=name, type = type_, result_folder = result_folder)
 
         dic_pos_attributes = {}
         if custom_layout is not None:
@@ -107,14 +107,15 @@ class Printer:
     def display_elec(self, g, save=False):
         pass
 
-    def create_namefile(self, display_type, name=None, type = "results", create_result_folder = None):
+    def create_namefile(self, display_type, name=None, type = "results", result_folder = None):
         """return dot and pdf filenames"""
         # filename_dot = "graph_result_" + display_type + "_" + current_date + ".dot"
         # filename_pdf = "graph_result_" + display_type + "_" + current_date + ".pdf"
         current_date_no_filter = datetime.datetime.now()
         current_date = current_date_no_filter.strftime("%Y-%m-%d_%H-%M")
-        current_date += "_" + str(Printer.save_id_number) + "_"
-        Printer.save_id_number += 1
+        if type == 'results':
+            current_date += "_" + str(Printer.save_id_number) + "_"
+            Printer.save_id_number += 1
 
         if name is None:
             name = ""
@@ -123,17 +124,17 @@ class Printer:
         filename_pdf = name + "_" + display_type + "_" + current_date + ".pdf"
 
         if type == "results":
-            output_path = self.results_output_path
-            if create_result_folder is not None:
-                output_path = output_path / create_result_folder
-                os.makedirs(output_path, exist_ok=True)
+            if result_folder is not None:
+                output_path = result_folder
+            else:
+                output_path = self.results_output_path
         elif type == "base":
             output_path = self.base_output_path
         else:
             output_path = self.default_output_path
-        hard_filename_dot = output_path / filename_dot
+        hard_filename_dot = os.path.join(output_path,filename_dot)
         # hard_filename_dot = filename_dot
-        hard_filename_pdf = output_path / filename_pdf
+        hard_filename_pdf = os.path.join(output_path,filename_pdf)
 
         print("============================= FUNCTION create_namefile =============================")
         print("hard_filename = ", hard_filename_pdf)

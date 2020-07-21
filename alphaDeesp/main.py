@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 __author__ = "MarcM, NMegel, mjothy"
 
+import os
 import argparse
 import configparser
 
@@ -17,7 +18,7 @@ def main():
                         help="If 1, prints additional information for debugging purposes. If 0, doesn't print any info", default = 0)
     parser.add_argument("-s", "--snapshot", type=int,
                         help="If 1, displays the main overflow graph at step i, ie, delta_flows_graph, diff between "
-                             "flows before and after cutting the constrained line. If 0, doesn't display the graphs", default = 1)
+                             "flows before and after cutting the constrained line. If 0, doesn't display the graphs", default = 0)
     # nargs '+' == 1 or more.
     # nargs '*' == 0 or more.
     # nargs '?' == 0 or 1.
@@ -60,6 +61,24 @@ def main():
     args.debug = bool(args.debug)
     args.snapshot = bool(args.snapshot)
 
+    if args.snapshot:
+        plot_folder = "alphaDeesp/ressources/output/Result graph"
+        os.makedirs(plot_folder, exist_ok=True)
+        gridName = config['DEFAULT']['gridPath'].split('/')[-1]
+        plot_folder = os.path.join(plot_folder, gridName)
+        os.makedirs(plot_folder, exist_ok=True)
+        lineName = 'linetocut_'+str(args.ltc[0])
+        plot_folder = os.path.join(plot_folder, lineName)
+        os.makedirs(plot_folder, exist_ok=True)
+        scenarioName = 'Scenario_'+str(args.chronicscenario)
+        plot_folder = os.path.join(plot_folder, scenarioName)
+        os.makedirs(plot_folder, exist_ok=True)
+        timestepName = 'Timestep_' + str(args.timestep)
+        plot_folder = os.path.join(plot_folder, timestepName)
+        os.makedirs(plot_folder, exist_ok=True)
+    else:
+        plot_folder = None
+
     if config["DEFAULT"]["simulatorType"] == "Pypownet":
         print("We init Pypownet Simulation")
         from alphaDeesp.core.pypownet.PypownetSimulation import PypownetSimulation
@@ -76,11 +95,12 @@ def main():
         from alphaDeesp.core.grid2op.Grid2opObservationLoader import Grid2opObservationLoader
 
         parameters_folder = config["DEFAULT"]["gridPath"]
-        loader = Grid2opObservationLoader(parameters_folder)
+        difficulty = str(config["DEFAULT"]["grid2opDifficulty"])
+        loader = Grid2opObservationLoader(parameters_folder, difficulty = difficulty)
         env, obs, action_space = loader.get_observation(chronic_scenario= args.chronicscenario, timestep=args.timestep)
         observation_space = env.observation_space
         sim = Grid2opSimulation(obs, action_space, observation_space, param_options=config["DEFAULT"], debug=args.debug,
-                                 ltc=args.ltc, plot=args.snapshot)
+                                 ltc=args.ltc, plot=args.snapshot, plot_folder = plot_folder)
 
     elif config["DEFAULT"]["simulatorType"] == "RTE":
         print("We init RTE Simulation")

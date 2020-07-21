@@ -34,19 +34,21 @@ class Grid2opSimulation(Simulation):
     def get_layout(self):
         return self.layout
 
-    def __init__(self, obs, action_space, observation_space, param_options=None, debug = False, ltc=[9], plot=False):
+    def __init__(self, obs, action_space, observation_space, param_options=None, debug = False, ltc=[9], plot=False, plot_folder = None):
         super().__init__()
 
         # Get Grid2op objects
         if ltc is None:
             ltc = [9]
-        if plot:
+        if plot: # Manual mode
             self.printer = Printer()
+            self.plot_folder = plot_folder
         self.obs = obs
         self.obs_linecut = None
         self.action_space = action_space
         self.observation_space = observation_space
         self.plot_helper = self.get_plot_helper()
+        self.no_overflow_disc = self.obs._obs_env.no_overflow_disconnection # Keep it in memory to activate and deactivate during computation steps
 
         # Get Alphadeesp configuration
         self.ltc = ltc
@@ -162,7 +164,8 @@ class Grid2opSimulation(Simulation):
                       .format(internal_target_node, new_conf))
 
                 action = self.get_action_from_topo(internal_target_node, new_conf, obs)
-                virtual_obs, reward, done, info = self.obs.simulate(action)
+                # virtual_obs, reward, done, info = self.obs.simulate(action)
+                virtual_obs, reward, done, info = self.obs.simulate(action, time_step = 0)
                 # Same as in Pypownet, this is not what we would want though, as we do the work for only one ltc
                 only_line = self.ltc[0]
                 line_state_before = obs.state_of(line_id=only_line)
@@ -322,6 +325,9 @@ class Grid2opSimulation(Simulation):
     def cut_lines_and_recomputes_flows(self, ids: list):
         """This functions cuts lines: [ids], simulates and returns new line flows"""
 
+        # First, set parameter to avoid disconnection
+        self.obs._obs_env.no_overflow_disconnection = True
+
         # Set action which disconects the specified lines (by ids)
         deconexion_action = self.action_space({"set_line_status": [(id_, -1) for id_ in ids]})
         obs_linecut, reward, done, info = self.obs.simulate(deconexion_action)
@@ -334,6 +340,9 @@ class Grid2opSimulation(Simulation):
 
         # Graph building
         # self.g_pow_prime = self.build_powerflow_graph(self.obs_cutted)
+
+        # Finaly, reset previous parameter
+        self.obs._obs_env.no_overflow_disconnection = self.no_overflow_disc
 
         return new_flow
 
@@ -433,23 +442,23 @@ class Grid2opSimulation(Simulation):
         """
         return self.plot_grid(None, name="g_overflow_print")
 
-    def plot_grid_from_obs(self, obs, name, create_result_folder = None):
+    def plot_grid_from_obs(self, obs, name):
         """
         Plots the grid with Grid2op PlotHelper from given observation
         :return: Figure
         """
-        return self.plot_grid(obs, name=name, create_result_folder = create_result_folder)
+        return self.plot_grid(obs, name=name)
 
-    def plot_grid(self, obs, name, create_result_folder = None):
+    def plot_grid(self, obs, name):
         type_ = "results"
         if name in ["g_pow", "g_overflow_print", "g_pow_prime"]:
             type_ = "base"
 
         if name == "g_overflow_print":  # Use printer API to plot g_over (graphviz/neato)
             g_over = self.build_graph_from_data_frame(self.ltc)
-            self.printer.display_geo(g_over, self.get_layout(), name=name)
+            self.printer.display_geo(g_over, self.get_layout(), name=name, result_folder= self.plot_folder)
         else:   # Use grid2op plot functionalities to plot all other graphs
-            output_name = self.printer.create_namefile("geo", name = name, type = type_, create_result_folder = create_result_folder)
+            output_name = self.printer.create_namefile("geo", name = name, type = type_, result_folder = self.plot_folder)
             fig_obs = self.plot_helper.plot_obs(obs, line_info='p')
             fig_obs.savefig(output_name[1])
 
