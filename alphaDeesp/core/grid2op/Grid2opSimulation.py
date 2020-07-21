@@ -41,8 +41,8 @@ class Grid2opSimulation(Simulation):
         if ltc is None:
             ltc = [9]
         if plot: # Manual mode
-            self.printer = Printer()
             self.plot_folder = plot_folder
+            self.printer = Printer(plot_folder)
         self.obs = obs
         self.obs_linecut = None
         self.action_space = action_space
@@ -456,9 +456,9 @@ class Grid2opSimulation(Simulation):
 
         if name == "g_overflow_print":  # Use printer API to plot g_over (graphviz/neato)
             g_over = self.build_graph_from_data_frame(self.ltc)
-            self.printer.display_geo(g_over, self.get_layout(), name=name, result_folder= self.plot_folder)
+            self.printer.display_geo(g_over, self.get_layout(), name=name)
         else:   # Use grid2op plot functionalities to plot all other graphs
-            output_name = self.printer.create_namefile("geo", name = name, type = type_, result_folder = self.plot_folder)
+            output_name = self.printer.create_namefile("geo", name = name, type = type_)
             fig_obs = self.plot_helper.plot_obs(obs, line_info='p')
             fig_obs.savefig(output_name[1])
 

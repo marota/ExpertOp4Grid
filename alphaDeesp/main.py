@@ -18,7 +18,7 @@ def main():
                         help="If 1, prints additional information for debugging purposes. If 0, doesn't print any info", default = 0)
     parser.add_argument("-s", "--snapshot", type=int,
                         help="If 1, displays the main overflow graph at step i, ie, delta_flows_graph, diff between "
-                             "flows before and after cutting the constrained line. If 0, doesn't display the graphs", default = 0)
+                             "flows before and after cutting the constrained line. If 0, doesn't display the graphs", default = 1)
     # nargs '+' == 1 or more.
     # nargs '*' == 0 or more.
     # nargs '?' == 0 or 1.
@@ -62,7 +62,7 @@ def main():
     args.snapshot = bool(args.snapshot)
 
     if args.snapshot:
-        plot_folder = "alphaDeesp/ressources/output/Result graph"
+        plot_folder = "alphaDeesp/ressources/output"
         os.makedirs(plot_folder, exist_ok=True)
         gridName = config['DEFAULT']['gridPath'].split('/')[-1]
         plot_folder = os.path.join(plot_folder, gridName)

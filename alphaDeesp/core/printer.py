@@ -13,28 +13,25 @@ from pathlib import Path
 class Printer:
     save_id_number = 0
 
-    def __init__(self):
-        # self.default_output_path = "./alphaDeesp/ressources/output/"
-        # self.default_output_path = "/home/mozgawamar/Documents/alphaDeesp/alphaDeesp/ressources/output/"
-        self.default_output_path = Path.cwd() / "alphaDeesp/ressources/output"
-        self.base_output_path = self.default_output_path / "Base graph"
-        os.makedirs(self.base_output_path, exist_ok=True)
-        self.results_output_path = self.default_output_path / "Result graph"
-        os.makedirs(self.results_output_path, exist_ok=True)
+    def __init__(self, output_path = None):
+        if output_path is None:
+            self.default_output_path = "alphaDeesp/ressources/output"
+        else:
+            self.default_output_path = output_path
+            self.base_output_path = os.path.join(self.default_output_path,"Base graph")
+            os.makedirs(self.base_output_path, exist_ok=True)
+            self.results_output_path = os.path.join(self.default_output_path,"Result graph")
+            os.makedirs(self.results_output_path, exist_ok=True)
         print("self.default output path = ", self.default_output_path)
 
-        if not self.default_output_path.exists():
-            print(f"{self.default_output_path} folder does not exist. Printer has created a new folder.")
-            self.default_output_path.mkdir()
-
-    def display_geo(self, g, custom_layout=None, axial_symetry=False, save=False, name=None, result_folder = None):
+    def display_geo(self, g, custom_layout=None, axial_symetry=False, save=False, name=None):
         """This function displays the graph g in a "geographical" way"""
 
         "filenames are pathlib.Paths objects"
         type_ = "results"
         if name in ["g_pow", "g_overflow_print", "g_pow_prime"]:
             type_ = "base"
-        filename_dot, filename_pdf = self.create_namefile("geo", name=name, type = type_, result_folder = result_folder)
+        filename_dot, filename_pdf = self.create_namefile("geo", name=name, type = type_)
 
         dic_pos_attributes = {}
         if custom_layout is not None:
@@ -107,7 +104,7 @@ class Printer:
     def display_elec(self, g, save=False):
         pass
 
-    def create_namefile(self, display_type, name=None, type = "results", result_folder = None):
+    def create_namefile(self, display_type, name=None, type = "results"):
         """return dot and pdf filenames"""
         # filename_dot = "graph_result_" + display_type + "_" + current_date + ".dot"
         # filename_pdf = "graph_result_" + display_type + "_" + current_date + ".pdf"
@@ -124,10 +121,7 @@ class Printer:
         filename_pdf = name + "_" + display_type + "_" + current_date + ".pdf"
 
         if type == "results":
-            if result_folder is not None:
-                output_path = result_folder
-            else:
-                output_path = self.results_output_path
+            output_path = self.results_output_path
         elif type == "base":
             output_path = self.base_output_path
         else:
