@@ -301,8 +301,8 @@ def test_integration_dataframe_results_no_hubs():
     ltc = 9
     chronic_scenario = 1
     timestep = 2
-    param_folder = "./alphaDeesp/tests/resources_for_tests_grid2op/l2rpn_2019_ltc_8"
-    config_file = "./alphaDeesp/tests/resources_for_tests_grid2op/config_for_tests_case14_realistic.ini"
+    param_folder = "./alphaDeesp/tests/resources_for_tests_grid2op/l2rpn_2019_ltc_9"
+    config_file = "./alphaDeesp/tests/resources_for_tests_grid2op/config_for_tests.ini"
 
     sim = build_sim(ltc, param_folder, config_file = config_file, timestep=timestep, chronic_scenario=chronic_scenario)
     df_of_g = sim.get_dataframe()
@@ -317,7 +317,7 @@ def test_integration_dataframe_results_no_hubs():
     ranked_combinations = alphadeesp.get_ranked_combinations()
     expert_system_results, actions = sim.compute_new_network_changes(ranked_combinations)
 
-    #expert_system_results.to_csv("alphaDeesp/tests/resources_for_tests_grid2op/END_RESULT_DATAFRAME_G2OP_NO_HUBS.csv")
+    # expert_system_results.to_csv("alphaDeesp/tests/resources_for_tests_grid2op/END_RESULT_DATAFRAME_G2OP_NO_HUBS.csv")
 
     path_to_saved_end_result_dataframe = \
         Path.cwd() / "alphaDeesp/tests/resources_for_tests_grid2op/END_RESULT_DATAFRAME_G2OP_NO_HUBS.csv"
