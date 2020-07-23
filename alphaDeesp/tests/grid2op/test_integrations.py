@@ -17,12 +17,13 @@ custom_layout = [(-280, -81), (-100, -270), (366, -270), (366, -54), (-64, -54),
                  (438, 100), (326, 140), (200, 8), (79, 12), (-152, 170), (-70, 200), (222, 200)]
 
 
-def build_sim(ltc, param_folder):
+def build_sim(ltc, param_folder, config_file = "./alphaDeesp/tests/resources_for_tests_grid2op/config_for_tests.ini",
+              chronic_scenario = 0, timestep = 0):
     config = configparser.ConfigParser()
-    config.read("./alphaDeesp/tests/resources_for_tests_grid2op/config_for_tests.ini")
+    config.read(config_file)
 
     loader = Grid2opObservationLoader(param_folder)
-    env, obs, action_space = loader.get_observation()
+    env, obs, action_space = loader.get_observation(timestep = timestep, chronic_scenario=chronic_scenario)
     observation_space = env.observation_space
     sim = Grid2opSimulation(obs, action_space, observation_space, param_options=config["DEFAULT"], debug=False,
                             ltc=[ltc])
@@ -162,8 +163,8 @@ def test_integration_dataframe_results_with_line_8_cut():
     Test
     """
 
-    # import os
-    # os.chdir('../../../')
+    #import os
+    #os.chdir('../../../')
 
     ltc = 8
     param_folder = "./alphaDeesp/tests/resources_for_tests_grid2op/l2rpn_2019_ltc_8"
@@ -243,6 +244,89 @@ def test_integration_dataframe_results_with_modified_substation4():
     ## Properly compare the two dataframes
     # List understandable format
     saved_df["Topology applied"] = saved_df["Topology applied"].str.replace(" ", ",")
+    #print("The two dataframes are equal: ", are_dataframes_equal(expert_system_results, saved_df))
+    assert are_dataframes_equal(expert_system_results, saved_df)
+
+def test_integration_dataframe_results_with_case_14_realistic():
+    """
+    In the initial state of the network, all substations are on busbar1
+    Test
+    """
+
+    # import os
+    # os.chdir('../../../')
+
+    ltc = 4
+    chronic_scenario = 0
+    timestep = 518
+    param_folder = "./alphaDeesp/ressources/parameters/rte_case14_realistic" # We go directly in the folder to avoid double storing of "heavy" data
+    config_file = "./alphaDeesp/tests/resources_for_tests_grid2op/config_for_tests.ini"
+
+    sim = build_sim(ltc, param_folder, config_file = config_file, timestep=timestep, chronic_scenario=chronic_scenario)
+    df_of_g = sim.get_dataframe()
+    g_over = sim.build_graph_from_data_frame([ltc])
+    g_pow = sim.build_powerflow_graph_beforecut()
+    g_pow_prime = sim.build_powerflow_graph_aftercut()
+    simulator_data = {"substations_elements": sim.get_substation_elements(),
+                      "substation_to_node_mapping": sim.get_substation_to_node_mapping(),
+                      "internal_to_external_mapping": sim.get_internal_to_external_mapping()}
+    # create AlphaDeesp
+    alphadeesp = AlphaDeesp(g_over, df_of_g, simulator_data=simulator_data)
+    ranked_combinations = alphadeesp.get_ranked_combinations()
+    expert_system_results, actions = sim.compute_new_network_changes(ranked_combinations)
+
+    # expert_system_results.to_csv("alphaDeesp/tests/resources_for_tests_grid2op/END_RESULT_DATAFRAME_G2OP_CASE14_REALISTIC.csv")
+
+    path_to_saved_end_result_dataframe = \
+        Path.cwd() / "alphaDeesp/tests/resources_for_tests_grid2op/END_RESULT_DATAFRAME_G2OP_CASE14_REALISTIC.csv"
+
+    saved_df = pd.read_csv(path_to_saved_end_result_dataframe, index_col=0)
+
+    # List understandable format
+    saved_df["Topology applied"] = saved_df["Topology applied"].str.replace(" ", ",")
+
+    #print("The two dataframes are equal: ", are_dataframes_equal(expert_system_results, saved_df))
+    assert are_dataframes_equal(expert_system_results, saved_df)
+
+def test_integration_dataframe_results_no_hubs():
+    """
+    In the initial state of the network, all substations are on busbar1
+    No hubs are detected by alphadeesp - result should be an empty dataframe
+    Test
+    """
+
+    #import os
+    #os.chdir('../../../')
+
+    ltc = 9
+    chronic_scenario = 1
+    timestep = 2
+    param_folder = "./alphaDeesp/tests/resources_for_tests_grid2op/l2rpn_2019_ltc_8"
+    config_file = "./alphaDeesp/tests/resources_for_tests_grid2op/config_for_tests_case14_realistic.ini"
+
+    sim = build_sim(ltc, param_folder, config_file = config_file, timestep=timestep, chronic_scenario=chronic_scenario)
+    df_of_g = sim.get_dataframe()
+    g_over = sim.build_graph_from_data_frame([ltc])
+    g_pow = sim.build_powerflow_graph_beforecut()
+    g_pow_prime = sim.build_powerflow_graph_aftercut()
+    simulator_data = {"substations_elements": sim.get_substation_elements(),
+                      "substation_to_node_mapping": sim.get_substation_to_node_mapping(),
+                      "internal_to_external_mapping": sim.get_internal_to_external_mapping()}
+    # create AlphaDeesp
+    alphadeesp = AlphaDeesp(g_over, df_of_g, simulator_data=simulator_data)
+    ranked_combinations = alphadeesp.get_ranked_combinations()
+    expert_system_results, actions = sim.compute_new_network_changes(ranked_combinations)
+
+    #expert_system_results.to_csv("alphaDeesp/tests/resources_for_tests_grid2op/END_RESULT_DATAFRAME_G2OP_NO_HUBS.csv")
+
+    path_to_saved_end_result_dataframe = \
+        Path.cwd() / "alphaDeesp/tests/resources_for_tests_grid2op/END_RESULT_DATAFRAME_G2OP_NO_HUBS.csv"
+
+    saved_df = pd.read_csv(path_to_saved_end_result_dataframe, index_col=0)
+
+    # List understandable format
+    saved_df["Topology applied"] = saved_df["Topology applied"].str.replace(" ", ",")
+
     #print("The two dataframes are equal: ", are_dataframes_equal(expert_system_results, saved_df))
     assert are_dataframes_equal(expert_system_results, saved_df)
 
