@@ -85,6 +85,7 @@ In manual mode, further configuration is made through alphadeesp/config.ini
 * *simulatorType* - you can chose Grid2op or Pypownet
 * *gridPath* - path to folder containing files representing the grid
 * *CustomLayout* - list of couples reprenting coordinates of grid nodes. If not provided, grid2op will load grid_layout.json in grid folder
+* *grid2opDifficulty* - "0", "1", "2" or "competition". Be careful: grid datasets should have a difficulty_levels.json
 * *7 other constants for alphadeesp computation* can be set in config.ini, with comments within the file 
 
 ### To execute in **agent mode**, please refer to ExpertAgent available in l2rpn-baseline repository
