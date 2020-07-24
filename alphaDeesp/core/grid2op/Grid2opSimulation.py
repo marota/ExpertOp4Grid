@@ -164,6 +164,7 @@ class Grid2opSimulation(Simulation):
                       .format(internal_target_node, new_conf))
 
                 action = self.get_action_from_topo(internal_target_node, new_conf, obs)
+                new_conf_grid2op=list(action.effect_on(substation_id=internal_target_node)['set_bus'])#grid2op conf is different from alphadeesp conf, because the elements are ordered differently
                 # virtual_obs, reward, done, info = self.obs.simulate(action)
                 virtual_obs, reward, done, info = self.obs.simulate(action, time_step = 0)
                 # Same as in Pypownet, this is not what we would want though, as we do the work for only one ltc
@@ -205,7 +206,7 @@ class Grid2opSimulation(Simulation):
                               worsened_line_ids,
                               redistribution_prod,
                               redistribution_load,
-                              new_conf,
+                              new_conf_grid2op,#new_conf,#we prefer to have the backend conf definition, rather than alphadeesp one
                               internal_target_node,
                               1,  # category hubs?
                               score_topo,
