@@ -734,8 +734,8 @@ def score_changes_between_two_observations(old_obs, new_obs):
     # and without worsening existing constraint
     # and no Loads that get cut
     elif new_number_of_overloads < old_number_of_overloads and \
-            (boolean_constraint_worsened == 0).all() and \
-            (new_obs.are_loads_cut == 0).all():
+            (boolean_constraint_worsened == 0).all():
+        # and \ (new_obs.are_loads_cut == 0).all():
         # print("return 3: an overload disappeared without stressing the network")
         return 3
 
