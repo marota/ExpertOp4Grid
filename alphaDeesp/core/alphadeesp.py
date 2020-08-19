@@ -138,25 +138,34 @@ class AlphaDeesp:  # AKA SOLVER
         ex: [001], [010], [100], [101], [011]... etc..."""
 
         # ## check that current topology is not in this list
-        node_configuration = self.simulator_data["substations_elements"][node]
+        node_configuration_elements = self.simulator_data["substations_elements"][node]
+        n_elements=len(node_configuration_elements)
+        node_configuration=[node_configuration_elements[i].busbar_id for i in range(n_elements)]
+        node_configuration_sym=[0 if node_configuration[i]==1 else 1 for i in range(n_elements)]
+
         # print("Inside compute_all_comb : for node [{}], node_configuration = {}".format(node, node_configuration))
-        length = len(node_configuration)
-        if length == 0 or length == 1:
+        if n_elements == 0 or n_elements == 1:
             raise ValueError("Cannot generate combinations out of a configuration with len = 1 or 2")
-        elif length == 2:
+        elif n_elements == 2:
             return [(1, 1), (0, 0)]
         else:
-            arg = [n for n in range(length)]
-            res = []
-            external_i = 0
-            for c in range(2, int(ceil(length/2) + 1)):
-                res_comb = list(itertools.combinations(arg, c))
-                for pos in res_comb:
-                    res.append(list(np.zeros(length, dtype=int)))
-                    for p in pos:
-                        res[external_i][p] = 1
-                    external_i += 1
-            return res
+            l=[0,1]
+            allcomb = [list(i) for i in itertools.product(l, repeat=n_elements)]
+            uniqueComb=[allcomb[i] for i in range(len(allcomb)) if (allcomb[i][0]==0) & (allcomb[i]!=node_configuration) &(allcomb[i]!=node_configuration_sym)]# we get rid of symetrical topologies by fixing the first element to busbar 0. ideally if first element is not connected, we should fix the first connected element
+
+        #previous method but returning too many combinations while their should be only all of all the possible combinations
+        #arg = [n for n in range(length)]
+        #res = []
+        #external_i = 0
+        #for c in range(2, int(ceil(length/2) + 1)):
+        #    res_comb = list(itertools.combinations(arg, c))
+        #    for pos in res_comb:
+        #        res.append(list(np.zeros(length, dtype=int)))
+        #        for p in pos:
+        #            res[external_i][p] = 1
+        #        external_i += 1
+        #return res
+        return uniqueComb
 
     def rank_topologies(self, all_combinations, graph, node_to_change: int):
         """==> ultimate goal: This function returns a DF with topologies ranked
@@ -212,6 +221,7 @@ class AlphaDeesp:  # AKA SOLVER
             ranked_combinations.loc[max_index] = score_data
         return ranked_combinations
 
+    #WARNING: does not work yet when you go back from two nodes to one node at a given substation? Basically one node will be not connected?
     def apply_new_topo_to_graph(self, graph: nx.DiGraph, new_topology, node_to_change: int):
         """given  a graph, a node_topoly and a node_id, this function applies the change to the graph
         :return new_graph, internal_repr_dict"""
@@ -222,12 +232,14 @@ class AlphaDeesp:  # AKA SOLVER
 
         # check if there are two nodes, there are 2 different values in new topo 0 and 1
         bus_ids = set(new_topology)
-        assert(len(bus_ids) == 2)
+        #assert(len(bus_ids) == 2)#not necesarrily, it should be at least 1 and not more than 2
+        assert ((len(bus_ids) != 0)&(len(bus_ids) <= 2))
 
         internal_repr_dict = dict(self.simulator_data["substations_elements"])
         new_node_id = int("666" + str(node_to_change))
 
         element_types = self.simulator_data["substations_elements"][node_to_change]
+
         # it has to be the same, otherwise it does not make sense, ie, there is an error somewhere
         assert len(element_types) == len(new_topology)
 
