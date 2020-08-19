@@ -107,19 +107,20 @@ class AlphaDeesp:  # AKA SOLVER
 
         for node in selected_ranked_nodes:
             all_combinations = self.compute_all_combinations(node)
-            ranked_combinations = self.rank_topologies(all_combinations, self.g, node)
-            # print(ranked_combinations)
+            if(len(all_combinations)!=0):
+                ranked_combinations = self.rank_topologies(all_combinations, self.g, node)
+                # print(ranked_combinations)
 
-            # best_topologies = best_topologies.append(ranked_combinations)
-            # pd.concat([best_topologies, *ranked_combinations])
+                # best_topologies = best_topologies.append(ranked_combinations)
+                # pd.concat([best_topologies, *ranked_combinations])
 
-            # print("\n##############################################################################")
-            # print("##########............BEST_TOPOLOGIES COMPUTED............####################")
-            # print("##############################################################################")
+                # print("\n##############################################################################")
+                # print("##########............BEST_TOPOLOGIES COMPUTED............####################")
+                # print("##############################################################################")
 
-            # best_topologies = self.clean_and_sort_best_topologies(best_topologies)
-            best_topologies = self.clean_and_sort_best_topologies(ranked_combinations)
-            res_container.append(best_topologies)
+                # best_topologies = self.clean_and_sort_best_topologies(best_topologies)
+                best_topologies = self.clean_and_sort_best_topologies(ranked_combinations)
+                res_container.append(best_topologies)
             # # print(best_topologies)
 
         return res_container
@@ -138,6 +139,7 @@ class AlphaDeesp:  # AKA SOLVER
         ex: [001], [010], [100], [101], [011]... etc..."""
 
         # ## check that current topology is not in this list
+        # TO DO: manage the fact that a substation can already be in 2 nodes. How do you get the node configuration and everything?
         node_configuration_elements = self.simulator_data["substations_elements"][node]
         n_elements=len(node_configuration_elements)
         node_configuration=[node_configuration_elements[i].busbar_id for i in range(n_elements)]
@@ -151,7 +153,12 @@ class AlphaDeesp:  # AKA SOLVER
         else:
             l=[0,1]
             allcomb = [list(i) for i in itertools.product(l, repeat=n_elements)]
-            uniqueComb=[allcomb[i] for i in range(len(allcomb)) if (allcomb[i][0]==0) & (allcomb[i]!=node_configuration) &(allcomb[i]!=node_configuration_sym)]# we get rid of symetrical topologies by fixing the first element to busbar 0. ideally if first element is not connected, we should fix the first connected element
+            # we get rid of symetrical topologies by fixing the first element to busbar 0.
+            # ideally if first element is not connected, we should fix the first connected element
+            #Also a node should also have 2 elements connected to it, we filter that as well
+            uniqueComb=[allcomb[i] for i in range(len(allcomb))
+                        if (allcomb[i][0]==0) & (allcomb[i]!=node_configuration) &(allcomb[i]!=node_configuration_sym) &
+                        (np.sum(allcomb[i])!=1) & (np.sum(allcomb[i])!=n_elements-1)]# we get rid of symetrical topologies by fixing the first element to busbar 0. ideally if first element is not connected, we should fix the first connected element
 
         #previous method but returning too many combinations while their should be only all of all the possible combinations
         #arg = [n for n in range(length)]
@@ -239,7 +246,9 @@ class AlphaDeesp:  # AKA SOLVER
         new_node_id = int("666" + str(node_to_change))
 
         element_types = self.simulator_data["substations_elements"][node_to_change]
-
+        #TO DO: you need to get all elements of the substation, especially if it is already in a 2 nodes topology and you want to merge the nodes
+        #if (new_node_id in self.simulator_data["substations_elements"]):#the substation was already in a 2 node topology
+        #    element_types+=self.simulator_data["substations_elements"][new_node_id]
         # it has to be the same, otherwise it does not make sense, ie, there is an error somewhere
         assert len(element_types) == len(new_topology)
 
