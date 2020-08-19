@@ -707,14 +707,20 @@ def score_changes_between_two_observations(old_obs, new_obs):
     boolean_overload_created = np.array(boolean_overload_created)
 
     redistribution_prod = np.sum(np.absolute(new_obs.prod_p - old_obs.prod_p))
-    redistribution_load = np.sum(np.absolute(new_obs.load_p - old_obs.load_p))
+    #redistribution_load = np.sum(np.absolute(new_obs.load_p - old_obs.load_p))#not exact in Grid2op if load are disconnected
+
+    TotalProd=np.nansum(new_obs.prod_p)
+    Losses=np.nansum(np.abs(new_obs.p_or+new_obs.p_ex))
+    ExpectedNewLoad=TotalProd-Losses
+    cut_load_percent=(np.sum(old_obs.load_p)-ExpectedNewLoad)/np.sum(old_obs.load_p)
+
 
     # ################################ END OF PREPROCESSING #################################
     # score 0 if no overloads were alleviated or if it resulted in some load shedding or production distribution.
     if old_number_of_overloads == 0:
         # print("return NaN: No overflow at initial state of grid")
         return float('nan')
-    elif redistribution_load > 0: # (boolean_overload_relieved == 0).all()
+    elif cut_load_percent > 0.01: # (boolean_overload_relieved == 0).all()
         # print("return 0: no overloads were alleviated or some load shedding occured.")
         return 0
 
