@@ -212,7 +212,8 @@ class AlphaDeesp:  # AKA SOLVER
 
             if nx.is_weakly_connected(new_graph):
                 # print("we are inside weakly connected")
-                score = self.rank_current_topo_at_node_x(new_graph, node_to_change)
+                isSingleNodeTopo=((np.all(np.array(topo)==0)) or (np.all(np.array(topo)==1)))
+                score = self.rank_current_topo_at_node_x(new_graph, node_to_change,isSingleNodeTopo)
             else:
                 # print("\n=============================================================================")
                 # print("WARNING, GRAPH WITH TOPO {} IS NOT CONNECTED, WE SKIP IT".format(topo))
@@ -382,7 +383,7 @@ class AlphaDeesp:  # AKA SOLVER
         self.bag_of_graphs[name] = graph
         return graph, internal_repr_dict
 
-    def rank_current_topo_at_node_x(self, graph, node: int):
+    def rank_current_topo_at_node_x(self, graph, node: int,isSingleNode=False):
         """This function ranks current topology at node X"""
 
         # if self.debug:
@@ -425,7 +426,7 @@ class AlphaDeesp:  # AKA SOLVER
                         # TODO
                         # remove 666 from node
                         pass
-                    else:
+                    elif not isSingleNode:#if it is a single node topology, 666 node does not exists
                         node = int("666" + str(node))
 
             # somme des reports négatifs entrants + sommes des reports positifs entrants
@@ -485,7 +486,7 @@ class AlphaDeesp:  # AKA SOLVER
                         # TODO
                         # remove 666 from node
                         pass
-                    else:
+                    elif not isSingleNode:  # if it is a single node topology, 666 node does not exist
                         node = int("666" + str(node))
 
             # somme des reports negatifs et positifs SORTANT
