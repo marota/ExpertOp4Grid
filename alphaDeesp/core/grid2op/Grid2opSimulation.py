@@ -34,7 +34,7 @@ class Grid2opSimulation(Simulation):
     def get_layout(self):
         return self.layout
 
-    def __init__(self, obs, action_space, observation_space, param_options=None, debug = False, ltc=[9], plot=False, plot_folder = None):
+    def __init__(self, obs, action_space, observation_space, param_options=None, debug = False, ltc=[9], plot=False, plot_folder = None,isScoreFromBackend=False):
         super().__init__()
 
         # Get Grid2op objects
@@ -53,6 +53,7 @@ class Grid2opSimulation(Simulation):
         # Get Alphadeesp configuration
         self.ltc = ltc
         self.param_options = param_options
+        self.isScoreFromBackend=isScoreFromBackend
         self.args_number_of_simulated_topos = param_options["totalnumberofsimulatedtopos"]
         self.args_inner_number_of_simulated_topos_per_node = param_options["numberofsimulatedtopospernode"]
 
@@ -191,10 +192,19 @@ class Grid2opSimulation(Simulation):
                     self.save_bag.append([name, virtual_obs])
                     worsened_line_ids = self.create_boolean_array_of_worsened_line_ids(obs, virtual_obs)
                     simulated_score = score_changes_between_two_observations(obs, virtual_obs)
+
                     redistribution_prod = np.sum(np.absolute(virtual_obs.prod_p - obs.prod_p))
-                    redistribution_load = np.sum(np.absolute(virtual_obs.load_p - obs.load_p))
-                    if simulated_score in [4, 3, 2]:  # success
+
+                    TotalProd = np.nansum(virtual_obs.prod_p)
+                    Losses = np.nansum(np.abs(virtual_obs.p_or + virtual_obs.p_ex))
+                    ExpectedNewLoad = TotalProd - Losses
+                    redistribution_load = (np.sum(old_obs.load_p) - ExpectedNewLoad) #/ np.sum(old_obs.load_p)
+
+                    if simulated_score in [4, 3, 2] :  # success
                         efficacity = fabs(delta_flow / virtual_obs.rho[self.ltc[0]])
+                        if (self.isScoreFromBackend) & (simulated_score==4):
+                            # dans le cas ou on resoud bien les contraintes, on prend la reward L2RPN
+                            efficacity=reward
                     else:  # failure
                         efficacity = -fabs(delta_flow / virtual_obs.rho[self.ltc[0]])
 
