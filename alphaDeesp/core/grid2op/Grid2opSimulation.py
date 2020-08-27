@@ -158,6 +158,7 @@ class Grid2opSimulation(Simulation):
                 # target_node = row["node"] + 1
                 internal_target_node = row["node"]
                 # target_node = row["node"]
+                alphaDeesp_Internal_topo=np.array([n for n in row["topology"]])
                 new_conf = np.array([n + 1 for n in row["topology"]])
                 score_topo = i
                 print("###########"" Compute new network changes on node [{}] with new topo [{}] ###########"
@@ -206,6 +207,7 @@ class Grid2opSimulation(Simulation):
                               worsened_line_ids,
                               redistribution_prod,
                               redistribution_load,
+                              alphaDeesp_Internal_topo,#alphaDeesp internal topology format
                               new_conf_grid2op,#new_conf,#we prefer to have the backend conf definition, rather than alphadeesp one
                               internal_target_node,
                               1,  # category hubs?

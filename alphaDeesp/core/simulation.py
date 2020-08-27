@@ -61,6 +61,7 @@ class Simulation(ABC):
             "Worsened line": [],
             "Prod redispatched": [],
             "Load redispatched": [],
+            "Internal Topology applied ": [],
             "Topology applied": [],
             "Substation ID": [],
             "Rank Substation ID": [],
