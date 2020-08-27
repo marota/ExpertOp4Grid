@@ -18,10 +18,10 @@ class Printer:
             self.default_output_path = "alphaDeesp/ressources/output"
         else:
             self.default_output_path = output_path
-            self.base_output_path = os.path.join(self.default_output_path,"Base graph")
-            os.makedirs(self.base_output_path, exist_ok=True)
-            self.results_output_path = os.path.join(self.default_output_path,"Result graph")
-            os.makedirs(self.results_output_path, exist_ok=True)
+        self.base_output_path = os.path.join(self.default_output_path,"Base graph")
+        os.makedirs(self.base_output_path, exist_ok=True)
+        self.results_output_path = os.path.join(self.default_output_path,"Result graph")
+        os.makedirs(self.results_output_path, exist_ok=True)
         print("self.default output path = ", self.default_output_path)
 
     def display_geo(self, g, custom_layout=None, axial_symetry=False, save=False, name=None):
