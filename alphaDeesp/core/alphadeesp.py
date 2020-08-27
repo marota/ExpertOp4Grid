@@ -52,6 +52,8 @@ class AlphaDeesp:  # AKA SOLVER
         # this function takes the dataFrame self.red_loops and adds the min cut_values to it.
         self.rank_red_loops()
 
+        self.rankedLoopBuses=self.rank_loop_buses(self.g,  self.df)
+
         # here we classify nodes into 4 categories
         self.structured_topological_actions = self.identify_routing_buses()  # it is a dict
         # print("#########################################################################")
@@ -304,6 +306,9 @@ class AlphaDeesp:  # AKA SOLVER
                             load[bus_id] += fabs(element.value)
         node_type = {}
         for bus_id in bus_ids:  # [0, 1]
+            node_label = node_to_change
+            prod_minus_load = 0
+
             if bus_id in prod.keys() and bus_id in load.keys():
                 prod_minus_load = prod[bus_id] - load[bus_id]
                 if prod_minus_load > 0:
@@ -312,19 +317,20 @@ class AlphaDeesp:  # AKA SOLVER
                     node_type[bus_id] = "load"
             elif bus_id in prod.keys():
                 node_type[bus_id] = "prod"
+                prod_minus_load=prod[bus_id]
             elif bus_id in load.keys():
                 node_type[bus_id] = "load"
-            node_label = node_to_change
-            prod_minus_load = 0
+                prod_minus_load=load[bus_id]
+
             if bus_id == 1:
                 node_label = new_node_id
             if bus_id in node_type.keys():
                 if node_type[bus_id] == "prod":  # PROD
-                    prod_minus_load = prod[bus_id]
+                    #prod_minus_load = prod[bus_id]
                     graph.add_node(node_label, pin=True, prod_or_load="prod", value=str(prod_minus_load),
                                    style="filled", fillcolor="#f30000")
                 elif node_type[bus_id] == "load":
-                    prod_minus_load = load[bus_id]
+                    #prod_minus_load = load[bus_id]
                     graph.add_node(node_label, pin=True, prod_or_load="load", value=str(-prod_minus_load),
                                    style="filled", fillcolor="#478fd0")
             else:  # WHITE
@@ -522,6 +528,53 @@ class AlphaDeesp:  # AKA SOLVER
                 print("diff_sums = ", diff_sums)
                 print("Final score = ", final_score)
                 print(type(final_score))
+
+        #  ########## IS IN Loop ##########
+        #you want a node with the maximum output lines connected to the ingoing red loop edges, not connected to other ingoing edges
+        elif node in set([x for loop in range(len(self.red_loops.Path)) for x in self.red_loops.Path[loop]]):
+            node2 = int("666" + str(node))
+
+            if (node2 in nx.get_node_attributes(graph, "value").keys()):#need to be a 2 node topology
+                node1_measure=0
+                node2_measure = 0
+
+                node2 = int("666" + str(node))
+
+                ####
+                #we find the node with the biggest red ingoing delta flow
+                InputRedDeltaFlow_1=0
+                InputRedDeltaFlow_2 = 0
+
+                for edge in graph.in_edges(node):
+                    edge_color = all_edges_color_attributes[edge]
+                    edge_value = float(all_edges_xlabel_attributes[edge])
+                    if(edge_color=="red"):
+                        InputRedDeltaFlow_1+=edge_value
+
+                for edge in graph.in_edges(node2):# we inspect the 2nd node as well
+                    edge_color = all_edges_color_attributes[edge]
+                    edge_value = float(all_edges_xlabel_attributes[edge])
+                    if(edge_color=="red"):
+                        InputRedDeltaFlow_2+=edge_value
+
+                Node_BiggestInputDeltaFlow=node
+                InputRedDeltaFlow=InputRedDeltaFlow_1
+                if(InputRedDeltaFlow_2>=InputRedDeltaFlow_1):
+                    Node_BiggestInputDeltaFlow=node2
+                    InputRedDeltaFlow=InputRedDeltaFlow_2
+                ###
+                #over node with BiggestInputDeltaFlow, we want as much ingoing and outgoing red flow possible, with least possible production
+                OutputRedDeltaFlow=0
+                for edge in graph.out_edges(Node_BiggestInputDeltaFlow):
+                    edge_color = all_edges_color_attributes[edge]
+                    edge_value = float(all_edges_xlabel_attributes[edge])
+                    if(edge_color=="red"):
+                        OutputRedDeltaFlow+=edge_value
+
+                min_pos_in_or_out_flows = min(OutputRedDeltaFlow, InputRedDeltaFlow)
+                injection = float(all_nodes_value_attributes[Node_BiggestInputDeltaFlow])
+                final_score = np.around(min_pos_in_or_out_flows -injection, decimals=2)
+
         else:
             print("||||||||||||||||||||||||||| node [{}] is not connected to a path to the constrained_edge.".format(node))
         return final_score
@@ -636,11 +689,73 @@ class AlphaDeesp:  # AKA SOLVER
         else:
             category1 = list(df_sorted_hubs["hubs"])
             set_category2 = set(self.constrained_path.full_n_constrained_path()) - set(category1)
-            set_category3 = set()  # @TODO
-            set_category4 = set(self.constrained_path.n_aval()) - (set(category1) | set_category2 | set_category3)
 
-            d = {1: category1, 2: set_category2, 3: set_category3, 4: set_category4}
+            sort_redLoopBuses = sorted(self.rankedLoopBuses.items(), key=lambda x: x[1], reverse=True)
+            category3 = [sort_redLoopBuses[i][0] for i in range(len(sort_redLoopBuses))]#set()  # @TODO
+            set_category4 = set(self.constrained_path.n_aval()) - (set(category1) | set_category2 | set(category3))
+
+            d = {1: category1, 2: set_category2, 3: category3, 4: set_category4}
         return d
+
+    def rank_loop_buses(self,graph,df_initial_flows):
+        #self.g => overflow graph
+        all_nodes_value_attributes = nx.get_node_attributes(graph, "value")
+        all_edges_color_attributes = nx.get_edge_attributes(graph, "color")  # dict[edge]
+        all_edges_xlabel_attributes = nx.get_edge_attributes(graph, "xlabel")
+
+        Strength_Bus_dic={}
+        for index, loop in self.red_loops.iterrows():
+        #for loop in self.red_loops:
+            for bus in loop.Path:
+                if (bus!=loop.Source) & (bus!=loop.Target):
+                    nNode=1
+                    #TO DO:we should know if bus is 1 or 2 nodes
+                    if (nNode==1):
+                        strength_measure=0 #it will be the product of production and in_flows
+                        sumInRedDeltaFlows=0
+                        sumInFlowsNotRed = 0
+
+                        LocalProduction =0
+                        #LocalProduction = float(all_nodes_value_attributes[node])  # it is actually the sum of injections. To get only production, need to use self.simulator_data["substations_elements"][node]
+
+                        for element in self.simulator_data["substations_elements"][bus]:
+                            if isinstance(element, Production):
+                                LocalProduction+=(element.value)
+
+                        for edge in self.g.in_edges(bus):
+                            edge_deltaflow_value = float(all_edges_xlabel_attributes[edge])
+                            edge_color=all_edges_color_attributes[edge]
+                            if (edge_color=="red"):
+                                sumInRedDeltaFlows+=edge_deltaflow_value
+                            else:#we need to retrieve the initial flow from df_initial_flows
+                                source, target = edge
+
+                                otherBus=source
+                                if otherBus==bus:
+                                    otherBus=target
+
+                                nodes_or=df_initial_flows["idx_or"]
+                                nodes_ex = df_initial_flows["idx_ex"]
+                                #indexEdge_inDf=-1
+
+                                for i in range(len(nodes_or)):
+                                    flowValue=df_initial_flows["init_flows"][i]
+                                    if((flowValue>=0)& (nodes_or[i] == otherBus) & (nodes_ex[i] == bus)):#we are only looking for input flows
+                                        indexEdge_inDf=i
+                                        sumInFlowsNotRed+=np.abs(flowValue)
+                                        break
+                                    elif ((flowValue<=0)& (nodes_or[i] == bus) & (nodes_ex[i] == otherBus)):
+                                        indexEdge_inDf = i
+                                        sumInFlowsNotRed += np.abs(flowValue)
+                                        break
+
+                        sumInFlowsNotRed+=LocalProduction
+                        strength_measure=sumInFlowsNotRed*sumInRedDeltaFlows
+                        Strength_Bus_dic[bus]=strength_measure
+        return Strength_Bus_dic
+
+
+
 
     def rank_red_loops(self):
         cut_values = []
