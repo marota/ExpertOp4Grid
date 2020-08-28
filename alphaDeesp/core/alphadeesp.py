@@ -15,7 +15,7 @@ os.environ['PATH'] += os.pathsep + r'C:\Users\nmegel\graphviz-2.38\release\bin'
 
 
 class AlphaDeesp:  # AKA SOLVER
-    def __init__(self, _g, df_of_g, printer=None, custom_layout=None, simulator_data=None, debug=False):
+    def __init__(self, _g, df_of_g, printer=None, custom_layout=None, simulator_data=None,substation_in_cooldown=[], debug=False):
         # used for postprocessing
         self.bag_of_graphs = {}
         self.debug = debug
@@ -30,7 +30,17 @@ class AlphaDeesp:  # AKA SOLVER
         self.initial_graph = self.g.copy()
         self.printer = printer
         self.custom_layout = custom_layout
+        self.substation_in_cooldown=substation_in_cooldown #we cannot play with those substations so no need to compute simulations
 
+        # check that line extemity does not have only load or productions: otherwise there is either node merging to do or nothing else
+
+        ranked_combinations_structure_initiation = {
+            "score": ["XX"],
+            "topology": [["X", "X", "X"]],
+            "node": ["X"]
+        }
+        ranked_combinations = pd.DataFrame(ranked_combinations_structure_initiation)
+        #otherwise proceed
         self.g_without_pos_edges = self.delete_color_edges(self.g, "red")
         self.g_only_blue_components = self.delete_color_edges(self.g_without_pos_edges, "gray")
         self.g_without_constrained_edge = self.delete_color_edges(self.g, "black")
@@ -108,6 +118,10 @@ class AlphaDeesp:  # AKA SOLVER
         res_container = []
 
         for node in selected_ranked_nodes:
+            if node in self.substation_in_cooldown:
+                print("substation "+str(node)+" is in cooldown and no action can be performed on it for now")
+                continue
+
             all_combinations = self.compute_all_combinations(node)
             if(len(all_combinations)!=0):
                 ranked_combinations = self.rank_topologies(all_combinations, self.g, node)
@@ -1021,6 +1035,11 @@ class AlphaDeesp:  # AKA SOLVER
         #     res[p] = list(reversed(res[p]))
 
         return res
+
+    def isAntenna(self):
+        df_of_g
+        pass
+
 
     def write_g(self, g):
         """This saves file g"""

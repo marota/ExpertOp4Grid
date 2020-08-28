@@ -18,8 +18,20 @@ class Simulation(ABC):
         """network is the grid in pypownet, XX in RTE etc..."""
 
     @abstractmethod
+    def isAntenna(self):
+        """TODO"""
+
+    @abstractmethod
+    def getLinesAtSubAndBusbar(self):
+        """TODO"""
+
+    @abstractmethod
     def get_layout(self):
         """returns the layour of the graph in array of (x,y) form : [(x1,y1),(x2,y2)...]]"""
+
+    @abstractmethod
+    def get_substation_in_cooldown(self):
+        """TODO"""
 
     @abstractmethod
     def get_substation_elements(self):
@@ -43,6 +55,10 @@ class Simulation(ABC):
 
     @abstractmethod
     def build_powerflow_graph_beforecut(self):
+        """TODO"""
+
+    @abstractmethod
+    def get_reference_topovec_sub(self):
         """TODO"""
 
     @abstractmethod

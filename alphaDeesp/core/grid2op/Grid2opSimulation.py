@@ -52,6 +52,7 @@ class Grid2opSimulation(Simulation):
 
         # Get Alphadeesp configuration
         self.ltc = ltc
+        self.substation_in_cooldown=self.get_substation_in_cooldown()
         self.param_options = param_options
         self.isScoreFromBackend=isScoreFromBackend
         self.args_number_of_simulated_topos = param_options["totalnumberofsimulatedtopos"]
@@ -91,6 +92,14 @@ class Grid2opSimulation(Simulation):
 
     def get_substation_elements(self):
         return self.substations_elements
+
+    def get_substation_in_cooldown(self):
+        return [i for i in range(self.obs.n_sub) if (self.obs.time_before_cooldown_sub[i]>=1)]
+
+    def get_reference_topovec_sub(self,sub):
+        nelements=self.obs.sub_info[sub]
+        topovec=[1 for i in range(nelements)]
+        return topovec
 
     def get_substation_to_node_mapping(self):
         pass
@@ -198,7 +207,7 @@ class Grid2opSimulation(Simulation):
                     TotalProd = np.nansum(virtual_obs.prod_p)
                     Losses = np.nansum(np.abs(virtual_obs.p_or + virtual_obs.p_ex))
                     ExpectedNewLoad = TotalProd - Losses
-                    redistribution_load = (np.sum(old_obs.load_p) - ExpectedNewLoad) #/ np.sum(old_obs.load_p)
+                    redistribution_load = (np.sum(virtual_obs.load_p) - ExpectedNewLoad) #/ np.sum(old_obs.load_p)
 
                     if simulated_score in [4, 3, 2] :  # success
                         efficacity = fabs(delta_flow / virtual_obs.rho[self.ltc[0]])
@@ -380,6 +389,45 @@ class Grid2opSimulation(Simulation):
         :return: pandas dataframe with topology information before and after line cutting
         """
         return self.df
+
+    def isAntenna(self):
+        linesAtBusbar_dic = self.getLinesAtSubAndBusbar()
+
+        for sub in linesAtBusbar_dic.keys():
+            linesAtBusbar = linesAtBusbar_dic[sub]
+            if len(linesAtBusbar) <= 1:
+                return sub  # this is an Antenna
+        return None
+
+    def getLinesAtSubAndBusbar(self):
+        ltc = self.ltc[0]
+        obs=self.obs
+        linesAtBusbar_dic = {}
+
+        sub_or = int(obs.line_or_to_subid[ltc])
+        sub_ex = int(obs.line_ex_to_subid[ltc])
+
+        busBarOr = obs.state_of(line_id=ltc)['origin']['bus']
+        busBarEx = obs.state_of(line_id=ltc)['extremity']['bus']
+
+        # we should check if another line is connected with our line of interest. Otherwise it is an antenna
+        # For SubOr
+        linesOr_atSubOr = obs.get_obj_connect_to(substation_id=sub_or)['lines_or_id']
+        linesEx_atSubOr = obs.get_obj_connect_to(substation_id=sub_or)['lines_ex_id']
+
+        linesAtBusbarOr = [l for l in linesOr_atSubOr if obs.state_of(line_id=l)['origin']['bus'] == busBarOr]
+        linesAtBusbarOr += [l for l in linesEx_atSubOr if obs.state_of(line_id=l)['extremity']['bus'] == busBarOr]
+
+        # For SubEx
+        linesOr_atSubEx = obs.get_obj_connect_to(substation_id=sub_ex)['lines_or_id']
+        linesEx_atSubEx = obs.get_obj_connect_to(substation_id=sub_ex)['lines_ex_id']
+
+        linesAtBusbarEx = [l for l in linesOr_atSubEx if obs.state_of(line_id=l)['origin']['bus'] == busBarEx]
+        linesAtBusbarEx += [l for l in linesEx_atSubEx if obs.state_of(line_id=l)['extremity']['bus'] == busBarEx]
+
+        linesAtBusbar_dic[sub_or] = linesAtBusbarOr
+        linesAtBusbar_dic[sub_ex] = linesAtBusbarEx
+        return linesAtBusbar_dic
 
     def build_graph_from_data_frame(self, lines_to_cut):
         """This function creates a graph G from a DataFrame"""
@@ -655,6 +703,7 @@ def build_edges_v2(g, substation_id_busbar_id_node_id_mapping, substations_eleme
                            penwidth="%.2f" % pen_width)
             g.add_edge(origin, extremity, capacity=float(reported_flow[0]), xlabel=reported_flow[0])
 
+
 def score_changes_between_two_observations(old_obs, new_obs):
     """This function takes two observations and computes a score to quantify the change between old_obs and new_obs.
     @:return int between [0 and 4]
@@ -747,7 +796,7 @@ def score_changes_between_two_observations(old_obs, new_obs):
         # print("return 4: every overload disappeared")
         return 4
 
-    # 3: if an overload disappeared without stressing the network, ie,
+    # 3: if this overload disappeared without stressing the network, ie,
     # if an overload disappeared
     # and without worsening existing constraint
     # and no Loads that get cut
