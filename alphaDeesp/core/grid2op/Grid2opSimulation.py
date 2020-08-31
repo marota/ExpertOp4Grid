@@ -34,7 +34,7 @@ class Grid2opSimulation(Simulation):
     def get_layout(self):
         return self.layout
 
-    def __init__(self, obs, action_space, observation_space, param_options=None, debug = False, ltc=[9], plot=False, plot_folder = None,isScoreFromBackend=False):
+    def __init__(self, obs, action_space, observation_space, param_options=None, debug = False, ltc=[9], plot=False, plot_folder = None,reward_type=None):
         super().__init__()
 
         # Get Grid2op objects
@@ -54,7 +54,7 @@ class Grid2opSimulation(Simulation):
         self.ltc = ltc
         self.substation_in_cooldown=self.get_substation_in_cooldown()
         self.param_options = param_options
-        self.isScoreFromBackend=isScoreFromBackend
+        self.reward_type=reward_type
         self.args_number_of_simulated_topos = param_options["totalnumberofsimulatedtopos"]
         self.args_inner_number_of_simulated_topos_per_node = param_options["numberofsimulatedtopospernode"]
 
@@ -211,9 +211,9 @@ class Grid2opSimulation(Simulation):
 
                     if simulated_score in [4, 3, 2] :  # success
                         efficacity = fabs(delta_flow / virtual_obs.rho[self.ltc[0]])
-                        if (self.isScoreFromBackend) & (simulated_score==4):
+                        if (self.reward_type is not None) & (simulated_score==4):
                             # dans le cas ou on resoud bien les contraintes, on prend la reward L2RPN
-                            efficacity=reward
+                            efficacity=info["rewards"][self.reward_type]
                     else:  # failure
                         efficacity = -fabs(delta_flow / virtual_obs.rho[self.ltc[0]])
 
@@ -806,7 +806,7 @@ def score_changes_between_two_observations(old_obs, new_obs):
         # print("return 3: an overload disappeared without stressing the network")
         return 3
 
-    # 2: if at least 30% of an overload was relieved
+    # 2: if at least 30% of this overload was relieved
     elif (boolean_overload_30percent_relieved == 1).any():
         # print("return 2: at least 30% of line [{}] was relieved".format(
         #     np.where(boolean_overload_30percent_relieved == 1)[0]))
