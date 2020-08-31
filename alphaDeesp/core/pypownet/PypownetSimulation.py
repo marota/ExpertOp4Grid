@@ -13,7 +13,7 @@ from alphaDeesp.core.printer import Printer
 
 
 class PypownetSimulation(Simulation):
-    def __init__(self, env, obs, action_space, param_options=None, debug=False, ltc=[9], plot_folder = None):
+    def __init__(self, env, obs, action_space, param_options=None, debug=False, ltc=[9], plot_folder = None,isScoreFromBackend=False):
         super().__init__()
         print("PypownetSimulation object created...")
 
@@ -175,7 +175,7 @@ class PypownetSimulation(Simulation):
 
                 # action_space.set_lines_status_switch_from_id(action=action, line_id=[9], new_switch_value=1)
                 # Run one step in the environment
-                raw_obs, *_ = self.environment.simulate(action)
+                raw_obs,action, reward, *_ = self.environment.simulate(action)
 
                 # if obs is None, error in the simulation of the next step
                 if raw_obs is None:
@@ -213,6 +213,10 @@ class PypownetSimulation(Simulation):
                 # 1) having the new and old obs. Now how do we compare ?
                 simulated_score, worsened_line_ids, redistribution_prod, redistribution_load, efficacity = \
                     self.observations_comparator(saved_obs, obs, score_topo, delta_flow)
+
+                if (self.isScoreFromBackend) and (simulated_score==4):
+                    # dans le cas ou on resoud bien les contraintes, on prend la reward L2RPN
+                    efficacity = reward
 
                 # The next three lines have to been done like this to properly have a python empty list if no lines
                 # are worsened. This is important to save, read back, and compare a DATAFRAME
@@ -306,9 +310,9 @@ class PypownetSimulation(Simulation):
         """
         old_number_of_overloads = 0
         new_number_of_overloads = 0
-        boolean_constraint_worsened = []
-        boolean_overload_30percent_relieved = []
-        boolean_overload_relieved = []
+        boolean_overload_worsened = []
+        boolean_constraint_30percent_relieved = []
+        boolean_constraint_relieved = []
         boolean_overload_created = []
 
         old_obs_lines_capacity_usage = old_obs.get_lines_capacity_usage()
@@ -323,79 +327,88 @@ class PypownetSimulation(Simulation):
                 new_number_of_overloads += 1
 
         # preprocessing for score 3 and 2
+        line_id = 0
         for old, new in zip(old_obs_lines_capacity_usage, new_obs_lines_capacity_usage):
             # preprocessing for score 3
-            if new > 1.05 * old > 1.0:  # if new > old > 1.0 it means it worsened an existing constraint
-                boolean_constraint_worsened.append(1)
+            if (new > 1.05 * old) & (new > 1.0):  # if new > old > 1.0 it means it worsened an existing constraint
+                boolean_overload_worsened.append(1)
             else:
-                boolean_constraint_worsened.append(0)
+                boolean_overload_worsened.append(0)
 
             # preprocessing for score 2
-            if old > 1.0:  # if old was an overload:
+            if (old > 1.0) & (line_id in ltc):  # if old was an overload:
                 surcharge = old - 1.0
                 diff = old - new
                 percentage_relieved = diff * 100 / surcharge
                 if percentage_relieved > 30.0:
-                    boolean_overload_30percent_relieved.append(1)
+                    boolean_constraint_30percent_relieved.append(1)
                 else:
-                    boolean_overload_30percent_relieved.append(0)
+                    boolean_constraint_30percent_relieved.append(0)
             else:
-                boolean_overload_30percent_relieved.append(0)
+                boolean_constraint_30percent_relieved.append(0)
 
             # preprocessing for score 1
-            if old > 1.0 > new:
-                boolean_overload_relieved.append(1)
+            if (old > 1.0 > new) & (line_id in ltc):
+                boolean_constraint_relieved.append(1)
             else:
-                boolean_overload_relieved.append(0)
+                boolean_constraint_relieved.append(0)
 
             if old < 1.0 < new:
                 boolean_overload_created.append(1)
             else:
                 boolean_overload_created.append(0)
 
-        boolean_constraint_worsened = np.array(boolean_constraint_worsened)
-        boolean_overload_30percent_relieved = np.array(boolean_overload_30percent_relieved)
-        boolean_overload_relieved = np.array(boolean_overload_relieved)
+            line_id += 1
+
+        boolean_overload_worsened = np.array(boolean_overload_worsened)
+        boolean_constraint_30percent_relieved = np.array(boolean_constraint_30percent_relieved)
+        boolean_constraint_relieved = np.array(boolean_constraint_relieved)
         boolean_overload_created = np.array(boolean_overload_created)
 
-        redistribution_prod = np.sum(np.absolute(new_obs.active_productions - old_obs.active_productions))
+        redistribution_prod = np.sum(np.absolute(new_obs.prod_p - old_obs.prod_p))
+
         redistribution_load = np.sum(np.absolute(new_obs.active_loads - old_obs.active_loads))
 
         # ################################ END OF PREPROCESSING #################################
         # score 0 if no overloads were alleviated or if it resulted in some load shedding or production distribution.
-        if redistribution_load > 0 or (new_obs.are_loads_cut == 1).any() or (new_obs.are_productions_cut == 1).any():
-            print("return 0: no overloads were alleviated or some load shedding occured.")
+        if old_number_of_overloads == 0:
+            # print("return NaN: No overflow at initial state of grid")
+            return float('nan')
+        elif cut_load_percent > 0.01:  # (boolean_overload_relieved == 0).all()
+            # print("return 0: no overloads were alleviated or some load shedding occured.")
             return 0
 
         # score 1 if overload was relieved but another one appeared and got worse
-        elif (boolean_overload_relieved == 1).any() and ((boolean_overload_created == 1).any() or
-                                                         (boolean_constraint_worsened == 1).any()):
-            print("return 1: an overload was relieved but another one appeared")
+        elif (boolean_constraint_relieved == 1).any() and ((boolean_overload_created == 1).any() or
+                                                           (boolean_overload_worsened == 1).any()):
+            # print("return 1: our overload was relieved but another one appeared")
             return 1
 
         # 4: if every overload disappeared
         elif old_number_of_overloads > 0 and new_number_of_overloads == 0:
-            print("return 4: every overload disappeared")
+            # print("return 4: every overload disappeared")
             return 4
 
-        # 3: if an overload disappeared without stressing the network, ie,
+        # 3: if this overload disappeared without stressing the network, ie,
         # if an overload disappeared
         # and without worsening existing constraint
         # and no Loads that get cut
-        elif new_number_of_overloads < old_number_of_overloads and \
-                (boolean_constraint_worsened == 0).all() and \
-                (new_obs.are_loads_cut == 0).all():
-            print("return 3: an overload disappeared without stressing the network")
+        elif (boolean_constraint_relieved == 1).any() and \
+                (boolean_overload_worsened == 0).all():
+            # and \ (new_obs.are_loads_cut == 0).all():
+            # print("return 3: our overload disappeared without stressing the network")
             return 3
 
-        # 2: if at least 30% of an overload was relieved
-        elif (boolean_overload_30percent_relieved == 1).any():
-            print("return 2: at least 30% of line [{}] was relieved".format(
-                np.where(boolean_overload_30percent_relieved == 1)[0]))
+        # 2: if at least 30% of this overload was relieved
+        elif (boolean_constraint_30percent_relieved == 1).any() and \
+                (boolean_overload_worsened == 0).all():
+            # print("return 2: at least 30% of our overload [{}] was relieved".format(
+            #     np.where(boolean_overload_30percent_relieved == 1)[0]))
             return 2
 
         # score 0
-        elif (boolean_overload_30percent_relieved == 0).all():
+        elif (boolean_constraint_30percent_relieved == 0).all() or \
+                (boolean_overload_worsened == 1).any():
             return 0
 
         else:
