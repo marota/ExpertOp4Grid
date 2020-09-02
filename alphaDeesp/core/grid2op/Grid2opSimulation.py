@@ -98,7 +98,7 @@ class Grid2opSimulation(Simulation):
 
     def get_reference_topovec_sub(self,sub):
         nelements=self.obs.sub_info[sub]
-        topovec=[1 for i in range(nelements)]
+        topovec=[0 for i in range(nelements)]
         return topovec
 
     def get_substation_to_node_mapping(self):
@@ -199,11 +199,12 @@ class Grid2opSimulation(Simulation):
                     name = "".join(str(e) for e in new_conf)
                     name = str(internal_target_node) + "_" + name
                     self.save_bag.append([name, virtual_obs])
-                    worsened_line_ids = self.create_boolean_array_of_worsened_line_ids(obs, virtual_obs)
-                    simulated_score = score_changes_between_two_observations(self.ltc,obs, virtual_obs)
+                    worsened_line_ids = self.create_boolean_array_of_worsened_line_ids(obs, virtual_obs,self.observation_space.parameters.NB_TIMESTEP_COOLDOWN_LINE)
+                    simulated_score = score_changes_between_two_observations(self.ltc,obs, virtual_obs,self.observation_space.parameters.NB_TIMESTEP_COOLDOWN_LINE)
 
                     #update simulated score to 0 in case our line got disconnected, starting a cascading failure
-                    #if()
+                    if(bool(info['disc_lines'][self.ltc])):
+                        simulated_score=0
 
                     redistribution_prod = np.sum(np.absolute(virtual_obs.prod_p - obs.prod_p))
 
@@ -252,12 +253,17 @@ class Grid2opSimulation(Simulation):
         return end_result_dataframe, actions
 
     @staticmethod
-    def create_boolean_array_of_worsened_line_ids(old_obs, new_obs):
+    def create_boolean_array_of_worsened_line_ids(old_obs, new_obs,nb_timestep_cooldown_line_param):
         res = []
-        for old, new in zip(old_obs.rho, new_obs.rho):
-            if new > 1 and old > 1 and new > 1.05 * old:
+        n_lines=len(new_obs.rho)
+
+        #for old, new in zip(old_obs, new_obs):
+        for l in range(n_lines):
+            if new_obs.rho[l] > 1 and old_obs.rho[l] > 1 and new_obs.rho[l] > 1.05 * old_obs.rho[l]:
                 res.append(1)
-            elif new > 1 > old:
+            elif new_obs.rho[l] > 1 > old_obs.rho[l]:
+                res.append(1)
+            elif ((new_obs.time_before_cooldown_line[l] - old_obs.time_before_cooldown_line[l])>nb_timestep_cooldown_line_param): #line got into cascading failure
                 res.append(1)
             else:
                 res.append(0)
@@ -710,7 +716,7 @@ def build_edges_v2(g, substation_id_busbar_id_node_id_mapping, substations_eleme
 
 #TO DO: check is line is disconnected in new_obs
 
-def score_changes_between_two_observations(ltc, old_obs, new_obs):
+def score_changes_between_two_observations(ltc, old_obs, new_obs,nb_timestep_cooldown_line_param=0):
     """This function takes two observations and computes a score to quantify the change between old_obs and new_obs.
     @:return int between [0 and 4]
     4: if every overload disappeared
@@ -725,6 +731,9 @@ def score_changes_between_two_observations(ltc, old_obs, new_obs):
     boolean_constraint_30percent_relieved = []
     boolean_constraint_relieved = []
     boolean_overload_created = []
+    boolean_line_cascading_disconnection = ((new_obs.time_before_cooldown_line-old_obs.time_before_cooldown_line)>nb_timestep_cooldown_line_param)
+
+
 
     old_obs_lines_capacity_usage = old_obs.rho
     new_obs_lines_capacity_usage = new_obs.rho
@@ -797,7 +806,7 @@ def score_changes_between_two_observations(ltc, old_obs, new_obs):
 
     # score 1 if overload was relieved but another one appeared and got worse
     elif (boolean_constraint_relieved == 1).any() and ((boolean_overload_created == 1).any() or
-                                                     (boolean_overload_worsened == 1).any()):
+                                                     (boolean_overload_worsened == 1).any() or (boolean_line_cascading_disconnection).any()):
         # print("return 1: our overload was relieved but another one appeared")
         return 1
 

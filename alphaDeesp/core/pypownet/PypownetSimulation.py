@@ -265,7 +265,7 @@ class PypownetSimulation(Simulation):
 
         it returns an array with all data for end_result_dataframe creation
         """
-        simulated_score = self.score_changes_between_two_observations(old_obs, new_obs)
+        simulated_score = self.score_changes_between_two_observations(old_obs, new_obs,self.environment.game.n_timesteps_actionned_line_reactionable)
 
         worsened_line_ids = self.create_boolean_array_of_worsened_line_ids(old_obs, new_obs)
 
@@ -288,18 +288,25 @@ class PypownetSimulation(Simulation):
         @:return boolean numpy array [0..1]"""
 
         res = []
+        n_lines=len(new.get_lines_capacity_usage())
+        n_timesteps_actionned_line_reactionable=self.environment.game.n_timesteps_actionned_line_reactionable
 
-        for old, new in zip(old_obs.get_lines_capacity_usage(), new_obs.get_lines_capacity_usage()):
-            if fabs(new) > 1 and fabs(old) > 1 and fabs(new) > 1.05 * fabs(old):  # contrainte existante empiree
+        old_rho=old_obs.get_lines_capacity_usage()
+        new_rho=new_obs.get_lines_capacity_usage()
+        #for old, new in zip(old_obs, new_obs):
+        for l in range(n_lines):
+            if fabs(new_obs.get_lines_capacity_usage()) > 1 and fabs(old_rho[l]) > 1 and fabs(new_obs.get_lines_capacity_usage()[l]) > 1.05 * fabs(old_rho[l]):  # contrainte existante empiree
                 res.append(1)
-            elif fabs(new) > 1 > fabs(old):
+            elif fabs(new_rho[l]) > 1 > fabs(old_rho[l]):
+                res.append(1)
+            elif (new_obs.timesteps_before_lines_reconnectable()[l] - old_obs.timesteps_before_lines_reconnectable()[l]>n_timesteps_actionned_line_reactionable):
                 res.append(1)
             else:
                 res.append(0)
 
         return np.array(res)
 
-    def score_changes_between_two_observations(self, old_obs, new_obs):
+    def score_changes_between_two_observations(self, old_obs, new_obs,nb_timestep_cooldown_line_param=0):
         """This function takes two observations and computes a score to quantify the change between old_obs and new_obs.
         @:return int between [0 and 4]
         4: if every overload disappeared
@@ -314,6 +321,7 @@ class PypownetSimulation(Simulation):
         boolean_constraint_30percent_relieved = []
         boolean_constraint_relieved = []
         boolean_overload_created = []
+        boolean_line_cascading_disconnection = ((new_obs.timesteps_before_lines_reconnectable - old_obs.timesteps_before_lines_reconnectable) > nb_timestep_cooldown_line_param)
 
         old_obs_lines_capacity_usage = old_obs.get_lines_capacity_usage()
         new_obs_lines_capacity_usage = new_obs.get_lines_capacity_usage()
@@ -380,7 +388,7 @@ class PypownetSimulation(Simulation):
 
         # score 1 if overload was relieved but another one appeared and got worse
         elif (boolean_constraint_relieved == 1).any() and ((boolean_overload_created == 1).any() or
-                                                           (boolean_overload_worsened == 1).any()):
+                                                           (boolean_overload_worsened == 1).any() or (boolean_line_cascading_disconnection).any() ):
             # print("return 1: our overload was relieved but another one appeared")
             return 1
 
