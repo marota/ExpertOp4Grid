@@ -101,6 +101,15 @@ class Grid2opSimulation(Simulation):
         topovec=[0 for i in range(nelements)]
         return topovec
 
+    def get_overload_disconnection_topovec_subor(self,l):
+        sub_or=self.obs.line_or_to_subid[l]
+        position_at_sub=self.obs.line_or_to_sub_pos[l]
+        current_topo_vec=self.obs.state_of(substation_id=sub_or)['topo_vect']
+
+        new_topo_vec=current_topo_vec
+        new_topo_vec[position_at_sub]=-1#to get line disconnection
+        return sub_or,new_topo_vec
+
     def get_substation_to_node_mapping(self):
         pass
 
@@ -169,76 +178,35 @@ class Grid2opSimulation(Simulation):
                 internal_target_node = row["node"]
                 # target_node = row["node"]
                 alphaDeesp_Internal_topo=np.array([n for n in row["topology"]])
+
                 new_conf = np.array([n + 1 for n in row["topology"]])
+                if(len(alphaDeesp_Internal_topo)==1):#this is a line to disconnect, not a topology to change
+                    l=alphaDeesp_Internal_topo[0]
+                    #sub_id,new_conf_grid2op=self.get_overload_disconnection_topovec_subor(l)
+                    new_conf=[l]
+                    #action = self.action_space({"set_bus": {"substations_id": [(sub_id, new_conf_grid2op)] }})
+
+
                 score_topo = i
                 print("###########"" Compute new network changes on node [{}] with new topo [{}] ###########"
                       .format(internal_target_node, new_conf))
 
-                action = self.get_action_from_topo(internal_target_node, new_conf, obs)
-                new_conf_grid2op=list(action.effect_on(substation_id=internal_target_node)['set_bus'])#grid2op conf is different from alphadeesp conf, because the elements are ordered differently
+
+                if(len(alphaDeesp_Internal_topo)==1):#this is a line to disconnect, not a topology to change
+                    new_conf_grid2op=[l]
+                    new_conf=[l]
+                    action = self.action_space({"set_line_status": [(l, -1)]})
+                else:
+                    action = self.get_action_from_topo(internal_target_node, new_conf, obs)
+                    new_conf_grid2op = list(action.effect_on(substation_id=internal_target_node)[
+                                                'set_bus'])  # grid2op conf is different from alphadeesp conf, because the elements are ordered differently
+                actions.append(action)
+
+
                 # virtual_obs, reward, done, info = self.obs.simulate(action)
                 virtual_obs, reward, done, info = self.obs.simulate(action, time_step = 0)
-                # Same as in Pypownet, this is not what we would want though, as we do the work for only one ltc
-                only_line = self.ltc[0]
-                line_state_before = obs.state_of(line_id=only_line)
-                line_state_after = virtual_obs.state_of(line_id=only_line)
-                flow_before = line_state_before["origin"]["p"]
-                flow_after = line_state_after["origin"]["p"]
-                delta_flow = flow_before - flow_after
 
-
-                if done:    # Game over: no need to compute further operations
-                    worsened_line_ids = []
-                    simulated_score = 0
-                    redistribution_prod = float('nan')
-                    redistribution_load = float('nan')
-                    efficacity = float('nan')
-
-                else:
-                    # Fill save bag with observations for further analysis (detailed graph)
-                    name = "".join(str(e) for e in new_conf)
-                    name = str(internal_target_node) + "_" + name
-                    self.save_bag.append([name, virtual_obs])
-                    worsened_line_ids = self.create_boolean_array_of_worsened_line_ids(obs, virtual_obs,self.observation_space.parameters.NB_TIMESTEP_COOLDOWN_LINE)
-                    simulated_score = score_changes_between_two_observations(self.ltc,obs, virtual_obs,self.observation_space.parameters.NB_TIMESTEP_COOLDOWN_LINE)
-
-                    #update simulated score to 0 in case our line got disconnected, starting a cascading failure
-                    if(bool(info['disc_lines'][self.ltc])):
-                        simulated_score=0
-
-                    redistribution_prod = np.sum(np.absolute(virtual_obs.prod_p - obs.prod_p))
-
-                    TotalProd = np.nansum(virtual_obs.prod_p)
-                    Losses = np.nansum(np.abs(virtual_obs.p_or + virtual_obs.p_ex))
-                    ExpectedNewLoad = TotalProd - Losses
-                    redistribution_load = (np.sum(virtual_obs.load_p) - ExpectedNewLoad) #/ np.sum(old_obs.load_p)
-
-
-
-                    if simulated_score in [4, 3, 2, 1] :  # success
-                        efficacity = fabs(delta_flow / virtual_obs.rho[self.ltc[0]])
-                        if (self.reward_type is not None) and (self.reward_type in info["rewards"]): #& (simulated_score==4):
-                            # dans le cas ou on resoud bien les contraintes, on prend la reward L2RPN
-                            efficacity=info["rewards"][self.reward_type]
-                    else:  # failure
-                        efficacity = -fabs(delta_flow / virtual_obs.rho[self.ltc[0]])
-
-                # To store in data frame
-                actions.append(action)
-                score_data = [only_line,
-                              flow_before,
-                              flow_after,
-                              delta_flow,
-                              worsened_line_ids,
-                              redistribution_prod,
-                              redistribution_load,
-                              alphaDeesp_Internal_topo,#alphaDeesp internal topology format
-                              new_conf_grid2op,#new_conf,#we prefer to have the backend conf definition, rather than alphadeesp one
-                              internal_target_node,
-                              1,  # category hubs?
-                              score_topo,
-                              simulated_score,
-                              efficacity]
+                score_data=self.compute_one_network_change_score_data(obs,virtual_obs,done,info,new_conf,internal_target_node,alphaDeesp_Internal_topo,new_conf_grid2op,score_topo)
                 #print(score_data)
                 max_index = end_result_dataframe.shape[0]  # rows
                 end_result_dataframe.loc[max_index] = score_data
@@ -251,6 +219,71 @@ class Grid2opSimulation(Simulation):
         if len(actions) == 0:
             actions = [self.action_space()]
         return end_result_dataframe, actions
+
+    def compute_one_network_change_score_data(self, obs,virtual_obs,done,info,new_conf,internal_target_node,alphaDeesp_Internal_topo,new_conf_grid2op,score_topo):
+        # Same as in Pypownet, this is not what we would want though, as we do the work for only one ltc
+        only_line = self.ltc[0]
+        line_state_before = obs.state_of(line_id=only_line)
+        line_state_after = virtual_obs.state_of(line_id=only_line)
+        flow_before = line_state_before["origin"]["p"]
+        flow_after = line_state_after["origin"]["p"]
+        delta_flow = flow_before - flow_after
+
+        if done:  # Game over: no need to compute further operations
+            worsened_line_ids = []
+            simulated_score = 0
+            redistribution_prod = float('nan')
+            redistribution_load = float('nan')
+            efficacity = float('nan')
+
+        else:
+            # Fill save bag with observations for further analysis (detailed graph)
+            name = "".join(str(e) for e in new_conf)
+            name = str(internal_target_node) + "_" + name
+            self.save_bag.append([name, virtual_obs])
+            worsened_line_ids = self.create_boolean_array_of_worsened_line_ids(obs, virtual_obs,
+                                                                               self.observation_space.parameters.NB_TIMESTEP_COOLDOWN_LINE)
+            simulated_score = score_changes_between_two_observations(self.ltc, obs, virtual_obs,
+                                                                     self.observation_space.parameters.NB_TIMESTEP_COOLDOWN_LINE)
+
+            # update simulated score to 0 in case our line got disconnected, starting a cascading failure
+            if (bool(info['disc_lines'][self.ltc])):#other line disconnections are already accounted in worsened lines
+            #if (info['disc_lines'].any()):
+                simulated_score = 0
+
+            redistribution_prod = np.sum(np.absolute(virtual_obs.prod_p - obs.prod_p))
+
+            TotalProd = np.nansum(virtual_obs.prod_p)
+            Losses = np.nansum(np.abs(virtual_obs.p_or + virtual_obs.p_ex))
+            ExpectedNewLoad = TotalProd - Losses
+            redistribution_load = (np.sum(virtual_obs.load_p) - ExpectedNewLoad)  # / np.sum(old_obs.load_p)
+
+            if simulated_score in [4, 3, 2, 1]:  # success
+                efficacity = fabs(delta_flow / virtual_obs.rho[self.ltc[0]])
+                if (self.reward_type is not None) and (self.reward_type in info["rewards"]):  # & (simulated_score==4):
+                    # dans le cas ou on resoud bien les contraintes, on prend la reward L2RPN
+                    efficacity = info["rewards"][self.reward_type]
+            else:  # failure
+                efficacity = -fabs(delta_flow / virtual_obs.rho[self.ltc[0]])
+
+        # To store in data frame
+        score_data = [only_line,
+                      flow_before,
+                      flow_after,
+                      delta_flow,
+                      worsened_line_ids,
+                      redistribution_prod,
+                      redistribution_load,
+                      alphaDeesp_Internal_topo,  # alphaDeesp internal topology format
+                      new_conf_grid2op,
+                      # new_conf,#we prefer to have the backend conf definition, rather than alphadeesp one
+                      internal_target_node,
+                      1,  # category hubs?
+                      score_topo,
+                      simulated_score,
+                      efficacity]
+        # print(score_data)
+        return score_data
 
     @staticmethod
     def create_boolean_array_of_worsened_line_ids(old_obs, new_obs,nb_timestep_cooldown_line_param):
