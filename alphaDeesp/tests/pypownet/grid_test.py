@@ -43,7 +43,6 @@ def test_powerflow_graph():
     print("g_over and saved_g are isomorphic: ", nx.is_isomorphic(g_pow, saved_g))
     assert (nx.is_isomorphic(g_pow, saved_g))
 
-
 def test_overflow_grid():
     """This function, given the input folder in test/path,
     it computes the overflow graph and compares it with the saved graph: saved_overflow_graph.dot"""
@@ -62,10 +61,11 @@ def test_overflow_grid():
     df_of_g = sim.get_dataframe()
     g_over = sim.build_graph_from_data_frame([9])
 
-    path_to_saved_graph = \
-        "./alphaDeesp/tests/ressources_for_tests/saved_graphs/overflow_graph_example_geo_2019-11-06_16-40_0_.dot"
+    path_to_saved_graph = "./alphaDeesp/tests/ressources_for_tests/saved_graphs/g_overflow_print_geo_2020-09-03_12-20.dot"
+        #"./alphaDeesp/tests/ressources_for_tests/saved_graphs/overflow_graph_example_geo_2019-11-06_16-40_0_.dot"
 
     saved_g = nx.drawing.nx_pydot.read_dot(path_to_saved_graph)
+
 
     for e1 in saved_g.edges(data="xlabel"):
         for e2 in g_over.edges(data="xlabel"):

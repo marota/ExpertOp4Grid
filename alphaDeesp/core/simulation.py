@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from math import fabs
+import numpy as np
 
 import pandas as pd
 
@@ -59,6 +60,10 @@ class Simulation(ABC):
 
     @abstractmethod
     def get_reference_topovec_sub(self):
+        """TODO"""
+
+    @abstractmethod
+    def get_overload_disconnection_topovec_subor(self):
         """TODO"""
 
     @abstractmethod
@@ -126,9 +131,10 @@ class Simulation(ABC):
         delta_flo = []
 
         # now we add delta flows
+        # report=abs(new_flows) - abs(init_flows) si le flux n'a pas change de direction
         # Si le flux a changé de direction, il y a 2 cas:
         # soit le nouveau flux est plus faible et dans ce cas, le report est négatif (on a déchargé la ligne) et le
-        # report = abs(new_flows) - abs(init_flows)
+        # report = -(abs(new_flows) + abs(init_flows))
         # sinon le report est positif et le report =
         # report = abs(new_flows) + abs(init_flows)
         for i, row in df.iterrows():
@@ -140,6 +146,8 @@ class Simulation(ABC):
                 df.at[i, "idx_ex"] = idx_or
                 df.at[i, "init_flows"] = fabs(row["init_flows"])
                 # print(f"row #{i}, swapped idxor and idxer")
+            elif (np.sign(row["new_flows"])!=np.sign(row["init_flows"])) and (row["new_flows"]!=0) and (row["init_flows"]!=0):#sign of 0 value is 0...
+                delta_flo.append(-(fabs(row["new_flows"]) + fabs(row["init_flows"])))#negative flow dispacth in that case
             else:
                 delta_flo.append(fabs(row["new_flows"]) - fabs(row["init_flows"]))
 
