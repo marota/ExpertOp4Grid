@@ -36,6 +36,7 @@ class PypownetSimulation(Simulation):
         # Run one step in the environment
         self.obs = obs
         self.obs_linecut = None
+        self.isScoreFromBackend=isScoreFromBackend
 
         # Layout of the grid
         self.layout = self.compute_layout()
@@ -125,7 +126,25 @@ class PypownetSimulation(Simulation):
         # Use printer API to plot (graphviz/neato)
         self.printer.display_geo(g, self.get_layout(), name=name)
 
+    def isAntenna(self):
+        """TODO"""
+        return None
 
+    def getLinesAtSubAndBusbar(self):
+        """TODO"""
+        return None
+
+    def get_overload_disconnection_topovec_subor(self, l):
+        """TODO"""
+        return None,None
+
+    def get_reference_topovec_sub(self,sub):
+        """TODO"""
+        return None
+
+    def get_substation_in_cooldown(self):
+        """TODO"""
+        return None
 
     def compute_new_network_changes(self, ranked_combinations):
         """this function takes a dataframe ranked_combinations,
@@ -238,6 +257,7 @@ class PypownetSimulation(Simulation):
                               redistribution_prod,
                               redistribution_load,
                               new_conf,
+                              new_conf,#the pypownet conf is the same as alphadeesp
                               self.external_to_internal_mapping[target_node],
                               1,  # category hubs?
                               score_topo,
@@ -288,18 +308,21 @@ class PypownetSimulation(Simulation):
         @:return boolean numpy array [0..1]"""
 
         res = []
-        n_lines=len(new.get_lines_capacity_usage())
+        n_lines=len(new_obs.get_lines_capacity_usage())
         n_timesteps_actionned_line_reactionable=self.environment.game.n_timesteps_actionned_line_reactionable
 
         old_rho=old_obs.get_lines_capacity_usage()
         new_rho=new_obs.get_lines_capacity_usage()
+
+        old_time_reco=old_obs.timesteps_before_lines_reconnectable
+        new_time_reco=new_obs.timesteps_before_lines_reconnectable
         #for old, new in zip(old_obs, new_obs):
         for l in range(n_lines):
-            if fabs(new_obs.get_lines_capacity_usage()) > 1 and fabs(old_rho[l]) > 1 and fabs(new_obs.get_lines_capacity_usage()[l]) > 1.05 * fabs(old_rho[l]):  # contrainte existante empiree
+            if fabs(new_rho[l]) > 1 and fabs(old_rho[l]) > 1 and fabs(new_rho[l]) > 1.05 * fabs(old_rho[l]):  # contrainte existante empiree
                 res.append(1)
             elif fabs(new_rho[l]) > 1 > fabs(old_rho[l]):
                 res.append(1)
-            elif (new_obs.timesteps_before_lines_reconnectable()[l] - old_obs.timesteps_before_lines_reconnectable()[l]>n_timesteps_actionned_line_reactionable):
+            elif (new_time_reco[l] - old_time_reco[l]>n_timesteps_actionned_line_reactionable):
                 res.append(1)
             else:
                 res.append(0)
@@ -344,7 +367,7 @@ class PypownetSimulation(Simulation):
                 boolean_overload_worsened.append(0)
 
             # preprocessing for score 2
-            if (old > 1.0) & (line_id in ltc):  # if old was an overload:
+            if (old > 1.0) & (line_id in self.ltc):  # if old was an overload:
                 surcharge = old - 1.0
                 diff = old - new
                 percentage_relieved = diff * 100 / surcharge
@@ -356,7 +379,7 @@ class PypownetSimulation(Simulation):
                 boolean_constraint_30percent_relieved.append(0)
 
             # preprocessing for score 1
-            if (old > 1.0 > new) & (line_id in ltc):
+            if (old > 1.0 > new) & (line_id in self.ltc):
                 boolean_constraint_relieved.append(1)
             else:
                 boolean_constraint_relieved.append(0)
@@ -373,9 +396,9 @@ class PypownetSimulation(Simulation):
         boolean_constraint_relieved = np.array(boolean_constraint_relieved)
         boolean_overload_created = np.array(boolean_overload_created)
 
-        redistribution_prod = np.sum(np.absolute(new_obs.prod_p - old_obs.prod_p))
+        redistribution_prod = np.sum(np.absolute(new_obs.active_productions - old_obs.active_productions))
 
-        redistribution_load = np.sum(np.absolute(new_obs.active_loads - old_obs.active_loads))
+        cut_load_percent = np.sum(np.absolute(new_obs.active_loads - old_obs.active_loads))/np.sum(old_obs.active_loads)
 
         # ################################ END OF PREPROCESSING #################################
         # score 0 if no overloads were alleviated or if it resulted in some load shedding or production distribution.
