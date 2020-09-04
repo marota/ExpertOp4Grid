@@ -143,7 +143,7 @@ def test_apply_topo():
     sub_id = 4
     new_configuration = [2, 2, 2, 1, 1] # Grid2op notation
     new_conf_alphadeesp_1 = [1, 1, 0, 0, 0] # ALphadeesp notation
-    new_conf_alphadeesp_2 = [0, 0, 0, 1, 1] # ALphadeesp notation
+    new_conf_alphadeesp_2 = [0, 0, 0, 0, 0] # ALphadeesp notation
 
     action_def = {"set_bus": {"substations_id": [(sub_id, new_configuration)]}}
     action = env.action_space(action_def)
