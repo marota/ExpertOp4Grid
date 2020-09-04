@@ -1,12 +1,14 @@
 """This file contains tests for creating overflow graph. ie,
 graph with delta flows, current_flows - flows_after_closing_line"""
 
+import numpy as np
 import configparser
 import networkx as nx
 from alphaDeesp.core.network import Network
 from alphaDeesp.core.grid2op.Grid2opObservationLoader import Grid2opObservationLoader
 from alphaDeesp.core.grid2op.Grid2opSimulation import Grid2opSimulation, build_powerflow_graph
-import numpy as np
+from alphaDeesp.core.alphadeesp import AlphaDeesp
+
 
 
 def build_sim():
@@ -120,3 +122,62 @@ def test_detailed_graph_with_node_0_split_in_two():
     network = Network(sim.substations_elements)
     print("There are {} graphical nodes ".format(network.get_graphical_number_of_nodes()))
     assert (network.get_graphical_number_of_nodes() == 15)
+
+def test_apply_topo():
+    """
+    Load configuration, modifiy topo on substation 4 with grid2op API, and generate graphs
+    Then apply new topo with alphadeesp core function
+    :return:
+    """
+    # import os
+    # os.chdir('../../../')
+
+    config = configparser.ConfigParser()
+    config.read("./alphaDeesp/tests/resources_for_tests_grid2op/config_for_tests.ini")
+    param_folder = "./alphaDeesp/tests/resources_for_tests_grid2op/l2rpn_2019_ltc_9"
+    ltc = [9]
+
+    loader = Grid2opObservationLoader(param_folder)
+    env, obs, action_space = loader.get_observation()
+
+    sub_id = 4
+    new_configuration = [2, 2, 2, 1, 1] # Grid2op notation
+    new_conf_alphadeesp_1 = [1, 1, 0, 0, 0] # ALphadeesp notation
+    new_conf_alphadeesp_2 = [0, 0, 0, 1, 1] # ALphadeesp notation
+
+    action_def = {"set_bus": {"substations_id": [(sub_id, new_configuration)]}}
+    action = env.action_space(action_def)
+    osb, _reward, _done, _info = env.step(action)
+
+    observation_space = env.observation_space
+    sim = Grid2opSimulation(obs, action_space, observation_space, param_options=config["DEFAULT"], debug=False,
+                            ltc=ltc)
+
+    # Get data from simulator representing the grid before and after line cutting, and topologies. Then initialize ALphadeesp
+    df_of_g = sim.get_dataframe()
+    g_over = sim.build_graph_from_data_frame(ltc)
+    g_pow = sim.build_powerflow_graph_beforecut()
+    g_pow_prime = sim.build_powerflow_graph_aftercut()
+    simulator_data = {"substations_elements": sim.get_substation_elements(),
+                      "substation_to_node_mapping": sim.get_substation_to_node_mapping(),
+                      "internal_to_external_mapping": sim.get_internal_to_external_mapping()}
+    printer = None
+    custom_layout = sim.get_layout()
+    debug = False
+    g_copy = g_over.copy() # Very important step ! otherwise, apply_new_topo will change g_over and it won't be chainable
+    alphadeesp = AlphaDeesp(g_over, df_of_g, custom_layout, printer, simulator_data, sim.substation_in_cooldown, debug=debug)
+
+
+    # Apply topo twice with Alphadeesp core on this Network and check if applied correctly
+    new_graph, internal_repr = alphadeesp.apply_new_topo_to_graph(g_copy, new_topology=new_conf_alphadeesp_1,
+                                                                  node_to_change=sub_id)
+    for i, busbar_id in enumerate(new_conf_alphadeesp_1):
+        assert (internal_repr[sub_id][i].busbar_id == busbar_id)
+
+    new_graph, internal_repr = alphadeesp.apply_new_topo_to_graph(g_copy, new_topology=new_conf_alphadeesp_2,
+                                                                  node_to_change=sub_id)
+    for i, busbar_id in enumerate(new_conf_alphadeesp_2):
+        assert (internal_repr[sub_id][i].busbar_id == busbar_id)
+
+
+

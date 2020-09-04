@@ -3,7 +3,7 @@ import grid2op
 from grid2op.Parameters import Parameters
 
 class Grid2opObservationLoader:
-    def __init__(self, parameter_folder, difficulty = "None"):
+    def __init__(self, parameter_folder, difficulty = None):
         self.parameter_folder = parameter_folder
         #self.custom_params = Parameters()
         #self.custom_params.NO_OVERFLOW_DISCONNECTION = False
@@ -26,7 +26,7 @@ class Grid2opObservationLoader:
             custom_params.NB_TIMESTEP_OVERFLOW_ALLOWED = 9999999
             self.env = grid2op.make(self.parameter_folder, backend=backend, param=custom_params)
         elif difficulty not in ["0","1","2","competition"]:
-            raise ValueError("Difficulty in config.ini should be either None or integer from 0 to 4 or 'competition'")
+            raise ValueError("Difficulty in config.ini should be either None or 0,1,2 or competition")
         else:
             self.env = grid2op.make(self.parameter_folder, backend=backend, difficulty=difficulty)
 
