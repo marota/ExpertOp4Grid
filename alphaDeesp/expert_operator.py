@@ -2,6 +2,7 @@
 
 from alphaDeesp.core.alphadeesp import AlphaDeesp
 from alphaDeesp.core.printer import Printer
+import pandas as pd
 
 
 def expert_operator(sim, plot=False, debug=False):
@@ -32,9 +33,21 @@ def expert_operator(sim, plot=False, debug=False):
         sim.plot_grid_aftercut()
         sim.plot_grid_delta()
 
+    #check if problem is not simply an antenna
+    isAntenna_Sub=sim.isAntenna()
+
     # Launch alphadeesp core
-    alphadeesp = AlphaDeesp(g_over, df_of_g, custom_layout, printer, simulator_data, debug = debug)
-    ranked_combinations = alphadeesp.get_ranked_combinations()
+    if isAntenna_Sub is None:
+        alphadeesp = AlphaDeesp(g_over, df_of_g, custom_layout, printer, simulator_data,sim.substation_in_cooldown, debug = debug)
+        ranked_combinations = alphadeesp.get_ranked_combinations()
+    else:
+        ranked_combinations = []
+        ranked_combinations.append(pd.DataFrame({
+            "score": 1,
+            "topology": [sim.get_reference_topovec_sub(isAntenna_Sub)],
+            "node": isAntenna_Sub
+        }))
+
 
     # Expert results --> end dataframe
     expert_system_results, actions = sim.compute_new_network_changes(ranked_combinations)
@@ -51,3 +64,5 @@ def expert_operator(sim, plot=False, debug=False):
             sim.plot_grid_from_obs(simulated_obs, name)
 
     return ranked_combinations, expert_system_results, actions
+
+

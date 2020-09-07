@@ -34,23 +34,27 @@ class Grid2opSimulation(Simulation):
     def get_layout(self):
         return self.layout
 
-    def __init__(self, obs, action_space, observation_space, param_options=None, debug = False, ltc=[9], plot=False):
+    def __init__(self, obs, action_space, observation_space, param_options=None, debug = False, ltc=[9], plot=False, plot_folder = None,reward_type=None):
         super().__init__()
 
         # Get Grid2op objects
         if ltc is None:
             ltc = [9]
-        if plot:
-            self.printer = Printer()
+        if plot: # Manual mode
+            self.plot_folder = plot_folder
+            self.printer = Printer(plot_folder)
         self.obs = obs
         self.obs_linecut = None
         self.action_space = action_space
         self.observation_space = observation_space
         self.plot_helper = self.get_plot_helper()
+        self.no_overflow_disc = self.obs._obs_env.no_overflow_disconnection # Keep it in memory to activate and deactivate during computation steps
 
         # Get Alphadeesp configuration
         self.ltc = ltc
+        self.substation_in_cooldown=self.get_substation_in_cooldown()
         self.param_options = param_options
+        self.reward_type=reward_type
         self.args_number_of_simulated_topos = param_options["totalnumberofsimulatedtopos"]
         self.args_inner_number_of_simulated_topos_per_node = param_options["numberofsimulatedtopospernode"]
 
@@ -88,6 +92,23 @@ class Grid2opSimulation(Simulation):
 
     def get_substation_elements(self):
         return self.substations_elements
+
+    def get_substation_in_cooldown(self):
+        return [i for i in range(self.obs.n_sub) if (self.obs.time_before_cooldown_sub[i]>=1)]
+
+    def get_reference_topovec_sub(self,sub):
+        nelements=self.obs.sub_info[sub]
+        topovec=[0 for i in range(nelements)]
+        return topovec
+
+    def get_overload_disconnection_topovec_subor(self,l):
+        sub_or=self.obs.line_or_to_subid[l]
+        position_at_sub=self.obs.line_or_to_sub_pos[l]
+        current_topo_vec=self.obs.state_of(substation_id=sub_or)['topo_vect']
+
+        new_topo_vec=current_topo_vec
+        new_topo_vec[position_at_sub]=-1#to get line disconnection
+        return sub_or,new_topo_vec
 
     def get_substation_to_node_mapping(self):
         pass
@@ -156,58 +177,36 @@ class Grid2opSimulation(Simulation):
                 # target_node = row["node"] + 1
                 internal_target_node = row["node"]
                 # target_node = row["node"]
+                alphaDeesp_Internal_topo=np.array([n for n in row["topology"]])
+
                 new_conf = np.array([n + 1 for n in row["topology"]])
+                if(len(alphaDeesp_Internal_topo)==1):#this is a line to disconnect, not a topology to change
+                    l=alphaDeesp_Internal_topo[0]
+                    #sub_id,new_conf_grid2op=self.get_overload_disconnection_topovec_subor(l)
+                    new_conf=[l]
+                    #action = self.action_space({"set_bus": {"substations_id": [(sub_id, new_conf_grid2op)] }})
+
+
                 score_topo = i
                 print("###########"" Compute new network changes on node [{}] with new topo [{}] ###########"
                       .format(internal_target_node, new_conf))
 
-                action = self.get_action_from_topo(internal_target_node, new_conf, obs)
-                virtual_obs, reward, done, info = self.obs.simulate(action)
-                # Same as in Pypownet, this is not what we would want though, as we do the work for only one ltc
-                only_line = self.ltc[0]
-                line_state_before = obs.state_of(line_id=only_line)
-                line_state_after = virtual_obs.state_of(line_id=only_line)
-                flow_before = line_state_before["origin"]["p"]
-                flow_after = line_state_after["origin"]["p"]
-                delta_flow = flow_before - flow_after
 
-                # Fill save bag with observations for further analysis (detailed graph)
-                name = "".join(str(e) for e in new_conf)
-                name = str(internal_target_node) + "_" + name
-                self.save_bag.append([name, virtual_obs])
-
-                if done:    # Game over: no need to compute further operations
-                    worsened_line_ids = []
-                    simulated_score = 0
-                    redistribution_prod = float('nan')
-                    redistribution_load = float('nan')
-                    efficacity = float('nan')
-
+                if(len(alphaDeesp_Internal_topo)==1):#this is a line to disconnect, not a topology to change
+                    new_conf_grid2op=[l]
+                    new_conf=[l]
+                    action = self.action_space({"set_line_status": [(l, -1)]})
                 else:
-                    worsened_line_ids = self.create_boolean_array_of_worsened_line_ids(obs, virtual_obs)
-                    simulated_score = score_changes_between_two_observations(obs, virtual_obs)
-                    redistribution_prod = np.sum(np.absolute(virtual_obs.prod_p - obs.prod_p))
-                    redistribution_load = np.sum(np.absolute(virtual_obs.load_p - obs.load_p))
-                    if simulated_score in [4, 3, 2]:  # success
-                        efficacity = fabs(delta_flow / virtual_obs.rho[self.ltc[0]])
-                    else:  # failure
-                        efficacity = -fabs(delta_flow / virtual_obs.rho[self.ltc[0]])
-
-                # To store in data frame
+                    action = self.get_action_from_topo(internal_target_node, new_conf, obs)
+                    new_conf_grid2op = list(action.effect_on(substation_id=internal_target_node)[
+                                                'set_bus'])  # grid2op conf is different from alphadeesp conf, because the elements are ordered differently
                 actions.append(action)
-                score_data = [only_line,
-                              flow_before,
-                              flow_after,
-                              delta_flow,
-                              worsened_line_ids,
-                              redistribution_prod,
-                              redistribution_load,
-                              new_conf,
-                              internal_target_node,
-                              1,  # category hubs?
-                              score_topo,
-                              simulated_score,
-                              efficacity]
+
+
+                # virtual_obs, reward, done, info = self.obs.simulate(action)
+                virtual_obs, reward, done, info = self.obs.simulate(action, time_step = 0)
+
+                score_data=self.compute_one_network_change_score_data(obs,virtual_obs,done,info,new_conf,internal_target_node,alphaDeesp_Internal_topo,new_conf_grid2op,score_topo)
                 #print(score_data)
                 max_index = end_result_dataframe.shape[0]  # rows
                 end_result_dataframe.loc[max_index] = score_data
@@ -215,15 +214,89 @@ class Grid2opSimulation(Simulation):
                 j += 1
 
         end_result_dataframe.to_csv("./END_RESULT_DATAFRAME.csv", index=True)
+
+        # Case there are no hubs --> action do nothing
+        if len(actions) == 0:
+            actions = [self.action_space()]
         return end_result_dataframe, actions
 
+    def compute_one_network_change_score_data(self, obs,virtual_obs,done,info,new_conf,internal_target_node,alphaDeesp_Internal_topo,new_conf_grid2op,score_topo):
+        # Same as in Pypownet, this is not what we would want though, as we do the work for only one ltc
+        only_line = self.ltc[0]
+        line_state_before = obs.state_of(line_id=only_line)
+        line_state_after = virtual_obs.state_of(line_id=only_line)
+        flow_before = line_state_before["origin"]["p"]
+        flow_after = line_state_after["origin"]["p"]
+        delta_flow = flow_before - flow_after
+
+        if done:  # Game over: no need to compute further operations
+            worsened_line_ids = []
+            simulated_score = 0
+            redistribution_prod = float('nan')
+            redistribution_load = float('nan')
+            efficacity = float('nan')
+
+        else:
+            # Fill save bag with observations for further analysis (detailed graph)
+            name = "".join(str(e) for e in new_conf)
+            name = str(internal_target_node) + "_" + name
+            self.save_bag.append([name, virtual_obs])
+            worsened_line_ids = self.create_boolean_array_of_worsened_line_ids(obs, virtual_obs,
+                                                                               self.observation_space.parameters.NB_TIMESTEP_COOLDOWN_LINE)
+            simulated_score = score_changes_between_two_observations(self.ltc, obs, virtual_obs,
+                                                                     self.observation_space.parameters.NB_TIMESTEP_COOLDOWN_LINE)
+
+            # update simulated score to 0 in case our line got disconnected, starting a cascading failure
+            if (bool(info['disc_lines'][self.ltc])):#other line disconnections are already accounted in worsened lines
+            #if (info['disc_lines'].any()):
+                simulated_score = 0
+
+            redistribution_prod = np.sum(np.absolute(virtual_obs.prod_p - obs.prod_p))
+
+            TotalProd = np.nansum(virtual_obs.prod_p)
+            Losses = np.nansum(np.abs(virtual_obs.p_or + virtual_obs.p_ex))
+            ExpectedNewLoad = TotalProd - Losses
+            redistribution_load = (np.sum(virtual_obs.load_p) - ExpectedNewLoad)  # / np.sum(old_obs.load_p)
+
+            if simulated_score in [4, 3, 2, 1]:  # success
+                efficacity = fabs(delta_flow / virtual_obs.rho[self.ltc[0]])
+                if (self.reward_type is not None) and (self.reward_type in info["rewards"]):  # & (simulated_score==4):
+                    # dans le cas ou on resoud bien les contraintes, on prend la reward L2RPN
+                    efficacity = info["rewards"][self.reward_type]
+            else:  # failure
+                efficacity = -fabs(delta_flow / virtual_obs.rho[self.ltc[0]])
+
+        # To store in data frame
+        score_data = [only_line,
+                      flow_before,
+                      flow_after,
+                      delta_flow,
+                      worsened_line_ids,
+                      redistribution_prod,
+                      redistribution_load,
+                      alphaDeesp_Internal_topo,  # alphaDeesp internal topology format
+                      new_conf_grid2op,
+                      # new_conf,#we prefer to have the backend conf definition, rather than alphadeesp one
+                      internal_target_node,
+                      1,  # category hubs?
+                      score_topo,
+                      simulated_score,
+                      efficacity]
+        # print(score_data)
+        return score_data
+
     @staticmethod
-    def create_boolean_array_of_worsened_line_ids(old_obs, new_obs):
+    def create_boolean_array_of_worsened_line_ids(old_obs, new_obs,nb_timestep_cooldown_line_param):
         res = []
-        for old, new in zip(old_obs.rho, new_obs.rho):
-            if new > 1 and old > 1 and new > 1.05 * old:
+        n_lines=len(new_obs.rho)
+
+        #for old, new in zip(old_obs, new_obs):
+        for l in range(n_lines):
+            if new_obs.rho[l] > 1 and old_obs.rho[l] > 1 and new_obs.rho[l] > 1.05 * old_obs.rho[l]:
                 res.append(1)
-            elif new > 1 > old:
+            elif new_obs.rho[l] > 1 > old_obs.rho[l]:
+                res.append(1)
+            elif ((new_obs.time_before_cooldown_line[l] - old_obs.time_before_cooldown_line[l])>nb_timestep_cooldown_line_param): #line got into cascading failure
                 res.append(1)
             else:
                 res.append(0)
@@ -318,6 +391,9 @@ class Grid2opSimulation(Simulation):
     def cut_lines_and_recomputes_flows(self, ids: list):
         """This functions cuts lines: [ids], simulates and returns new line flows"""
 
+        # First, set parameter to avoid disconnection
+        self.obs._obs_env.no_overflow_disconnection = True
+
         # Set action which disconects the specified lines (by ids)
         deconexion_action = self.action_space({"set_line_status": [(id_, -1) for id_ in ids]})
         obs_linecut, reward, done, info = self.obs.simulate(deconexion_action)
@@ -330,6 +406,9 @@ class Grid2opSimulation(Simulation):
 
         # Graph building
         # self.g_pow_prime = self.build_powerflow_graph(self.obs_cutted)
+
+        # Finaly, reset previous parameter
+        self.obs._obs_env.no_overflow_disconnection = self.no_overflow_disc
 
         return new_flow
 
@@ -354,6 +433,45 @@ class Grid2opSimulation(Simulation):
         :return: pandas dataframe with topology information before and after line cutting
         """
         return self.df
+
+    def isAntenna(self):
+        linesAtBusbar_dic = self.getLinesAtSubAndBusbar()
+
+        for sub in linesAtBusbar_dic.keys():
+            linesAtBusbar = linesAtBusbar_dic[sub]
+            if len(linesAtBusbar) <= 1:
+                return sub  # this is an Antenna
+        return None
+
+    def getLinesAtSubAndBusbar(self):
+        ltc = self.ltc[0]
+        obs=self.obs
+        linesAtBusbar_dic = {}
+
+        sub_or = int(obs.line_or_to_subid[ltc])
+        sub_ex = int(obs.line_ex_to_subid[ltc])
+
+        busBarOr = obs.state_of(line_id=ltc)['origin']['bus']
+        busBarEx = obs.state_of(line_id=ltc)['extremity']['bus']
+
+        # we should check if another line is connected with our line of interest. Otherwise it is an antenna
+        # For SubOr
+        linesOr_atSubOr = obs.get_obj_connect_to(substation_id=sub_or)['lines_or_id']
+        linesEx_atSubOr = obs.get_obj_connect_to(substation_id=sub_or)['lines_ex_id']
+
+        linesAtBusbarOr = [l for l in linesOr_atSubOr if obs.state_of(line_id=l)['origin']['bus'] == busBarOr]
+        linesAtBusbarOr += [l for l in linesEx_atSubOr if obs.state_of(line_id=l)['extremity']['bus'] == busBarOr]
+
+        # For SubEx
+        linesOr_atSubEx = obs.get_obj_connect_to(substation_id=sub_ex)['lines_or_id']
+        linesEx_atSubEx = obs.get_obj_connect_to(substation_id=sub_ex)['lines_ex_id']
+
+        linesAtBusbarEx = [l for l in linesOr_atSubEx if obs.state_of(line_id=l)['origin']['bus'] == busBarEx]
+        linesAtBusbarEx += [l for l in linesEx_atSubEx if obs.state_of(line_id=l)['extremity']['bus'] == busBarEx]
+
+        linesAtBusbar_dic[sub_or] = linesAtBusbarOr
+        linesAtBusbar_dic[sub_ex] = linesAtBusbarEx
+        return linesAtBusbar_dic
 
     def build_graph_from_data_frame(self, lines_to_cut):
         """This function creates a graph G from a DataFrame"""
@@ -429,14 +547,14 @@ class Grid2opSimulation(Simulation):
         """
         return self.plot_grid(None, name="g_overflow_print")
 
-    def plot_grid_from_obs(self, obs, name, create_result_folder = None):
+    def plot_grid_from_obs(self, obs, name):
         """
         Plots the grid with Grid2op PlotHelper from given observation
         :return: Figure
         """
-        return self.plot_grid(obs, name=name, create_result_folder = create_result_folder)
+        return self.plot_grid(obs, name=name)
 
-    def plot_grid(self, obs, name, create_result_folder = None):
+    def plot_grid(self, obs, name):
         type_ = "results"
         if name in ["g_pow", "g_overflow_print", "g_pow_prime"]:
             type_ = "base"
@@ -445,7 +563,7 @@ class Grid2opSimulation(Simulation):
             g_over = self.build_graph_from_data_frame(self.ltc)
             self.printer.display_geo(g_over, self.get_layout(), name=name)
         else:   # Use grid2op plot functionalities to plot all other graphs
-            output_name = self.printer.create_namefile("geo", name = name, type = type_, create_result_folder = create_result_folder)
+            output_name = self.printer.create_namefile("geo", name = name, type = type_)
             fig_obs = self.plot_helper.plot_obs(obs, line_info='p')
             fig_obs.savefig(output_name[1])
 
@@ -629,7 +747,9 @@ def build_edges_v2(g, substation_id_busbar_id_node_id_mapping, substations_eleme
                            penwidth="%.2f" % pen_width)
             g.add_edge(origin, extremity, capacity=float(reported_flow[0]), xlabel=reported_flow[0])
 
-def score_changes_between_two_observations(old_obs, new_obs):
+#TO DO: check is line is disconnected in new_obs
+
+def score_changes_between_two_observations(ltc, old_obs, new_obs,nb_timestep_cooldown_line_param=0):
     """This function takes two observations and computes a score to quantify the change between old_obs and new_obs.
     @:return int between [0 and 4]
     4: if every overload disappeared
@@ -640,10 +760,13 @@ def score_changes_between_two_observations(old_obs, new_obs):
     """
     old_number_of_overloads = 0
     new_number_of_overloads = 0
-    boolean_constraint_worsened = []
-    boolean_overload_30percent_relieved = []
-    boolean_overload_relieved = []
+    boolean_overload_worsened = []
+    boolean_constraint_30percent_relieved = []
+    boolean_constraint_relieved = []
     boolean_overload_created = []
+    boolean_line_cascading_disconnection = ((new_obs.time_before_cooldown_line-old_obs.time_before_cooldown_line)>nb_timestep_cooldown_line_param)
+
+
 
     old_obs_lines_capacity_usage = old_obs.rho
     new_obs_lines_capacity_usage = new_obs.rho
@@ -657,57 +780,67 @@ def score_changes_between_two_observations(old_obs, new_obs):
             new_number_of_overloads += 1
 
     # preprocessing for score 3 and 2
+    line_id=0
     for old, new in zip(old_obs_lines_capacity_usage, new_obs_lines_capacity_usage):
         # preprocessing for score 3
-        if new > 1.05 * old > 1.0:  # if new > old > 1.0 it means it worsened an existing constraint
-            boolean_constraint_worsened.append(1)
+        if (new > 1.05 * old) & (new > 1.0):  # if new > old > 1.0 it means it worsened an existing constraint
+            boolean_overload_worsened.append(1)
         else:
-            boolean_constraint_worsened.append(0)
+            boolean_overload_worsened.append(0)
 
         # preprocessing for score 2
-        if old > 1.0:  # if old was an overload:
+        if (old > 1.0) & (line_id in ltc) :  # if old was an overload:
             surcharge = old - 1.0
             diff = old - new
             percentage_relieved = diff * 100 / surcharge
             if percentage_relieved > 30.0:
-                boolean_overload_30percent_relieved.append(1)
+                boolean_constraint_30percent_relieved.append(1)
             else:
-                boolean_overload_30percent_relieved.append(0)
+                boolean_constraint_30percent_relieved.append(0)
         else:
-            boolean_overload_30percent_relieved.append(0)
+            boolean_constraint_30percent_relieved.append(0)
+
 
         # preprocessing for score 1
-        if old > 1.0 > new:
-            boolean_overload_relieved.append(1)
+        if (old > 1.0 > new) & (line_id in ltc):
+            boolean_constraint_relieved.append(1)
         else:
-            boolean_overload_relieved.append(0)
+            boolean_constraint_relieved.append(0)
 
         if old < 1.0 < new:
             boolean_overload_created.append(1)
         else:
             boolean_overload_created.append(0)
 
-    boolean_constraint_worsened = np.array(boolean_constraint_worsened)
-    boolean_overload_30percent_relieved = np.array(boolean_overload_30percent_relieved)
-    boolean_overload_relieved = np.array(boolean_overload_relieved)
+        line_id+=1
+
+    boolean_overload_worsened = np.array(boolean_overload_worsened)
+    boolean_constraint_30percent_relieved = np.array(boolean_constraint_30percent_relieved)
+    boolean_constraint_relieved = np.array(boolean_constraint_relieved)
     boolean_overload_created = np.array(boolean_overload_created)
 
     redistribution_prod = np.sum(np.absolute(new_obs.prod_p - old_obs.prod_p))
-    redistribution_load = np.sum(np.absolute(new_obs.load_p - old_obs.load_p))
+    #redistribution_load = np.sum(np.absolute(new_obs.load_p - old_obs.load_p))#not exact in Grid2op if load are disconnected
+
+    TotalProd=np.nansum(new_obs.prod_p)
+    Losses=np.nansum(np.abs(new_obs.p_or+new_obs.p_ex))
+    ExpectedNewLoad=TotalProd-Losses
+    cut_load_percent=(np.sum(old_obs.load_p)-ExpectedNewLoad)/np.sum(old_obs.load_p)
+
 
     # ################################ END OF PREPROCESSING #################################
     # score 0 if no overloads were alleviated or if it resulted in some load shedding or production distribution.
     if old_number_of_overloads == 0:
         # print("return NaN: No overflow at initial state of grid")
         return float('nan')
-    elif redistribution_load > 0: # (boolean_overload_relieved == 0).all()
+    elif cut_load_percent > 0.01: # (boolean_overload_relieved == 0).all()
         # print("return 0: no overloads were alleviated or some load shedding occured.")
         return 0
 
     # score 1 if overload was relieved but another one appeared and got worse
-    elif (boolean_overload_relieved == 1).any() and ((boolean_overload_created == 1).any() or
-                                                     (boolean_constraint_worsened == 1).any()):
-        # print("return 1: an overload was relieved but another one appeared")
+    elif (boolean_constraint_relieved == 1).any() and ((boolean_overload_created == 1).any() or
+                                                     (boolean_overload_worsened == 1).any() or (boolean_line_cascading_disconnection).any()):
+        # print("return 1: our overload was relieved but another one appeared")
         return 1
 
     # 4: if every overload disappeared
@@ -715,24 +848,26 @@ def score_changes_between_two_observations(old_obs, new_obs):
         # print("return 4: every overload disappeared")
         return 4
 
-    # 3: if an overload disappeared without stressing the network, ie,
+    # 3: if this overload disappeared without stressing the network, ie,
     # if an overload disappeared
     # and without worsening existing constraint
     # and no Loads that get cut
-    elif new_number_of_overloads < old_number_of_overloads and \
-            (boolean_constraint_worsened == 0).all() and \
-            (new_obs.are_loads_cut == 0).all():
-        # print("return 3: an overload disappeared without stressing the network")
+    elif (boolean_constraint_relieved == 1).any() and \
+            (boolean_overload_worsened == 0).all():
+        # and \ (new_obs.are_loads_cut == 0).all():
+        # print("return 3: our overload disappeared without stressing the network")
         return 3
 
-    # 2: if at least 30% of an overload was relieved
-    elif (boolean_overload_30percent_relieved == 1).any():
-        # print("return 2: at least 30% of line [{}] was relieved".format(
+    # 2: if at least 30% of this overload was relieved
+    elif (boolean_constraint_30percent_relieved == 1).any() and \
+            (boolean_overload_worsened == 0).all():
+        # print("return 2: at least 30% of our overload [{}] was relieved".format(
         #     np.where(boolean_overload_30percent_relieved == 1)[0]))
         return 2
 
     # score 0
-    elif (boolean_overload_30percent_relieved == 0).all():
+    elif (boolean_constraint_30percent_relieved == 0).all() or \
+            (boolean_overload_worsened == 1).any():
         return 0
 
     else:

@@ -1,48 +1,48 @@
 # AlphaDeesp
-Works with Pypownet version: 2.2.0
-
-## DATA FLOW
-The Data flow starts with a Pypownet Class object named: Observation.
-* First, you load the Observation: simulation.load(Observation)
-* Then, it **creates a dictionnary, self.topo**:
-    * self.topo["edges"]["idx_or"] = [x for x in idx_or]
-    * self.topo["edges"]["idx_ex"] = [x for x in idx_ex]
-    * self.topo["edges"]["init_flows"] = current_flows
-    * self.topo["nodes"]["are_prods"] = are_prods
-    * self.topo["nodes"]["are_loads"] = are_loads
-    * self.topo["nodes"]["prods_values"] = prods_values
-    * self.topo["nodes"]["loads_values"] = loads_values
-* ==> from self.topo dict, a **DataFrame is created**: self.df with column indices being as such (idx_or  idx_ex  init_flows
-  swapped  new_flows new_flows_swapped  delta_flows  gray_edges) and row indices being the lines IDs in 
-* ==> creates and fill internal structures from DataFrame
-
-Look at the **Explanation** section for more details.
-    
-## IMPORTANT LIMITATIONS
-Important to know.
-
-* For the moment, we allow cutting only one line when launching the expert system: 
-    * ex python3 -m alphaDeesp.main -l 9
-
-* Only works with initial state of all nodes with busbar == 0 ??
-
-* At the moment, in the internal computation, a substation can have only one source of Power and one source of Consumption.
-
+Works with 
+* Grid2op version: >= 1.0.1
+* Pypownet version: 2.2.0 (optional installation)
 
 
 ## Installation
 To install AlphaDeesp execute the following lines: 
 ##### First clone the repos
-`git clone the https://devin-source.rte-france.com/mozgawam/AlphaDeesp.git
+`git clone the repository https://github.com/marota/ExpertOp4Grid.git
 `
-##### Then, being at the root of the project folder,
-`pip3 install -r requirements.txt --user
+
+##### Optional: if you want to run in manual mode, install graphviz (for neato package, it allows to transform a dot file into a pdf file). 
+
+Warning: It is important to install graphviz executables before python packages
+
+First install executable
+
+On Linux
+
+`apt-get install graphviz
+`
+
+On Windows, use package finder (equivalent of apt-get on Windows)
+
+`winget install graphviz
+`
+
+Then ensure that graphviz and neato are in the path. You often have to set it manually. For example on windows you can use the following command line:
+
+`setx /M path "%path%;'C:\Users\username\graphviz-2.38\release\bin"
+`
+
+Then you can move to python packages installation
+
+
+##### Install python packages from setup.py
+
+`pip3 install (-U) .
 `
 or
 
-`pipenv install -r requirements.txt
+`pipenv install (-U) .
 `
-##### Install pypownet_fork from libs.
+##### Optional: if you want to run simulation with pypownet instead of Grid2op, install pypownet_fork from libs.
 
 Clone pypownet somewhere else :
 
@@ -63,42 +63,73 @@ cd ../pypownet
 python setup.py install
 ```
 
-##### Install graphviz (for neato package, it allows to transform a dot file into a pdf file):
 
-First install separate dependency
+## Run Alphadeesp
 
-On Linux
-
-`apt-get install graphviz
+### To execute in **manual mode**, from root folder, type:
+`pipenv run python -m alphaDeesp.main -l 9 -s 0 -c 0 -t 0
 `
 
-On Windows, thanks to package finder
+* -l/--ltc: List of integers representing the lines to cut. For the moment, only one line to cut is handled
 
-`winget install graphviz
-`
+* -s/--snapshot: if 1, will generate plots of the different grid topologies managed by alphadeesp and store it in alphadeesp/ressources/output 
 
-Then ensure that graphviz and neato are in the path. You often have to set it manually. For example on windows you can use the following command line:
+* -c/--chronicscenario: integer representing the chronic scenario to consider, starting from 0. By default, the first available chronic scenario will be chosen, i.e. argument is 0
 
-`setx /M path "%path%;'C:\Users\username\graphviz-2.38\release\bin"
-`
+* -t/--timestep: integer representing the timestep number at which we want to run alphadeesp simulation
 
-Then install python package
+In any case, an end result dataframe is written in root folder
 
-`pipenv install graphviz
-`
+In manual mode, further configuration is made through alphadeesp/config.ini
 
-## To execute code, from parent folder, type:
-python3 -m alphaDeesp.main -l 9 
+* *simulatorType* - you can chose Grid2op or Pypownet
+* *gridPath* - path to folder containing files representing the grid
+* *CustomLayout* - list of couples reprenting coordinates of grid nodes. If not provided, grid2op will load grid_layout.json in grid folder
+* *grid2opDifficulty* - "0", "1", "2" or "competition". Be careful: grid datasets should have a difficulty_levels.json
+* *7 other constants for alphadeesp computation* can be set in config.ini, with comments within the file 
 
+### To execute in **agent mode**, please refer to ExpertAgent available in l2rpn-baseline repository
+
+https://github.com/mjothy/l2rpn-baselines/tree/mj-devs/l2rpn_baselines/ExpertAgent
+
+Instead of configuring through config.ini, you can pass a similar python dictionary to the API
+ 
 
 ## Introduction
-Only works with Pypownet (version 2.2.0) at the moment
+Simulation work with Grid2op (version >= 1.0.1) or Pypownet (version 2.2.0)
 
 This module represents an expert agent that find solutions to optimise an electric network. The expert agent is based
 on a paper: (link)
 
+## Important limitations
+Important to know.
 
-## Explication
+* For the moment, we allow cutting only one line when launching the expert system: 
+    * ex python3 -m alphaDeesp.main -l 9
+
+* Only works with initial state of all nodes with busbar == 0 (with Pypownet, fixed with Grid2op)
+
+* At the moment, in the internal computation, a substation can have only one source of Power and one source of Consumption (with Pypownet, fixed with Grid2op)
+
+## Data Flow
+The Data flow starts with an Observation object, whether from Pypownet or Grid2op API
+* First, you load the Observation: simulation.load(Observation)
+* Then, it **creates a dictionnary, self.topo**:
+    * self.topo["edges"]["idx_or"] = [x for x in idx_or]
+    * self.topo["edges"]["idx_ex"] = [x for x in idx_ex]
+    * self.topo["edges"]["init_flows"] = current_flows
+    * self.topo["nodes"]["are_prods"] = are_prods
+    * self.topo["nodes"]["are_loads"] = are_loads
+    * self.topo["nodes"]["prods_values"] = prods_values
+    * self.topo["nodes"]["loads_values"] = loads_values
+* ==> from self.topo dict, a **DataFrame is created**: self.df with column indices being as such (idx_or  idx_ex  init_flows
+  swapped  new_flows new_flows_swapped  delta_flows  gray_edges) and row indices being the lines IDs in 
+* ==> creates and fill internal structures from DataFrame
+
+Look at the **Explanation** section for more details.
+
+## Explanation
+
 Before heading into a brief explanation of the algorithm
 
 There are three important objects to have in mind:
@@ -161,7 +192,9 @@ Check in the code, there are commented examples
 
 
 # TESTS
-To launch the test suite: python3 -m pytest --verbose --continue-on-collection-errors -p no:warnings
+To launch the test suite: 
+`pipenv run python -m pytest --verbose --continue-on-collection-errors -p no:warnings
+`
 
 
 # FAQ DEV
