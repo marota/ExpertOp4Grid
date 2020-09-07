@@ -108,19 +108,8 @@ class AlphaDeesp:  # AKA SOLVER
         for node in selected_ranked_nodes:
             all_combinations = self.compute_all_combinations(node)
             ranked_combinations = self.rank_topologies(all_combinations, self.g, node)
-            # print(ranked_combinations)
-
-            # best_topologies = best_topologies.append(ranked_combinations)
-            # pd.concat([best_topologies, *ranked_combinations])
-
-            # print("\n##############################################################################")
-            # print("##########............BEST_TOPOLOGIES COMPUTED............####################")
-            # print("##############################################################################")
-
-            # best_topologies = self.clean_and_sort_best_topologies(best_topologies)
             best_topologies = self.clean_and_sort_best_topologies(ranked_combinations)
             res_container.append(best_topologies)
-            # # print(best_topologies)
 
         return res_container
 
@@ -175,24 +164,13 @@ class AlphaDeesp:  # AKA SOLVER
         }
         ranked_combinations = pd.DataFrame(ranked_combinations_structure_initiation)
         for topo in all_combinations:
-            # print("################################################################################")
-            # print("################################################################################")
-            # print("################################################################################")
-            # NO EFFICIENT IF MANY NODES IN THE GRAPH, WE COULD ONLY EXTRACT THE NODE TO CHANGE
-            g_copy = self.g.copy()
-
             # WARNING the internal_repr is not used further in the code. It is not up to date with the new_graph.
             # Only the original one.
             # the new_graph has new_topo, but has no simulated values from pypownet, only old values with new topo
-            # print("BEFOREEEEEEEEEEEEEEEEEEEEEEE")
+            g_copy = self.g.copy()
             all_edges_xlabel_attributes = nx.get_edge_attributes(g_copy, "xlabel")  # dict[edge]
-            # print("all_edges_xlabel_attributes = ", all_edges_xlabel_attributes)
-
             new_graph, internal_repr = self.apply_new_topo_to_graph(g_copy, topo, node_to_change)
-
-            # print("AFTERRRRRRRRRRRRRRRRRRRRRRRRRR")
             all_edges_xlabel_attributes = nx.get_edge_attributes(new_graph, "xlabel")  # dict[edge]
-            # print("all_edges_xlabel_attributes = ", all_edges_xlabel_attributes)
 
             if nx.is_weakly_connected(new_graph):
                 # print("we are inside weakly connected")
@@ -242,6 +220,7 @@ class AlphaDeesp:  # AKA SOLVER
             else:
                 color_edges[(u, v)] = color
 
+        #TODO
         if 1 in new_topology:  # ie, if the topo is not [0, ... , 0]
             # first we delete the node_to_change ==> it deletes all edges for us
             graph.remove_node(node_to_change)
@@ -252,34 +231,28 @@ class AlphaDeesp:  # AKA SOLVER
         new_node = []  # Busbar 1
         # then, parsing element by element, reconnect the graph.
         for internal_elem, element, element_type in zip(internal_repr_dict[node_to_change], new_topology, element_types):
-            if element == 0:
-                # # print("we were in 0")
-                internal_elem.busbar_id = 0
-            elif element == 1:
-                # # print("we were in 1")
-                internal_elem.busbar_id = 1
+            internal_elem.busbar_id = element
 
         # WE RECONSTRUCT INTERNAL REPR
         # prod = {0: 0, 1: 0}  # busid:value
         # load = {0: 0, 1: 0}  # busid:value
         prod = {}
         load = {}
-        for bus_id in bus_ids:
-            for element in internal_repr_dict[node_to_change]:
-                if element.busbar_id == bus_id:
-                    if bus_id not in prod.keys():
-                        if isinstance(element, Production):
-                            prod[bus_id] = fabs(element.value)
-                    else:
-                        if isinstance(element, Production):
-                            prod[bus_id] += fabs(element.value)
+        for element in internal_repr_dict[node_to_change]:
+            if element.busbar_id not in prod.keys():
+                if isinstance(element, Production):
+                    prod[element.busbar_id] = fabs(element.value)
+            else:
+                if isinstance(element, Production):
+                    prod[element.busbar_id] += fabs(element.value)
 
-                    if bus_id not in load.keys():
-                        if isinstance(element, Consumption):
-                            load[bus_id] = fabs(element.value)
-                    else:
-                        if isinstance(element, Consumption):
-                            load[bus_id] += fabs(element.value)
+            if element.busbar_id not in load.keys():
+                if isinstance(element, Consumption):
+                    load[element.busbar_id] = fabs(element.value)
+            else:
+                if isinstance(element, Consumption):
+                    load[element.busbar_id] += fabs(element.value)
+
         node_type = {}
         for bus_id in bus_ids:  # [0, 1]
             if bus_id in prod.keys() and bus_id in load.keys():
@@ -385,17 +358,14 @@ class AlphaDeesp:  # AKA SOLVER
 
             # pick the node that does not belong to cpath.
             # first identify the node that is not connected to cpath. either node or 666+node
-
-            # print("OUT EDGES = ", graph.out_edges(node))
+            #??????????????????????
             for edge in graph.out_edges(node):
                 edge_color = all_edges_color_attributes[edge]
                 edge_value = all_edges_xlabel_attributes[edge]
                 # if there is a outgoing negative blue or black edge this means we are connected to cpath.
                 # therefore change to twin node 666+node
-                # print("EDGE VALUE = ", edge_value)
                 # if float(edge_value) < 0 and (edge_color == "blue" or edge_color == "black"):
                 if edge_color == "blue" or edge_color == "black":
-                    # print("WE GOT IN THE IF")
                     if self.debug:
                         print("\n######################################################")
                         print("Node [{}] is not connected to cpath. Twin node selected...".format(node))
@@ -422,12 +392,6 @@ class AlphaDeesp:  # AKA SOLVER
                 if edge_flow_value > 0:
                     out_positive_flows.append(edge_flow_value)
 
-            # if self.debug:
-            # print("incoming negative flows node [{}] = ".format(node))
-            # print(in_negative_flows)
-            # print("sum in_negative_flows = ", sum(in_negative_flows))
-            # print("sum in_positive_flows = ", sum(in_positive_flows))
-            # print("sum out_positive_flows = ", sum(out_positive_flows))
             diff_sums = float(all_nodes_value_attributes[node])
             max_pos_in_or_out_flows = max(sum(out_positive_flows), sum(in_positive_flows))
             final_score = np.around(sum(in_negative_flows) + max_pos_in_or_out_flows + diff_sums, decimals=2)
