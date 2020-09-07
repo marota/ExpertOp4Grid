@@ -22,10 +22,13 @@ def alphadeesp_process():
     # Grid and chronic
     # parameters_folder = "./alphaDeesp/ressources/parameters/l2rpn_2019"
     # chronicscenario = "a"
+    # ltc = [9]
     # parameters_folder = "./alphaDeesp/ressources/parameters/rte_case14_realistic"
     # chronicscenario = "000"
+    # ltc = [9]
     parameters_folder = r'C:\Users\nmegel\data_grid2op\l2rpn_wcci_2020'
     chronicscenario = "Scenario_february_069"
+    ltc = [13]
 
     # Other parameters to config
     timestep = 100
@@ -40,7 +43,7 @@ def alphadeesp_process():
         "ThersholdMinPowerOfLoop": 0.1,
         "ThresholdReportOfLine": 0.2}
     }
-    ltc = [13]
+
     snapshot = False
     plot_folder = ""
 
@@ -69,3 +72,6 @@ def alphadeesp_process():
     print("Overflow at lines: " + str(np.where(sim.obs.rho > 1)))
     alphadeesp = AlphaDeesp(g_over, df_of_g, custom_layout, printer, simulator_data, sim.substation_in_cooldown,
                             debug=debug)
+
+if __name__ == '__main__':
+    alphadeesp_process()
