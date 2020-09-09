@@ -212,15 +212,8 @@ class AlphaDeesp:  # AKA SOLVER
         for topo in all_combinations:
             # WARNING the internal_repr is not used further in the code. It is not up to date with the new_graph.
             # Only the original one.
-            if nx.is_weakly_connected(self.g):
-                isSingleNodeTopo = ((np.all(np.array(topo) == 0)) or (np.all(np.array(topo) == 1)))
-                score = self.rank_current_topo_at_node_x(self.g, node_to_change, isSingleNodeTopo, topo)
-            else:
-                # print("\n=============================================================================")
-                # print("WARNING, GRAPH WITH TOPO {} IS NOT CONNECTED, WE SKIP IT".format(topo))
-                # print("=============================================================================")
-                continue
-
+            isSingleNodeTopo = ((np.all(np.array(topo) == 0)) or (np.all(np.array(topo) == 1)))
+            score = self.rank_current_topo_at_node_x(self.g, node_to_change, isSingleNodeTopo, topo)
             if self.debug:
                 print("\n** RESULTS ** new topo [{}] on node [{}] has a score: [{}]\n".format(topo, node_to_change, score))
             score_data = [score, topo, node_to_change]
@@ -228,6 +221,9 @@ class AlphaDeesp:  # AKA SOLVER
             # max_index == last row in dataframe ranked_combinations, to append next row
             max_index = ranked_combinations.shape[0]  # rows
             ranked_combinations.loc[max_index] = score_data
+        # =================================================
+        # Tempo
+        ranked_combinations.to_csv("NEW_rank_topologies_l2rpn_2019_node_"+str(node_to_change)+".csv", sep = ';', decimal = ',')
         return ranked_combinations
 
     # WARNING: does not work yet when you go back from two nodes to one node at a given substation? Basically one node will be not connected?
@@ -407,7 +403,7 @@ class AlphaDeesp:  # AKA SOLVER
             # somme des reports négatifs entrants + sommes des reports positifs entrants
             for edge in graph.in_edges(node):
                 edge_bus_id = self.get_bus_id_from_edge(node, edge, topo_vect)
-                if edge_bus_id == interesting_bus_id:
+                if edge_bus_id == interesting_bus_id: # MASK
                     edge_flow_value = float(all_edges_xlabel_attributes[edge])
                     if edge_flow_value < 0:
                         in_negative_flows.append(fabs(edge_flow_value))
@@ -417,7 +413,7 @@ class AlphaDeesp:  # AKA SOLVER
             # somme des reports positifs sortant +
             for edge in graph.out_edges(node):
                 edge_bus_id = self.get_bus_id_from_edge(node, edge, topo_vect)
-                if edge_bus_id == interesting_bus_id:
+                if edge_bus_id == interesting_bus_id: # MASK
                     edge_flow_value = float(all_edges_xlabel_attributes[edge])
                     if edge_flow_value > 0:
                         out_positive_flows.append(edge_flow_value)
@@ -426,6 +422,7 @@ class AlphaDeesp:  # AKA SOLVER
             max_pos_in_or_out_flows = max(sum(out_positive_flows), sum(in_positive_flows))
             final_score = np.around(sum(in_negative_flows) + max_pos_in_or_out_flows + diff_sums, decimals=2)
             if self.debug:
+                print("AMONT")
                 print("diff_sums = ", diff_sums)
                 print(type(diff_sums))
                 print("max_pos_in_or_out_flows = ", max_pos_in_or_out_flows)
@@ -452,7 +449,7 @@ class AlphaDeesp:  # AKA SOLVER
             # somme des reports negatifs et positifs SORTANT
             for edge in graph.out_edges(node):
                 edge_bus_id = self.get_bus_id_from_edge(node, edge, topo_vect)
-                if edge_bus_id == interesting_bus_id:
+                if edge_bus_id == interesting_bus_id: # MASK
                     edge_flow_value = float(all_edges_xlabel_attributes[edge])
                     if edge_flow_value < 0:
                         out_negative_flows.append(fabs(edge_flow_value))
@@ -460,8 +457,8 @@ class AlphaDeesp:  # AKA SOLVER
                         out_positive_flows.append(edge_flow_value)
 
             for edge in graph.in_edges(node):
-                edge_bus_id = self.get_bus_id_from_edge(edge)
-                if edge_bus_id == interesting_bus_id:
+                edge_bus_id = self.get_bus_id_from_edge(node, edge, topo_vect)
+                if edge_bus_id == interesting_bus_id: # MASK
                     edge_flow_value = float(all_edges_xlabel_attributes[edge])
                     if edge_flow_value > 0:
                         in_positive_flows.append(edge_flow_value)
@@ -483,6 +480,7 @@ class AlphaDeesp:  # AKA SOLVER
             final_score = np.around(sum(out_negative_flows) + max_pos_in_or_out_flows + diff_sums, decimals=2)
 
             if self.debug:
+                print("AVAL")
                 print("diff_sums = ", diff_sums)
                 print("Final score = ", final_score)
                 print(type(final_score))
@@ -553,14 +551,28 @@ class AlphaDeesp:  # AKA SOLVER
         return total
 
     def get_bus_id_from_edge(self, node, edge, topo_vect):
+        """
+        Knowing that topo_vect is applied on given node, returns on which bus_id is connected a given edge
+
+        :param node:
+        :param edge:
+        :param topo_vect:
+        :return: an int representing the bus_id on which the edge is connected to node
+        """
+
+        # Get edge substation id extremity (the other one than edge)
+        target_extremity = edge[0]
+        if target_extremity == node:
+            target_extremity = edge[1]
+
+        # Get elements connected to the substation (given by "node") - iterate to find whic one corresponds to edge - return corresponding bus_id
         elements = self.simulator_data["substations_elements"][node]
         for element, bus_id in zip(elements, topo_vect):
             if isinstance(element, OriginLine):
-                if element.end_substation_id == edge.extremity:  # todo NMegel edge.extremity networkx get the proper edge extremity here. I think we need to do
-                                                                # extremities = graph.get_edge_attribute("node") and then do extremities[edge] or something.
+                if element.end_substation_id == target_extremity:
                     return bus_id
             elif isinstance(element, ExtremityLine):
-                if element.start_substation_id == edge.extremity:  # todo NMegel edge.extremity networkx
+                if element.start_substation_id == target_extremity:
                     return bus_id
 
     def is_connected_to_cpath(self, all_edges_color_attributes, all_edges_xlabel_attributes, node, edge, isSingleNode):
