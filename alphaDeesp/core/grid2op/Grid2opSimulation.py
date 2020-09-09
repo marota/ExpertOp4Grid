@@ -20,15 +20,18 @@ class Grid2opSimulation(Simulation):
             layout = self.param_options['CustomLayout']
             # Conversion from string to list
             layout = ast.literal_eval(layout)
+            print("WARNING : A CustomLayout has been given in config.ini. This layout will be set for the simulator")
         except:
             try:
                 # Grid2op Layout if exists
                 layout = list(self.obs.grid_layout.values())
+                print("WARNING : No CustomLayout has been given in config.ini. The grid_layout in Grid2Op structure will be set for the simulator")
             except:
                 layout = [(-280, -81), (-100, -270), (366, -270), (366, -54), (-64, -54), (-64, 54), (366, 0),
                           (438, 0), (326, 54), (222, 108), (79, 162), (-152, 270), (-64, 270), (222, 216),
                           (-280, -151), (-100, -340), (366, -340), (390, -110), (-14, -104), (-184, 54), (400, -80),
                           (438, 100), (326, 140), (200, 8), (79, 12), (-152, 170), (-70, 200), (222, 200)]
+                print("WARNING : No CustomLayout has been given in config.ini and no grid_layout has been found in Grid2op data. Default layout is set and might cause plotting errors : "+str(layout))
         return layout
 
     def get_layout(self):
