@@ -209,7 +209,10 @@ class AlphaDeesp:  # AKA SOLVER
             "node": ["X"]
         }
         ranked_combinations = pd.DataFrame(ranked_combinations_structure_initiation)
-        for topo in all_combinations:
+        # ===========================================
+        print("\nNOEUD "+str(node_to_change))
+        print("number of topo to test "+str(len(all_combinations)))
+        for i, topo in enumerate(all_combinations):
             # WARNING the internal_repr is not used further in the code. It is not up to date with the new_graph.
             # Only the original one.
             isSingleNodeTopo = ((np.all(np.array(topo) == 0)) or (np.all(np.array(topo) == 1)))
@@ -221,9 +224,11 @@ class AlphaDeesp:  # AKA SOLVER
             # max_index == last row in dataframe ranked_combinations, to append next row
             max_index = ranked_combinations.shape[0]  # rows
             ranked_combinations.loc[max_index] = score_data
+            # =======================================================
+            if i % 10000 ==0:
+                print("Done: "+str(i)+" topos")
         # =================================================
-        # Tempo
-        ranked_combinations.to_csv("NEW_rank_topologies_l2rpn_2019_node_"+str(node_to_change)+".csv", sep = ';', decimal = ',')
+        #ranked_combinations.to_csv("NEW_rank_topologies_l2rpn_2019_node_"+str(node_to_change)+".csv", sep = ';', decimal = ',')
         return ranked_combinations
 
     # WARNING: does not work yet when you go back from two nodes to one node at a given substation? Basically one node will be not connected?
@@ -385,8 +390,13 @@ class AlphaDeesp:  # AKA SOLVER
         all_edges_color_attributes = nx.get_edge_attributes(graph, "color")  # dict[edge]
         all_edges_xlabel_attributes = nx.get_edge_attributes(graph, "xlabel")  # dict[edge]
 
+        # ======================================
+        #print('\nnoeud '+str(node)+' topo '+str(topo_vect))
+
         #  ########## IS IN AMONT ##########
         if node in self.constrained_path.n_amont():
+            # ======================================
+            #print("AMONT")
             if self.debug:
                 print("||||||||||||||||||||||||||| node [{}] is in_Amont of constrained_edge".format(node))
             in_negative_flows = []
@@ -432,6 +442,8 @@ class AlphaDeesp:  # AKA SOLVER
 
         #  ########## IS IN AVAL ##########
         elif node in self.constrained_path.n_aval():
+            # =============================================================
+            #print("AVAL")
             if self.debug:
                 print("||||||||||||||||||||||||||| node [{}] is in_Aval of constrained_edge".format(node))
 
@@ -488,6 +500,8 @@ class AlphaDeesp:  # AKA SOLVER
         #  ########## IS IN Loop ##########
         # you want a node with the maximum output lines connected to the ingoing red loop edges, not connected to other ingoing edges
         elif node in set([x for loop in range(len(self.red_loops.Path)) for x in self.red_loops.Path[loop]]):
+            # ========================================================================
+            # print("AUTRE")
             node2 = int("666" + str(node))
 
             if (node2 in nx.get_node_attributes(graph, "value").keys()):  # need to be a 2 node topology
@@ -526,6 +540,9 @@ class AlphaDeesp:  # AKA SOLVER
                 final_score = np.around(min_pos_in_or_out_flows - injection, decimals=2)
         else:
             print("||||||||||||||||||||||||||| node [{}] is not connected to a path to the constrained_edge.".format(node))
+        #=====================================================================
+        # print("SCOREEEEE "+str(final_score))
+        # print('\n')
         return final_score
 
     def is_in_aval(self, graph, node):  # in Aval of constrained_edge
@@ -580,12 +597,12 @@ class AlphaDeesp:  # AKA SOLVER
         edge_value = all_edges_xlabel_attributes[edge]
         # if there is a outgoing negative blue or black edge this means we are connected to cpath.
         # therefore change to bus ID 1
-        if float(edge_value) < 0 and (edge_color == "blue" or edge_color == "black") and not isSingleNode:
-            interesting_bus_id = 1
-            if self.debug:
-                print("\n######################################################")
-                print("Node [{}] is not connected to cpath. Twin node selected...".format(node))
-                print("######################################################")
+        bool = (float(edge_value) < 0 and (edge_color == "blue" or edge_color == "black") and not isSingleNode)
+        if bool and self.debug:
+            print("\n######################################################")
+            print("Node [{}] is not connected to cpath. Twin node selected...".format(node))
+            print("######################################################")
+        return bool
 
     def is_in_amont(self, graph, node):  # in Amont of constrained_edge
         # g = self.g
