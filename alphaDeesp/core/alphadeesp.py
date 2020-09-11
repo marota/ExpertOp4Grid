@@ -226,7 +226,7 @@ class AlphaDeesp:  # AKA SOLVER
         ranked_combinations = pd.DataFrame(columns = ranked_combinations_columns, data = scores_data)
 
         # =================================================
-        # ranked_combinations.to_csv("NEW_rank_topologies_l2rpn_2019_node_"+str(node_to_change)+".csv", sep = ';', decimal = ',')
+        ranked_combinations.to_csv("NEW_rank_topologies_l2rpn_2019_node_"+str(node_to_change)+".csv", sep = ';', decimal = ',')
         return ranked_combinations
 
     # WARNING: does not work yet when you go back from two nodes to one node at a given substation? Basically one node will be not connected?
@@ -502,40 +502,41 @@ class AlphaDeesp:  # AKA SOLVER
             # print("AUTRE")
             node2 = int("666" + str(node))
 
-            if (node2 in nx.get_node_attributes(graph, "value").keys()):  # need to be a 2 node topology
-                node2 = int("666" + str(node))
+            if 1 in topo_vect and 0 in topo_vect:  # need to be a 2 node topology
                 # we find the node with the biggest red ingoing delta flow
                 InputRedDeltaFlow_1 = 0
                 InputRedDeltaFlow_2 = 0
 
-                for edge in graph.in_edges(node):
-                    edge_color = all_edges_color_attributes[edge]
-                    edge_value = float(all_edges_xlabel_attributes[edge])
-                    if (edge_color == "red"):
-                        InputRedDeltaFlow_1 += edge_value
-                for edge in graph.in_edges(node2):  # we inspect the 2nd node as well
-                    edge_color = all_edges_color_attributes[edge]
-                    edge_value = float(all_edges_xlabel_attributes[edge])
-                    if (edge_color == "red"):
-                        InputRedDeltaFlow_2 += edge_value
 
-                Node_BiggestInputDeltaFlow = node
+                for edge in graph.in_edges(node):
+                    edge_bus_id = self.get_bus_id_from_edge(node, edge, topo_vect)
+                    edge_color = all_edges_color_attributes[edge]
+                    edge_value = float(all_edges_xlabel_attributes[edge])
+                    if (edge_color == "red"):
+                        if edge_bus_id == 0: # MASK
+                            InputRedDeltaFlow_1 += edge_value
+                        elif edge_bus_id == 1: # MASK
+                            InputRedDeltaFlow_2 += edge_value
+
+                Bus_BiggestInputDeltaFlow = 0
                 InputRedDeltaFlow = InputRedDeltaFlow_1
                 if (InputRedDeltaFlow_2 >= InputRedDeltaFlow_1):
-                    Node_BiggestInputDeltaFlow = node2
+                    Bus_BiggestInputDeltaFlow = 1
                     InputRedDeltaFlow = InputRedDeltaFlow_2
                 ###
                 # over node with BiggestInputDeltaFlow, we want as much ingoing and outgoing red flow possible, with least possible production
                 OutputRedDeltaFlow = 0
-                for edge in graph.out_edges(Node_BiggestInputDeltaFlow):
-                    edge_color = all_edges_color_attributes[edge]
-                    edge_value = float(all_edges_xlabel_attributes[edge])
-                    if (edge_color == "red"):
-                        OutputRedDeltaFlow += edge_value
+                for edge in graph.out_edges(node):
+                    edge_bus_id = self.get_bus_id_from_edge(node, edge, topo_vect)
+                    if edge_bus_id == Bus_BiggestInputDeltaFlow:
+                        edge_color = all_edges_color_attributes[edge]
+                        edge_value = float(all_edges_xlabel_attributes[edge])
+                        if (edge_color == "red"):
+                            OutputRedDeltaFlow += edge_value
 
                 min_pos_in_or_out_flows = min(OutputRedDeltaFlow, InputRedDeltaFlow)
-                injection = float(all_nodes_value_attributes[Node_BiggestInputDeltaFlow])
-                final_score = np.around(min_pos_in_or_out_flows - injection, decimals=2)
+                injection = -self.get_prod_conso_sum(node, Bus_BiggestInputDeltaFlow, topo_vect)
+                final_score = np.around(min_pos_in_or_out_flows + injection, decimals=2)
         else:
             print("||||||||||||||||||||||||||| node [{}] is not connected to a path to the constrained_edge.".format(node))
 
