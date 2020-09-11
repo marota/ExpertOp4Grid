@@ -226,7 +226,7 @@ class AlphaDeesp:  # AKA SOLVER
         ranked_combinations = pd.DataFrame(columns = ranked_combinations_columns, data = scores_data)
 
         # =================================================
-        ranked_combinations.to_csv("NEW_rank_topologies_l2rpn_2019_node_"+str(node_to_change)+".csv", sep = ';', decimal = ',')
+        # ranked_combinations.to_csv("NEW_rank_topologies_l2rpn_2019_node_"+str(node_to_change)+".csv", sep = ';', decimal = ',')
         return ranked_combinations
 
     # WARNING: does not work yet when you go back from two nodes to one node at a given substation? Basically one node will be not connected?
