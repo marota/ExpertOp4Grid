@@ -202,16 +202,14 @@ class AlphaDeesp:  # AKA SOLVER
             add to df
             next
         """
-        # created dataframe here
-        ranked_combinations_structure_initiation = {
-            "score": ["XX"],
-            "topology": [["X", "X", "X"]],
-            "node": ["X"]
-        }
-        ranked_combinations = pd.DataFrame(ranked_combinations_structure_initiation)
+
+        ranked_combinations_columns = ["score", "topology", "node"]
+        scores_data = [["XX", ["X", "X", "X"], "X"]]
+
         # ===========================================
-        print("\nNOEUD "+str(node_to_change))
-        print("number of topo to test "+str(len(all_combinations)))
+        # print("\nNOEUD "+str(node_to_change))
+        # print("number of topo to test "+str(len(all_combinations)))
+
         for i, topo in enumerate(all_combinations):
             # WARNING the internal_repr is not used further in the code. It is not up to date with the new_graph.
             # Only the original one.
@@ -219,16 +217,16 @@ class AlphaDeesp:  # AKA SOLVER
             score = self.rank_current_topo_at_node_x(self.g, node_to_change, isSingleNodeTopo, topo)
             if self.debug:
                 print("\n** RESULTS ** new topo [{}] on node [{}] has a score: [{}]\n".format(topo, node_to_change, score))
-            score_data = [score, topo, node_to_change]
+            scores_data.append([score, topo, node_to_change])
 
-            # max_index == last row in dataframe ranked_combinations, to append next row
-            max_index = ranked_combinations.shape[0]  # rows
-            ranked_combinations.loc[max_index] = score_data
             # =======================================================
-            if i % 10000 ==0:
-                print("Done: "+str(i)+" topos")
+            # if i % 10000 ==0:
+              #   print("Done: "+str(i)+" topos")
+
+        ranked_combinations = pd.DataFrame(columns = ranked_combinations_columns, data = scores_data)
+
         # =================================================
-        #ranked_combinations.to_csv("NEW_rank_topologies_l2rpn_2019_node_"+str(node_to_change)+".csv", sep = ';', decimal = ',')
+        # ranked_combinations.to_csv("NEW_rank_topologies_l2rpn_2019_node_"+str(node_to_change)+".csv", sep = ';', decimal = ',')
         return ranked_combinations
 
     # WARNING: does not work yet when you go back from two nodes to one node at a given substation? Basically one node will be not connected?
@@ -391,7 +389,7 @@ class AlphaDeesp:  # AKA SOLVER
         all_edges_xlabel_attributes = nx.get_edge_attributes(graph, "xlabel")  # dict[edge]
 
         # ======================================
-        #print('\nnoeud '+str(node)+' topo '+str(topo_vect))
+        # print('\nnoeud '+str(node)+' topo '+str(topo_vect))
 
         #  ########## IS IN AMONT ##########
         if node in self.constrained_path.n_amont():
@@ -540,8 +538,9 @@ class AlphaDeesp:  # AKA SOLVER
                 final_score = np.around(min_pos_in_or_out_flows - injection, decimals=2)
         else:
             print("||||||||||||||||||||||||||| node [{}] is not connected to a path to the constrained_edge.".format(node))
+
         #=====================================================================
-        # print("SCOREEEEE "+str(final_score))
+        # print("SCORE   ---  "+str(final_score))
         # print('\n')
         return final_score
 
