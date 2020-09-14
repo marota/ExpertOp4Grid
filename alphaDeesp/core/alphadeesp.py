@@ -171,27 +171,41 @@ class AlphaDeesp:  # AKA SOLVER
         else:
             l = [0, 1]
             allcomb = [list(i) for i in itertools.product(l, repeat=n_elements)]
+
+            #we also want to filter combs that only have prods and loads connected to a node
+            nProds_loads=0
+            for element in node_configuration_elements:
+                if isinstance(element, Production) or isinstance(element, Consumption):
+                    nProds_loads+=1
+                else:
+                    break
+
             # we get rid of symetrical topologies by fixing the first element to busbar 0.
             # ideally if first element is not connected, we should fix the first connected element
             # Also a node should also have 2 elements connected to it, we filter that as well
-            uniqueComb = [allcomb[i] for i in range(len(allcomb))
-                          if (allcomb[i][0] == 0) & (allcomb[i] != node_configuration) & (allcomb[i] != node_configuration_sym) &
-                          (np.sum(allcomb[i]) != 1) & (np.sum(allcomb[
-                                                                  i]) != n_elements - 1)]  # we get rid of symetrical topologies by fixing the first element to busbar 0. ideally if first element is not connected, we should fix the first connected element
+            uniqueComb = [allcomb[i] for i in range(len(allcomb)) if self.legal_comb(allcomb[i],nProds_loads,n_elements,node_configuration,node_configuration_sym)]
+                          #if (allcomb[i][0] == 0) & (allcomb[i] != node_configuration) & (allcomb[i] != node_configuration_sym) &
+                          #(np.sum(allcomb[i]) != 1) & (np.sum(allcomb[i]) != n_elements - 1) &
+                          #]  # we get rid of symetrical topologies by fixing the first element to busbar 0. ideally if first element is not connected, we should fix the first connected element
 
-        # previous method but returning too many combinations while their should be only all of all the possible combinations
-        # arg = [n for n in range(length)]
-        # res = []
-        # external_i = 0
-        # for c in range(2, int(ceil(length/2) + 1)):
-        #    res_comb = list(itertools.combinations(arg, c))
-        #    for pos in res_comb:
-        #        res.append(list(np.zeros(length, dtype=int)))
-        #        for p in pos:
-        #            res[external_i][p] = 1
-        #        external_i += 1
-        # return res
+
         return uniqueComb
+
+    def legal_comb(self,comb,nProd_loads,n_elements,node_configuration,node_configuration_sym):
+        sum_comb=np.sum(comb)
+        busBar_prods_loads=set(comb[0:nProd_loads])
+        busBar_lines = set(comb[nProd_loads:])
+
+        areProdsLoadsIsolated=False
+        if(nProd_loads>=2) and (sum_comb != 1) and (sum_comb != n_elements - 1):
+            busbar_diff=set(busBar_prods_loads)-set(busBar_lines)
+            if(len(busbar_diff)!=0):
+                areProdsLoadsIsolated=True
+
+        legal_condition=((comb[0] == 0) & (comb != node_configuration) & (comb != node_configuration_sym) &
+        (sum_comb != 1) & (sum_comb != n_elements - 1) & (areProdsLoadsIsolated==False))
+
+        return legal_condition
 
     def rank_topologies(self, all_combinations, graph, node_to_change: int):
         """==> ultimate goal: This function returns a DF with topologies ranked
