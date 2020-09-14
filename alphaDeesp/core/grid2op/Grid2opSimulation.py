@@ -446,6 +446,31 @@ class Grid2opSimulation(Simulation):
                 return sub  # this is an Antenna
         return None
 
+    def isDoubleLine(self):
+        ltc = self.ltc[0]
+        obs = self.obs
+
+        sub_or = int(obs.line_or_to_subid[ltc])
+        sub_ex = int(obs.line_ex_to_subid[ltc])
+
+        linesOr_atSubOr = list(obs.get_obj_connect_to(substation_id=sub_or)['lines_or_id'])
+        linesEx_atSubOr = list(obs.get_obj_connect_to(substation_id=sub_or)['lines_ex_id'])
+
+        lines_atSubOr=linesOr_atSubOr+linesEx_atSubOr
+
+        linesOr_atSubEx = list(obs.get_obj_connect_to(substation_id=sub_ex)['lines_or_id'])
+        linesEx_atSubEx = list(obs.get_obj_connect_to(substation_id=sub_ex)['lines_ex_id'])
+
+        lines_atSubEx = linesOr_atSubEx+linesEx_atSubEx
+
+        Common_lines=[l for l in lines_atSubEx if (l in lines_atSubOr) and (l != ltc)]
+
+        if(len(Common_lines)==0):
+            return None
+        else:
+            return Common_lines
+
+
     def getLinesAtSubAndBusbar(self):
         ltc = self.ltc[0]
         obs=self.obs

@@ -130,6 +130,10 @@ class PypownetSimulation(Simulation):
         """TODO"""
         return None
 
+    def isDoubleLine(self):
+        """TODO"""
+        return None
+
     def getLinesAtSubAndBusbar(self):
         """TODO"""
         return None

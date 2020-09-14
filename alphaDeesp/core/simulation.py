@@ -21,6 +21,9 @@ class Simulation(ABC):
     @abstractmethod
     def isAntenna(self):
         """TODO"""
+    @abstractmethod
+    def isDoubleLine(self):
+        """TODO"""
 
     @abstractmethod
     def getLinesAtSubAndBusbar(self):
