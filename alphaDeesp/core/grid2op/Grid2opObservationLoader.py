@@ -46,6 +46,7 @@ class Grid2opObservationLoader:
             else:
                 raise ValueError("Chronic scenario name: "+chronic_scenario+" not found in folder")
 
+
         # Method fast_forward_chronics doesnt work properly
         if timestep >0:
             self.env.fast_forward_chronics(nb_timestep= timestep)
@@ -64,5 +65,13 @@ class Grid2opObservationLoader:
 
         # Get action space to enable action generation for simulation
         action_space = self.env.action_space
+
         return self.env, obs, action_space
+
+    def search_chronic_name_from_num(self, num):
+        for id, sp in enumerate(self.env.chronics_handler.real_data.subpaths):
+            chronic_scenario = os.path.basename(sp)
+            if id == num:
+                break
+        return chronic_scenario
 

@@ -61,23 +61,6 @@ def main():
     args.debug = bool(args.debug)
     args.snapshot = bool(args.snapshot)
 
-    if args.snapshot:
-        plot_folder = "alphaDeesp/ressources/output"
-        os.makedirs(plot_folder, exist_ok=True)
-        gridName = config['DEFAULT']['gridPath'].split('/')[-1]
-        plot_folder = os.path.join(plot_folder, gridName)
-        os.makedirs(plot_folder, exist_ok=True)
-        lineName = 'linetocut_'+str(args.ltc[0])
-        plot_folder = os.path.join(plot_folder, lineName)
-        os.makedirs(plot_folder, exist_ok=True)
-        scenarioName = 'Scenario_'+str(args.chronicscenario)
-        plot_folder = os.path.join(plot_folder, scenarioName)
-        os.makedirs(plot_folder, exist_ok=True)
-        timestepName = 'Timestep_' + str(args.timestep)
-        plot_folder = os.path.join(plot_folder, timestepName)
-        os.makedirs(plot_folder, exist_ok=True)
-    else:
-        plot_folder = None
 
     if config["DEFAULT"]["simulatorType"] == "Pypownet":
         print("We init Pypownet Simulation")
@@ -103,6 +86,18 @@ def main():
         loader = Grid2opObservationLoader(parameters_folder, difficulty = difficulty)
         env, obs, action_space = loader.get_observation(chronic_scenario= args.chronicscenario, timestep=args.timestep)
         observation_space = env.observation_space
+
+        # Lok for scenario Name if none has been given (first one by default)
+        if args.chronicscenario is None:
+            args.chronicscenario = loader.search_chronic_name_from_num(0)
+
+        # Create plot folders locally
+        if args.snapshot:
+            plot_base_folder = "alphaDeesp/ressources/output"
+            plot_folder = generate_plot_folders(plot_base_folder, args, config)
+        else:
+            plot_folder = None
+
         sim = Grid2opSimulation(obs, action_space, observation_space, param_options=config["DEFAULT"], debug=args.debug,
                                  ltc=args.ltc, plot=args.snapshot, plot_folder = plot_folder)
 
@@ -118,6 +113,23 @@ def main():
     ranked_combinations, expert_system_results, action = expert_operator(sim, plot=args.snapshot)
 
     return ranked_combinations, expert_system_results, action
+
+
+def generate_plot_folders(plot_folder, args, config):
+    os.makedirs(plot_folder, exist_ok=True)
+    gridName = config['DEFAULT']['gridPath'].split('/')[-1]
+    plot_folder = os.path.join(plot_folder, gridName)
+    os.makedirs(plot_folder, exist_ok=True)
+    lineName = 'linetocut_' + str(args.ltc[0])
+    plot_folder = os.path.join(plot_folder, lineName)
+    os.makedirs(plot_folder, exist_ok=True)
+    scenarioName = 'Scenario_' + str(args.chronicscenario)
+    plot_folder = os.path.join(plot_folder, scenarioName)
+    os.makedirs(plot_folder, exist_ok=True)
+    timestepName = 'Timestep_' + str(args.timestep)
+    plot_folder = os.path.join(plot_folder, timestepName)
+    os.makedirs(plot_folder, exist_ok=True)
+    return plot_folder
 
 if __name__ == "__main__":
     main()
