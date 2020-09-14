@@ -35,6 +35,9 @@ def expert_operator(sim, plot=False, debug=False):
 
     #check if problem is not simply an antenna
     isAntenna_Sub=sim.isAntenna()
+    isDoubleLine = sim.isDoubleLine()
+    if isDoubleLine is not None:
+        print("check")
 
     # Launch alphadeesp core
     if isAntenna_Sub is None:
