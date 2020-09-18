@@ -123,8 +123,8 @@ def test_integration_dataframe_results_with_line_9_cut():
     Line 9 is between Node 4 and 5 [internal node ID indexing]
     Test
     """
-    import os
-    os.chdir('../../../')
+    # import os
+    # os.chdir('../../../')
 
     ltc = 9
     param_folder = "./alphaDeesp/tests/resources_for_tests_grid2op/l2rpn_2019_ltc_9"
@@ -142,7 +142,7 @@ def test_integration_dataframe_results_with_line_9_cut():
     ranked_combinations = alphadeesp.get_ranked_combinations()
     expert_system_results, actions = sim.compute_new_network_changes(ranked_combinations)
 
-    expert_system_results.to_csv("alphaDeesp/tests/resources_for_tests_grid2op/END_RESULT_DATAFRAME_G2OP_LTC9_9CAPA_230_generated.csv")
+    # expert_system_results.to_csv("alphaDeesp/tests/resources_for_tests_grid2op/END_RESULT_DATAFRAME_G2OP_LTC9_9CAPA_230_generated.csv")
 
     path_to_saved_end_result_dataframe = \
         Path.cwd() / "alphaDeesp/tests/resources_for_tests_grid2op/END_RESULT_DATAFRAME_G2OP_LTC9_9CAPA_230.csv"
@@ -150,7 +150,7 @@ def test_integration_dataframe_results_with_line_9_cut():
     saved_df = pd.read_csv(path_to_saved_end_result_dataframe, index_col=0)
 
     # List understandable format
-    saved_df["Topology applied"] = saved_df["Topology applied"].str.replace(" ", ",")
+    saved_df["Internal Topology applied "] = saved_df["Internal Topology applied "].str.replace(" ", ",")
 
     #print("The two dataframes are equal: ", are_dataframes_equal(expert_system_results, saved_df))
     assert are_dataframes_equal(expert_system_results, saved_df)
@@ -163,8 +163,8 @@ def test_integration_dataframe_results_with_line_8_cut():
     Test
     """
 
-    import os
-    os.chdir('../../../')
+    # import os
+    # os.chdir('../../../')
 
     ltc = 8
     param_folder = "./alphaDeesp/tests/resources_for_tests_grid2op/l2rpn_2019_ltc_8"
@@ -182,7 +182,7 @@ def test_integration_dataframe_results_with_line_8_cut():
     ranked_combinations = alphadeesp.get_ranked_combinations()
     expert_system_results, actions = sim.compute_new_network_changes(ranked_combinations)
 
-    expert_system_results.to_csv("alphaDeesp/tests/resources_for_tests_grid2op/END_RESULT_DATAFRAME_G2OP_LTC8_8CAPA_88_generated.csv")
+    # expert_system_results.to_csv("alphaDeesp/tests/resources_for_tests_grid2op/END_RESULT_DATAFRAME_G2OP_LTC8_8CAPA_88_generated.csv")
 
     path_to_saved_end_result_dataframe = \
         Path.cwd() / "alphaDeesp/tests/resources_for_tests_grid2op/END_RESULT_DATAFRAME_G2OP_LTC8_8CAPA_88.csv"
@@ -190,7 +190,7 @@ def test_integration_dataframe_results_with_line_8_cut():
     saved_df = pd.read_csv(path_to_saved_end_result_dataframe, index_col=0)
 
     # List understandable format
-    saved_df["Topology applied"] = saved_df["Topology applied"].str.replace(" ", ",")
+    saved_df["Internal Topology applied "] = saved_df["Internal Topology applied "].str.replace(" ", ",")
 
     #print("The two dataframes are equal: ", are_dataframes_equal(expert_system_results, saved_df))
     assert are_dataframes_equal(expert_system_results, saved_df)
@@ -203,8 +203,8 @@ def test_integration_dataframe_results_with_modified_substation4():
     Test
     """
 
-    import os
-    os.chdir('../../../')
+    # import os
+    # os.chdir('../../../')
 
     timestep = 5
     ltc = 8
@@ -236,7 +236,7 @@ def test_integration_dataframe_results_with_modified_substation4():
     ranked_combinations = alphadeesp.get_ranked_combinations()
     expert_system_results, actions = sim.compute_new_network_changes(ranked_combinations)
     # =============
-    expert_system_results.to_csv("alphaDeesp/tests/resources_for_tests_grid2op/END_RESULT_DATAFRAME_G2OP_MODIFIED_SUBSTATION4_generated.csv")
+    # expert_system_results.to_csv("alphaDeesp/tests/resources_for_tests_grid2op/END_RESULT_DATAFRAME_G2OP_MODIFIED_SUBSTATION4_generated.csv")
 
     # Read desired results
     path_to_saved_end_result_dataframe = \
@@ -245,7 +245,7 @@ def test_integration_dataframe_results_with_modified_substation4():
 
     ## Properly compare the two dataframes
     # List understandable format
-    saved_df["Topology applied"] = saved_df["Topology applied"].str.replace(" ", ",")
+    saved_df["Internal Topology applied "] = saved_df["Internal Topology applied "].str.replace(" ", ",")
     #print("The two dataframes are equal: ", are_dataframes_equal(expert_system_results, saved_df))
     assert are_dataframes_equal(expert_system_results, saved_df)
 
@@ -255,8 +255,8 @@ def test_integration_dataframe_results_with_case_14_realistic():
     Test
     """
 
-    import os
-    os.chdir('../../../')
+    # import os
+    # os.chdir('../../../')
 
     ltc = 4
     chronic_scenario = "000"
@@ -277,7 +277,7 @@ def test_integration_dataframe_results_with_case_14_realistic():
     ranked_combinations = alphadeesp.get_ranked_combinations()
     expert_system_results, actions = sim.compute_new_network_changes(ranked_combinations)
 
-    expert_system_results.to_csv("alphaDeesp/tests/resources_for_tests_grid2op/END_RESULT_DATAFRAME_G2OP_CASE14_REALISTIC_generated.csv")
+    # expert_system_results.to_csv("alphaDeesp/tests/resources_for_tests_grid2op/END_RESULT_DATAFRAME_G2OP_CASE14_REALISTIC_generated.csv")
 
     path_to_saved_end_result_dataframe = \
         Path.cwd() / "alphaDeesp/tests/resources_for_tests_grid2op/END_RESULT_DATAFRAME_G2OP_CASE14_REALISTIC.csv"
@@ -285,7 +285,7 @@ def test_integration_dataframe_results_with_case_14_realistic():
     saved_df = pd.read_csv(path_to_saved_end_result_dataframe, index_col=0)
 
     # List understandable format
-    saved_df["Topology applied"] = saved_df["Topology applied"].str.replace(" ", ",")
+    saved_df["Internal Topology applied "] = saved_df["Internal Topology applied "].str.replace(" ", ",")
 
     #print("The two dataframes are equal: ", are_dataframes_equal(expert_system_results, saved_df))
     assert are_dataframes_equal(expert_system_results, saved_df)
@@ -297,8 +297,8 @@ def test_integration_dataframe_results_no_hubs():
     Test
     """
 
-    import os
-    os.chdir('../../../')
+    # import os
+    # os.chdir('../../../')
 
     ltc = 9
     chronic_scenario = "b"
@@ -319,7 +319,7 @@ def test_integration_dataframe_results_no_hubs():
     ranked_combinations = alphadeesp.get_ranked_combinations()
     expert_system_results, actions = sim.compute_new_network_changes(ranked_combinations)
 
-    expert_system_results.to_csv("alphaDeesp/tests/resources_for_tests_grid2op/END_RESULT_DATAFRAME_G2OP_NO_HUBS_generated.csv")
+    # expert_system_results.to_csv("alphaDeesp/tests/resources_for_tests_grid2op/END_RESULT_DATAFRAME_G2OP_NO_HUBS_generated.csv")
 
     path_to_saved_end_result_dataframe = \
         Path.cwd() / "alphaDeesp/tests/resources_for_tests_grid2op/END_RESULT_DATAFRAME_G2OP_NO_HUBS.csv"
@@ -327,7 +327,7 @@ def test_integration_dataframe_results_no_hubs():
     saved_df = pd.read_csv(path_to_saved_end_result_dataframe, index_col=0)
 
     # List understandable format
-    saved_df["Topology applied"] = saved_df["Topology applied"].str.replace(" ", ",")
+    saved_df["Internal Topology applied "] = saved_df["Internal Topology applied "].str.replace(" ", ",")
 
     #print("The two dataframes are equal: ", are_dataframes_equal(expert_system_results, saved_df))
     assert are_dataframes_equal(expert_system_results, saved_df)
