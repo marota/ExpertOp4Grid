@@ -8,16 +8,14 @@ Welcome to ExpertOp4Grid's documentation!
 
 .. toctree::
    :maxdepth: 2
-   :caption: Contents:
+   :caption: Starting kit
 
+   README.rst
+   INSTALL.rst
+   GETTING_STARTED.rst
 
+.. toctree::
+   :maxdepth: 2
+   :caption: Algorithms documentation
 
-Indices and tables
-==================
-
-* :ref:`search`
-* :doc:`./README`
-* :doc:`./INSTALL`
-* :doc:`./GETTING_STARTED`
-* :doc:`./DESCRIPTION`
-
+   DESCRIPTION.rst
