@@ -18,7 +18,7 @@ custom_layout = [(-280, -81), (-100, -270), (366, -270), (366, -54), (-64, -54),
 
 
 def build_sim(ltc, param_folder, config_file = "./alphaDeesp/tests/resources_for_tests_grid2op/config_for_tests.ini",
-              chronic_scenario = 0, timestep = 0):
+              chronic_scenario = None, timestep = 0):
     config = configparser.ConfigParser()
     config.read(config_file)
 
@@ -123,8 +123,8 @@ def test_integration_dataframe_results_with_line_9_cut():
     Line 9 is between Node 4 and 5 [internal node ID indexing]
     Test
     """
-    #import os
-    #os.chdir('../../../')
+    import os
+    os.chdir('../../../')
 
     ltc = 9
     param_folder = "./alphaDeesp/tests/resources_for_tests_grid2op/l2rpn_2019_ltc_9"
@@ -142,7 +142,7 @@ def test_integration_dataframe_results_with_line_9_cut():
     ranked_combinations = alphadeesp.get_ranked_combinations()
     expert_system_results, actions = sim.compute_new_network_changes(ranked_combinations)
 
-    # expert_system_results.to_csv("alphaDeesp/tests/resources_for_tests_grid2op/END_RESULT_DATAFRAME_G2OP_LTC8_8CAPA_88_generated.csv")
+    expert_system_results.to_csv("alphaDeesp/tests/resources_for_tests_grid2op/END_RESULT_DATAFRAME_G2OP_LTC9_9CAPA_230_generated.csv")
 
     path_to_saved_end_result_dataframe = \
         Path.cwd() / "alphaDeesp/tests/resources_for_tests_grid2op/END_RESULT_DATAFRAME_G2OP_LTC9_9CAPA_230.csv"
@@ -163,8 +163,8 @@ def test_integration_dataframe_results_with_line_8_cut():
     Test
     """
 
-    #import os
-    #os.chdir('../../../')
+    import os
+    os.chdir('../../../')
 
     ltc = 8
     param_folder = "./alphaDeesp/tests/resources_for_tests_grid2op/l2rpn_2019_ltc_8"
@@ -182,7 +182,7 @@ def test_integration_dataframe_results_with_line_8_cut():
     ranked_combinations = alphadeesp.get_ranked_combinations()
     expert_system_results, actions = sim.compute_new_network_changes(ranked_combinations)
 
-    #expert_system_results.to_csv("alphaDeesp/tests/resources_for_tests_grid2op/END_RESULT_DATAFRAME_G2OP_LTC8_8CAPA_88_generated.csv")
+    expert_system_results.to_csv("alphaDeesp/tests/resources_for_tests_grid2op/END_RESULT_DATAFRAME_G2OP_LTC8_8CAPA_88_generated.csv")
 
     path_to_saved_end_result_dataframe = \
         Path.cwd() / "alphaDeesp/tests/resources_for_tests_grid2op/END_RESULT_DATAFRAME_G2OP_LTC8_8CAPA_88.csv"
@@ -203,8 +203,8 @@ def test_integration_dataframe_results_with_modified_substation4():
     Test
     """
 
-    #import os
-    #os.chdir('../../../')
+    import os
+    os.chdir('../../../')
 
     timestep = 5
     ltc = 8
@@ -236,6 +236,8 @@ def test_integration_dataframe_results_with_modified_substation4():
     ranked_combinations = alphadeesp.get_ranked_combinations()
     expert_system_results, actions = sim.compute_new_network_changes(ranked_combinations)
     # =============
+    expert_system_results.to_csv("alphaDeesp/tests/resources_for_tests_grid2op/END_RESULT_DATAFRAME_G2OP_MODIFIED_SUBSTATION4_generated.csv")
+
     # Read desired results
     path_to_saved_end_result_dataframe = \
         Path.cwd() / "alphaDeesp/tests/resources_for_tests_grid2op/END_RESULT_DATAFRAME_G2OP_MODIFIED_SUBSTATION4.csv"
@@ -253,11 +255,11 @@ def test_integration_dataframe_results_with_case_14_realistic():
     Test
     """
 
-    # import os
-    # os.chdir('../../../')
+    import os
+    os.chdir('../../../')
 
     ltc = 4
-    chronic_scenario = 0
+    chronic_scenario = "000"
     timestep = 518
     param_folder = "./alphaDeesp/ressources/parameters/rte_case14_realistic" # We go directly in the folder to avoid double storing of "heavy" data
     config_file = "./alphaDeesp/tests/resources_for_tests_grid2op/config_for_tests.ini"
@@ -275,7 +277,7 @@ def test_integration_dataframe_results_with_case_14_realistic():
     ranked_combinations = alphadeesp.get_ranked_combinations()
     expert_system_results, actions = sim.compute_new_network_changes(ranked_combinations)
 
-    # expert_system_results.to_csv("alphaDeesp/tests/resources_for_tests_grid2op/END_RESULT_DATAFRAME_G2OP_CASE14_REALISTIC.csv")
+    expert_system_results.to_csv("alphaDeesp/tests/resources_for_tests_grid2op/END_RESULT_DATAFRAME_G2OP_CASE14_REALISTIC_generated.csv")
 
     path_to_saved_end_result_dataframe = \
         Path.cwd() / "alphaDeesp/tests/resources_for_tests_grid2op/END_RESULT_DATAFRAME_G2OP_CASE14_REALISTIC.csv"
@@ -295,11 +297,11 @@ def test_integration_dataframe_results_no_hubs():
     Test
     """
 
-    #import os
-    #os.chdir('../../../')
+    import os
+    os.chdir('../../../')
 
     ltc = 9
-    chronic_scenario = 1
+    chronic_scenario = "b"
     timestep = 2
     param_folder = "./alphaDeesp/tests/resources_for_tests_grid2op/l2rpn_2019_ltc_9"
     config_file = "./alphaDeesp/tests/resources_for_tests_grid2op/config_for_tests.ini"
@@ -317,7 +319,7 @@ def test_integration_dataframe_results_no_hubs():
     ranked_combinations = alphadeesp.get_ranked_combinations()
     expert_system_results, actions = sim.compute_new_network_changes(ranked_combinations)
 
-    # expert_system_results.to_csv("alphaDeesp/tests/resources_for_tests_grid2op/END_RESULT_DATAFRAME_G2OP_NO_HUBS.csv")
+    expert_system_results.to_csv("alphaDeesp/tests/resources_for_tests_grid2op/END_RESULT_DATAFRAME_G2OP_NO_HUBS_generated.csv")
 
     path_to_saved_end_result_dataframe = \
         Path.cwd() / "alphaDeesp/tests/resources_for_tests_grid2op/END_RESULT_DATAFRAME_G2OP_NO_HUBS.csv"
