@@ -104,21 +104,14 @@ class AlphaDeesp:  # AKA SOLVER
         inputs: selected_ranked_nodes (after having identified routing buses, ie 4 categories)
         :return: pd.DataFrame containing all topologies scored.
         """
-
         selected_ranked_nodes = []
-
-        # print("Nodes to explore in order are: ")
         for key_indice in list(self.structured_topological_actions.keys()):
             res = self.structured_topological_actions[key_indice]
             if res is not None:
-                if res:
-                    for elem in res:
-                        selected_ranked_nodes.append(elem)
-                # print(self.structured_topological_actions[key_indice])
+                for elem in res:
+                    selected_ranked_nodes.append(elem)
 
-        # print("selected ranked nodes = ", selected_ranked_nodes)
         res_container = []
-
         for node in selected_ranked_nodes:
             if node in self.substation_in_cooldown:
                 print("substation " + str(node) + " is in cooldown and no action can be performed on it for now")
