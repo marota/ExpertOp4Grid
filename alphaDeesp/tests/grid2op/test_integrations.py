@@ -372,6 +372,7 @@ def test_integration_l2rpn_wcci_2020_computation_time():
 
     # End time
     elapsed_time = time.time() - start
+    print("the computation time is: " + str(elapsed_time))
     assert (elapsed_time <= max_elapsed_time)
 
 
