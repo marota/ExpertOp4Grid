@@ -15,8 +15,8 @@ To execute in **manual mode**, from root folder, type:
                             If 1, will generate plots of the different grid topologies
                             managed by alphadeesp and store it in alphadeesp/ressources/output
 --chronicscenario | -c string
-                            Name of the folder //TODO
-                            By default, the first available chronic scenario will be chosen, i.e. argument is 0
+                            Name of the folder containing the chronic scenario to consider
+                            By default, the first available folder will be chosen
 --timestep | -t int
                             Integer representing the timestep number at
                             which we want to run alphadeesp simulation
