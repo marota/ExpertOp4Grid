@@ -13,7 +13,7 @@ import subprocess
 import os
 
 
-os.environ['PATH'] += os.pathsep + r'C:\Users\nmegel\graphviz-2.38\release\bin'
+# os.environ['PATH'] += os.pathsep + r'C:\Users\nmegel\graphviz-2.38\release\bin'
 
 
 class AlphaDeesp:  # AKA SOLVER
