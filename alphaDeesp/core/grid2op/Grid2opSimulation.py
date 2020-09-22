@@ -241,7 +241,7 @@ class Grid2opSimulation(Simulation):
 
         else:
             # Fill save bag with observations for further analysis (detailed graph)
-            name = "".join(str(e) for e in new_conf)
+            name = "".join(str(e) for e in alphaDeesp_Internal_topo)#"".join(str(e) for e in new_conf)
             name = str(internal_target_node) + "_" + name
             self.save_bag.append([name, virtual_obs])
             worsened_line_ids = self.create_boolean_array_of_worsened_line_ids(obs, virtual_obs,
