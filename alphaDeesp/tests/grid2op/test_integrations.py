@@ -6,6 +6,7 @@ from pathlib import Path
 import ast
 import numpy as np
 import pandas as pd
+import time
 
 from alphaDeesp.core.grid2op.Grid2opObservationLoader import Grid2opObservationLoader
 from alphaDeesp.core.grid2op.Grid2opSimulation import Grid2opSimulation
@@ -332,6 +333,45 @@ def test_integration_dataframe_results_no_hubs():
     #print("The two dataframes are equal: ", are_dataframes_equal(expert_system_results, saved_df))
     assert are_dataframes_equal(expert_system_results, saved_df)
 
+def test_integration_l2rpn_wcci_2020_computation_time():
+    """
+    In the initial state of the network, all substations are on busbar1
+    Test
+    """
 
+    import os
+    os.chdir('../../../')
+
+    # Time threshold
+    max_elapsed_time = 60 # seconds
+
+    # Configuration
+    ltc = 13
+    chronic_scenario = "Scenario_february_069"
+    timestep = 100
+    param_folder = "./alphaDeesp/tests/resources_for_tests_grid2op/l2rpn_wcci_2020"
+    config_file = "./alphaDeesp/tests/resources_for_tests_grid2op/config_for_tests.ini"
+    sim = build_sim(ltc, param_folder, config_file = config_file, timestep=timestep, chronic_scenario=chronic_scenario)
+
+    # Starting time
+    start = time.time()
+
+    # Simulation objects
+    df_of_g = sim.get_dataframe()
+    g_over = sim.build_graph_from_data_frame([ltc])
+    g_pow = sim.build_powerflow_graph_beforecut()
+    g_pow_prime = sim.build_powerflow_graph_aftercut()
+    simulator_data = {"substations_elements": sim.get_substation_elements(),
+                      "substation_to_node_mapping": sim.get_substation_to_node_mapping(),
+                      "internal_to_external_mapping": sim.get_internal_to_external_mapping()}
+
+    # create AlphaDeesp
+    printer = None
+    custom_layout = sim.get_layout()
+    alphadeesp = AlphaDeesp(g_over, df_of_g, custom_layout, printer, simulator_data, sim.substation_in_cooldown, debug=False)
+
+    # End time
+    elapsed_time = time.time() - start
+    assert (elapsed_time <= max_elapsed_time)
 
 
