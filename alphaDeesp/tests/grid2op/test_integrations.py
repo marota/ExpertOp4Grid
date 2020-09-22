@@ -19,12 +19,14 @@ custom_layout = [(-280, -81), (-100, -270), (366, -270), (366, -54), (-64, -54),
 
 
 def build_sim(ltc, param_folder, config_file = "./alphaDeesp/tests/resources_for_tests_grid2op/config_for_tests.ini",
-              chronic_scenario = None, timestep = 0):
+              chronic_scenario = None, timestep = 0,modified_thermal_Limit=None):
     config = configparser.ConfigParser()
     config.read(config_file)
 
     loader = Grid2opObservationLoader(param_folder)
     env, obs, action_space = loader.get_observation(timestep = timestep, chronic_scenario=chronic_scenario)
+    if(modified_thermal_Limit):
+        env._thermal_limit_a[ltc]=modified_thermal_Limit
     observation_space = env.observation_space
     sim = Grid2opSimulation(obs, action_space, observation_space, param_options=config["DEFAULT"], debug=False,
                             ltc=[ltc])
@@ -375,4 +377,50 @@ def test_integration_l2rpn_wcci_2020_computation_time():
     print("the computation time is: " + str(elapsed_time))
     assert (elapsed_time <= max_elapsed_time)
 
+def test_double_lines_wcci_2020():
+    """
+    In the initial state of the network, all substations are on busbar1
+    Test
+    """
+
+    # import os
+    # os.chdir('../../../')
+
+    # Time threshold
+    max_elapsed_time = 60 # seconds
+
+    # Configuration
+    ltc = 27
+    chronic_scenario = "Scenario_february_069"
+    timestep = 100
+    param_folder = "./alphaDeesp/tests/resources_for_tests_grid2op/l2rpn_wcci_2020"
+    config_file = "./alphaDeesp/tests/resources_for_tests_grid2op/config_for_tests.ini"
+
+    modified_thermal_Limit=150#the flow in the line is about 158amps
+    sim = build_sim(ltc, param_folder, config_file = config_file, timestep=timestep, chronic_scenario=chronic_scenario,modified_thermal_Limit=modified_thermal_Limit)
+
+    # Starting time
+    start = time.time()
+
+    # Simulation objects
+    df_of_g = sim.get_dataframe()
+    g_over = sim.build_graph_from_data_frame([ltc])
+
+    if(len(df_of_g)!=g_over.number_of_edges()):
+        print("some edges were not properly added to the graph")
+        assert(len(df_of_g)==g_over.number_of_edges())
+    g_pow = sim.build_powerflow_graph_beforecut()
+    g_pow_prime = sim.build_powerflow_graph_aftercut()
+    simulator_data = {"substations_elements": sim.get_substation_elements(),
+                      "substation_to_node_mapping": sim.get_substation_to_node_mapping(),
+                      "internal_to_external_mapping": sim.get_internal_to_external_mapping()}
+
+    # create AlphaDeesp
+    printer = None
+    custom_layout = sim.get_layout()
+    alphadeesp = AlphaDeesp(g_over, df_of_g, custom_layout, printer, simulator_data, sim.substation_in_cooldown, debug=False)
+
+    # End time
+
+    print("AlphaDeesp succeeded for an overflow graph with double lines")
 

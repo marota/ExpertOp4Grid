@@ -237,7 +237,7 @@ class AlphaDeesp:  # AKA SOLVER
         return ranked_combinations
 
     # WARNING: does not work yet when you go back from two nodes to one node at a given substation? Basically one node will be not connected?
-    def apply_new_topo_to_graph(self, graph: nx.DiGraph, new_topology, node_to_change: int):
+    def apply_new_topo_to_graph(self, graph: nx.MultiDiGraph, new_topology, node_to_change: int):
         """given  a graph, a node_topoly and a node_id, this function applies the change to the graph
         :return new_graph, internal_repr_dict"""
         if self.debug:
@@ -262,14 +262,14 @@ class AlphaDeesp:  # AKA SOLVER
 
         # BEFORE REMOVING, GET NEEDED INFORMATION ON EDGES: COLORS, WIDTH etc...
         color_edges = {}
-        for u, v, color in self.g.edges(data="color"):
+        for u, v,idx, color in self.g.edges(data="color",keys=True):
             # invert edges that have been marked as SWAPPED in DATAFRAME.
             condition = list(self.df.query("idx_or == " + str(u) + " & idx_ex == " + str(v))["swapped"])[0]
-            color_edges[(u, v)] = color
+            color_edges[(u, v,idx)] = color
             if condition:
-                color_edges[(v, u)] = color
+                color_edges[(v, u,idx)] = color
             else:
-                color_edges[(u, v)] = color
+                color_edges[(u, v,idx)] = color
 
         if 1 in new_topology:  # ie, if the topo is not [0, ... , 0]
             # first we delete the node_to_change ==> it deletes all edges for us
@@ -356,26 +356,26 @@ class AlphaDeesp:  # AKA SOLVER
                 if isinstance(element_type, OriginLine):
                     graph.add_edge(new_node_id, element_type.end_substation_id,
                                    capacity=float("%.2f" % reported_flow), xlabel="%.2f" % reported_flow,
-                                   color=color_edges[(node_to_change, element_type.end_substation_id)],
-                                   fontsize=10, penwidth="%.2f" % penwidth)
+                                   color=color_edges[(node_to_change, element_type.end_substation_id,0)],
+                                   fontsize=10, penwidth="%.2f" % penwidth)#we have a multiGraph, so we need to give a third index to color_edges, should be revised if reused
 
                 elif isinstance(element_type, ExtremityLine):
                     graph.add_edge(element_type.start_substation_id, new_node_id,
                                    capacity=float("%.2f" % reported_flow), xlabel="%.2f" % reported_flow,
-                                   color=color_edges[(element_type.start_substation_id, node_to_change)],
+                                   color=color_edges[(element_type.start_substation_id, node_to_change,0)],
                                    fontsize=10, penwidth="%.2f" % penwidth)
 
             elif element == 0:  # connect from node node:_to_change
                 if isinstance(element_type, OriginLine):
                     graph.add_edge(node_to_change, element_type.end_substation_id,
                                    capacity=float("%.2f" % reported_flow), xlabel="%.2f" % reported_flow,
-                                   color=color_edges[(node_to_change, element_type.end_substation_id)],
+                                   color=color_edges[(node_to_change, element_type.end_substation_id,0)],
                                    fontsize=10, penwidth="%.2f" % penwidth)
 
                 elif isinstance(element_type, ExtremityLine):
                     graph.add_edge(element_type.start_substation_id, node_to_change,
                                    capacity=float("%.2f" % reported_flow), xlabel="%.2f" % reported_flow,
-                                   color=color_edges[(element_type.start_substation_id, node_to_change)],
+                                   color=color_edges[(element_type.start_substation_id, node_to_change,0)],
                                    fontsize=10, penwidth="%.2f" % penwidth)
 
             else:
@@ -409,14 +409,14 @@ class AlphaDeesp:  # AKA SOLVER
             out_positive_flows = []
 
             interesting_bus_id = 0
-            for edge in graph.out_edges(node):
+            for edge in graph.out_edges(node,keys=True):
                 if self.is_connected_to_cpath(all_edges_color_attributes, all_edges_xlabel_attributes, node, edge, isSingleNode):
                     # take the other bus id
                     interesting_bus_id = abs(self.get_bus_id_from_edge(node, edge, topo_vect) - 1)
                     break
 
             # somme des reports négatifs entrants + sommes des reports positifs entrants
-            for edge in graph.in_edges(node):
+            for edge in graph.in_edges(node,keys=True):
                 edge_bus_id = self.get_bus_id_from_edge(node, edge, topo_vect)
                 if edge_bus_id == interesting_bus_id: # MASK
                     edge_flow_value = float(all_edges_xlabel_attributes[edge])
@@ -426,7 +426,7 @@ class AlphaDeesp:  # AKA SOLVER
                         in_positive_flows.append(edge_flow_value)
 
             # somme des reports positifs sortant +
-            for edge in graph.out_edges(node):
+            for edge in graph.out_edges(node,keys=True):
                 edge_bus_id = self.get_bus_id_from_edge(node, edge, topo_vect)
                 if edge_bus_id == interesting_bus_id: # MASK
                     edge_flow_value = float(all_edges_xlabel_attributes[edge])
@@ -457,14 +457,14 @@ class AlphaDeesp:  # AKA SOLVER
             in_positive_flows = []
 
             interesting_bus_id = 0
-            for edge in graph.in_edges(node):
+            for edge in graph.in_edges(node,keys=True):
                 if self.is_connected_to_cpath(all_edges_color_attributes, all_edges_xlabel_attributes, node, edge, isSingleNode):
                     # take the other bus id
                     interesting_bus_id = abs(self.get_bus_id_from_edge(node, edge, topo_vect) - 1)
                     break
 
             # somme des reports negatifs et positifs SORTANT
-            for edge in graph.out_edges(node):
+            for edge in graph.out_edges(node,keys=True):
                 edge_bus_id = self.get_bus_id_from_edge(node, edge, topo_vect)
                 if edge_bus_id == interesting_bus_id: # MASK
                     edge_flow_value = float(all_edges_xlabel_attributes[edge])
@@ -473,7 +473,7 @@ class AlphaDeesp:  # AKA SOLVER
                     else:
                         out_positive_flows.append(edge_flow_value)
 
-            for edge in graph.in_edges(node):
+            for edge in graph.in_edges(node,keys=True):
                 edge_bus_id = self.get_bus_id_from_edge(node, edge, topo_vect)
                 if edge_bus_id == interesting_bus_id: # MASK
                     edge_flow_value = float(all_edges_xlabel_attributes[edge])
@@ -515,7 +515,7 @@ class AlphaDeesp:  # AKA SOLVER
                 InputRedDeltaFlow_2 = 0
 
 
-                for edge in graph.in_edges(node):
+                for edge in graph.in_edges(node,keys=True):
                     edge_bus_id = self.get_bus_id_from_edge(node, edge, topo_vect)
                     edge_color = all_edges_color_attributes[edge]
                     edge_value = float(all_edges_xlabel_attributes[edge])
@@ -533,7 +533,7 @@ class AlphaDeesp:  # AKA SOLVER
                 ###
                 # over node with BiggestInputDeltaFlow, we want as much ingoing and outgoing red flow possible, with least possible production
                 OutputRedDeltaFlow = 0
-                for edge in graph.out_edges(node):
+                for edge in graph.out_edges(node,keys=True):
                     edge_bus_id = self.get_bus_id_from_edge(node, edge, topo_vect)
                     if edge_bus_id == Bus_BiggestInputDeltaFlow:
                         edge_color = all_edges_color_attributes[edge]
@@ -743,13 +743,13 @@ class AlphaDeesp:  # AKA SOLVER
                             if isinstance(element, Production):
                                 LocalProduction += (element.value)
 
-                        for edge in self.g.in_edges(bus):
+                        for edge in self.g.in_edges(bus,keys=True):
                             edge_deltaflow_value = float(all_edges_xlabel_attributes[edge])
                             edge_color = all_edges_color_attributes[edge]
                             if (edge_color == "red"):
                                 sumInRedDeltaFlows += edge_deltaflow_value
                             else:  # we need to retrieve the initial flow from df_initial_flows
-                                source, target = edge
+                                source, target,idx = edge
 
                                 otherBus = source
                                 if otherBus == bus:
@@ -778,6 +778,7 @@ class AlphaDeesp:  # AKA SOLVER
     def rank_red_loops(self):
         cut_values = []
         cut_sets = []  # contains the edges that ended up having the minimum cut_values
+        g_red_DiGraph=self.to_DiGraph(self.g_only_red_components)#necessary to be able to compute minimum_cut
         for i, row in self.red_loops.iterrows():
             source = row["Source"]
             target = row["Target"]
@@ -785,7 +786,8 @@ class AlphaDeesp:  # AKA SOLVER
 
             # print("=============== source: {}, target: {}".format(source, target))
 
-            cut_value, partition = nx.minimum_cut(self.g_only_red_components, source, target)
+            #cut_value, partition = nx.minimum_cut(self.g_only_red_components, source, target)
+            cut_value, partition = nx.minimum_cut(g_red_DiGraph, source, target)
             reachable, non_reachable = partition
             # print("cut_value: {}, partition: {}".format(cut_value, partition))
 
@@ -806,6 +808,17 @@ class AlphaDeesp:  # AKA SOLVER
         # print("======================= cut_values added =======================")
         # print(self.red_loops)
 
+    # create weighted digraph from MultiDiGraph
+    def to_DiGraph(self,gM):
+        G = nx.DiGraph()
+        for u, v,idx, data in gM.edges(data=True,keys=True):
+            w = data['capacity'] if 'capacity' in data else 1.0
+            if G.has_edge(u, v):
+                G[u][v]['capacity'] += w
+            else:
+                G.add_edge(u, v, capacity=w)
+        return G
+
     def joke(self):
         print("Heard about the new restaurant called Karma ?...")
         print("....")
@@ -815,8 +828,8 @@ class AlphaDeesp:  # AKA SOLVER
     def get_amont_blue_edges(self, g, node):
         res = []
         for e in nx.edge_dfs(g, node, orientation="reverse"):
-            if g.edges[(e[0], e[1])]["color"] == "blue":
-                res.append((e[0], e[1]))
+            if g.edges[(e[0], e[1],e[2])]["color"] == "blue":
+                res.append((e[0], e[1],e[2]))
         return res
 
     def get_aval_blue_edges(self, g, node):
@@ -824,8 +837,8 @@ class AlphaDeesp:  # AKA SOLVER
         # print("debug AlphaDeesp get aval blue edges")
         # print(list(nx.edge_dfs(g, node, orientation="original")))
         for e in nx.edge_dfs(g, node, orientation="original"):
-            if g.edges[(e[0], e[1])]["color"] == "blue":
-                res.append((e[0], e[1]))
+            if g.edges[(e[0], e[1],e[2])]["color"] == "blue":
+                res.append((e[0], e[1],e[2]))
         return res
 
     def delete_positive_edges(self, _g):
@@ -836,7 +849,7 @@ class AlphaDeesp:  # AKA SOLVER
 
         # get indices of positive edges
         i = 1
-        for u, v, report in g.edges(data="xlabel"):
+        for u, v, report in g.edges(data="xlabel",keys=True):
             if float(report) > 0:
                 pos_edges.append((i, (u, v)))
             i += 1
@@ -854,9 +867,9 @@ class AlphaDeesp:  # AKA SOLVER
 
         gray_edges = []
         i = 1
-        for u, v, color in g.edges(data="color"):
+        for u, v,idx, color in g.edges(data="color",keys=True):
             if color == edge_color:
-                gray_edges.append((i, (u, v)))
+                gray_edges.append((i, (u, v,idx)))
             i += 1
 
         # delete from graph gray edges
@@ -944,7 +957,7 @@ class AlphaDeesp:  # AKA SOLVER
 
         # for nodes in aval, if node has RED inputs (ie incoming flows) then it is a hub
         for node in self.constrained_path.n_aval():
-            in_edges = list(g.in_edges(node))
+            in_edges = list(g.in_edges(node,keys=True))
             for e in in_edges:
                 if g.edges[e]["color"] == "red":
                     hubs.append(node)
@@ -952,7 +965,7 @@ class AlphaDeesp:  # AKA SOLVER
 
         # for nodes in amont, if node has RED outputs (ie outgoing flows) then it is a hub
         for node in self.constrained_path.n_amont():
-            out_edges = list(g.out_edges(node))
+            out_edges = list(g.out_edges(node,keys=True))
             for e in out_edges:
                 if g.edges[e]["color"] == "red":
                     hubs.append(node)
@@ -1004,14 +1017,14 @@ class AlphaDeesp:  # AKA SOLVER
         res = {0: []}
         i = 1
         for e in nx.edge_bfs(g, node, orientation=orientation):
-            if g.edges[(e[0], e[1])]["color"] == _color:
+            if g.edges[(e[0], e[1],e[2])]["color"] == _color:
                 # print(e)
                 if not res[0]:  # if empty
-                    res[0].append((e[0], e[1]))
+                    res[0].append((e[0], e[1],e[2]))
 
                 # if pred
                 elif res[0][-1][0] == e[1]:
-                    res[0].append((e[0], e[1]))
+                    res[0].append((e[0], e[1],e[2]))
 
                 # elif e[0] in res.values():
 

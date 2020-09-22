@@ -503,7 +503,7 @@ class Grid2opSimulation(Simulation):
 
     def build_graph_from_data_frame(self, lines_to_cut):
         """This function creates a graph G from a DataFrame"""
-        g = nx.DiGraph()
+        g = nx.MultiDiGraph()
         build_nodes(g, self.topo["nodes"]["are_prods"], self.topo["nodes"]["are_loads"],
                     self.topo["nodes"]["prods_values"], self.topo["nodes"]["loads_values"])
 
@@ -517,7 +517,7 @@ class Grid2opSimulation(Simulation):
 
     def build_detailed_graph_from_internal_structure(self, lines_to_cut):
         """This function create a detailed graph from internal self structures as self.substations_elements..."""
-        g = nx.DiGraph()
+        g = nx.MultiDiGraph()
 
         # Reduce busbar_ids by -1 (Grid2op: 1,2 / Pypownet: 0,1)
         # for key in self.substations_elements.keys():
@@ -608,7 +608,7 @@ class Grid2opSimulation(Simulation):
 
 def build_powerflow_graph(topo, obs):
     """This function takes a Grid2op Observation and returns a NetworkX Graph"""
-    g = nx.DiGraph()
+    g = nx.MultiDiGraph()
 
     # Get the id of lines that are disconnected from network
     lines_cut = np.argwhere(obs.line_status == False)[:, 0]

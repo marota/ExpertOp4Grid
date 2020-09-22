@@ -584,7 +584,7 @@ class PypownetSimulation(Simulation):
 
     def build_graph_from_data_frame(self, lines_to_cut):
         """This function creates a graph G from a DataFrame"""
-        g = nx.DiGraph()
+        g = nx.MultiDiGraph()
         build_nodes(g, self.topo["nodes"]["are_prods"], self.topo["nodes"]["are_loads"],
                     self.topo["nodes"]["prods_values"], self.topo["nodes"]["loads_values"])
 
@@ -598,7 +598,7 @@ class PypownetSimulation(Simulation):
 
     def build_detailed_graph_from_internal_structure(self, lines_to_cut):
         """This function create a detailed graph from internal self structures as self.substations_elements..."""
-        g = nx.DiGraph()
+        g = nx.MultiDiGraph()
         network = Network(self.substations_elements)
         print("Network = ", network)
         build_nodes_v2(g, network.nodes_prod_values)
@@ -669,7 +669,7 @@ class PypownetSimulation(Simulation):
 
     def build_powerflow_graph(self, obs):
         """This function takes a pypownet Observation and returns a NetworkX Graph"""
-        g = nx.DiGraph()
+        g = nx.MultiDiGraph()
         lines_cut = np.argwhere(obs.lines_status == 0)
         nodes_ids = obs.substations_ids
         idx_or = [int(x - 1) for x in obs.lines_or_substations_ids]
