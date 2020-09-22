@@ -339,8 +339,8 @@ def test_integration_l2rpn_wcci_2020_computation_time():
     Test
     """
 
-    import os
-    os.chdir('../../../')
+    # import os
+    # os.chdir('../../../')
 
     # Time threshold
     max_elapsed_time = 60 # seconds
