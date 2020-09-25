@@ -19,3 +19,4 @@ Welcome to ExpertOp4Grid's documentation!
    :caption: Algorithms documentation
 
    DESCRIPTION.rst
+   DETAILS.rst
