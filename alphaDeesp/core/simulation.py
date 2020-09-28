@@ -167,9 +167,9 @@ class Simulation(ABC):
 
         # now we identify gray edges
         gray_edges = []
-        max_report = pd.DataFrame.max(df["delta_flows"].abs())
+        ltc_report = df["delta_flows"].abs()[line_to_cut[0]]#pd.DataFrame.max(df["delta_flows"].abs())
         # print("max = ", max_report)
-        max_overload = max_report * float(self.param_options["ThresholdReportOfLine"])
+        max_overload = ltc_report * float(self.param_options["ThresholdReportOfLine"])
         # print("max overload = ", max_overload)
         for edge_value in df["delta_flows"]:
             if fabs(edge_value) < max_overload:
