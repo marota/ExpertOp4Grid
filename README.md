@@ -1,7 +1,7 @@
 See the documentation at https://expertop4grid.readthedocs.io/en/latest
 
 # AlphaDeesp
-This is an Expert System Agent which tries to solve an overload on a power grid when it happens and which does not require any training.
+This is an Expert System which tries to solve a security issue on a power grid, that is on overload over a power line, when it happens. It uses cheap but non-linear topological actions to do, and does not require any training.
 For any new overloaded situations, it computes an influence graph around the overload of interest, and rank the substations and topologies to explore to find a solution.
 It simulates the top ranked topologies to eventually give a score of success:
 * 4 - it solves all overloads,
@@ -12,7 +12,7 @@ It simulates the top ranked topologies to eventually give a score of success:
 
 It is an implementation of the paper: "Expert system for topological action discovery in smart grids" - https://hal.archives-ouvertes.fr/hal-01897931/file/_LARGE__bf_Expert_System_for_topological_remedial_action_discovery_in_smart_grids.pdf
 
-![Influence Graph](./alphaDeesp/ressources/g_over_grid2op_ltc9.PNG)*Influecne Graph example for overloaded line 4->5. The electrical paths highlighted there will help us identify interesting topologies to reroute the flows*
+![Influence Graph](./alphaDeesp/ressources/g_over_grid2op_ltc9.PNG)*Influence Graph example for overloaded line 4->5. The electrical paths highlighted there will help us identify interesting topologies to reroute the flows*
 
 
 
