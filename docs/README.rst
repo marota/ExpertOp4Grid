@@ -24,4 +24,4 @@ We have a discord located at: $discordlink
 License
 -------
 
-The project is licensed under the LGPL-3.0 License.
+The project is licensed under the MPL-2.0 License.
