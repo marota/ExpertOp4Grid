@@ -37,7 +37,7 @@ class Grid2opSimulation(Simulation):
     def get_layout(self):
         return self.layout
 
-    def __init__(self, obs, action_space, observation_space, param_options=None, debug = False, ltc=[9], plot=False, plot_folder = None,reward_type=None):
+    def __init__(self, obs, action_space, observation_space, param_options=None, debug = False, ltc=[9],other_ltc=[], plot=False, plot_folder = None,reward_type=None):
         super().__init__()
 
         # Get Grid2op objects
@@ -55,6 +55,7 @@ class Grid2opSimulation(Simulation):
 
         # Get Alphadeesp configuration
         self.ltc = ltc
+        self.other_ltc = other_ltc
         self.substation_in_cooldown=self.get_substation_in_cooldown()
         self.param_options = param_options
         self.reward_type=reward_type
@@ -81,13 +82,13 @@ class Grid2opSimulation(Simulation):
         self.save_bag = []
 
     def load(self):
-        self.load_from_observation(self.obs, self.ltc)
+        self.load_from_observation(self.obs, self.ltc+self.other_ltc)
 
-    def load_from_observation(self, obs, ltc):
+    def load_from_observation(self, obs, linesToDisconnect):
         #self.obs = obs
         self.topo = self.extract_topo_from_obs(obs)
         self.topo_linecut = None
-        self.df = self.create_df(self.topo, ltc)
+        self.df = self.create_df(self.topo, linesToDisconnect)
         self.internal_to_external_mapping = {}
         self.external_to_internal_mapping = {}
         self.substations_elements = {}
@@ -396,6 +397,9 @@ class Grid2opSimulation(Simulation):
 
         # First, set parameter to avoid disconnection
         self.obs._obs_env.no_overflow_disconnection = True
+        max_line_actions=self.obs._obs_env.parameters.MAX_LINE_STATUS_CHANGED
+
+        self.obs._obs_env.parameters.MAX_LINE_STATUS_CHANGED = 999
 
         # Set action which disconects the specified lines (by ids)
         deconexion_action = self.action_space({"set_line_status": [(id_, -1) for id_ in ids]})
@@ -412,6 +416,7 @@ class Grid2opSimulation(Simulation):
 
         # Finaly, reset previous parameter
         self.obs._obs_env.no_overflow_disconnection = self.no_overflow_disc
+        self.obs._obs_env.parameters.MAX_LINE_STATUS_CHANGED=max_line_actions
 
         return new_flow
 
