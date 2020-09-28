@@ -10,7 +10,7 @@ It simulates the top ranked topologies to eventually give a score of success:
 * 1 - it solves the overload of interest but worsen other overloads
 * 0 - it fails. The expert agent is based
 
-It is an implementation of the paper: "expert system for topological action discovery in smart grids" - https://hal.archives-ouvertes.fr/hal-01897931/file/_LARGE__bf_Expert_System_for_topological_remedial_action_discovery_in_smart_grids.pdf
+It is an implementation of the paper: "Expert system for topological action discovery in smart grids" - https://hal.archives-ouvertes.fr/hal-01897931/file/_LARGE__bf_Expert_System_for_topological_remedial_action_discovery_in_smart_grids.pdf
 
 Works with 
 * Grid2op version: >= 1.0.1
@@ -109,12 +109,8 @@ https://github.com/mjothy/l2rpn-baselines/tree/mj-devs/l2rpn_baselines/ExpertAge
 Instead of configuring through config.ini, you can pass a similar python dictionary to the API
  
 
-## Introduction
-Simulation work with Grid2op (version >= 1.0.1) or Pypownet (version 2.2.0)
-
-
-
-Now, to the main algorithm. The first three steps of the algorithm are about extracting the situation, creating and 
+## Workflow
+The first three steps of the algorithm are about extracting the situation, creating and 
 structuring the data that will be needed for the rest of the steps.
 
 ![Drag Racing](./alphaDeesp/ressources/first_line_algorithm_es_.png)
@@ -128,11 +124,6 @@ Now all substations are ranked with our expert knowledge, the last steps consist
 (can be changed in config.ini file)topologies with a simulator and rank them accordingly. 
 
 ![Drag Racing](./alphaDeesp/ressources/third_line_algorithm_es_.png)
-
-
-explain internal structure, and how another API simulator could be plugged in.
-
-mention at which step you can have a graphical print. (when we can display a graph and where)
 
 # TESTS
 To launch the test suite: 
