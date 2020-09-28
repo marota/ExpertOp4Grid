@@ -15,13 +15,15 @@ It is an implementation of the paper: "Expert system for topological action disc
 ![Influence Graph](./alphaDeesp/ressources/g_over_grid2op_ltc9.PNG)*Influecne Graph example for overloaded line 4->5*
 
 
+
+
+
+## Installation
 Works with 
 * Grid2op version: >= 1.0.1
 * Pypownet version: 2.2.0 (optional installation)
 Could work with other simulation backend if the Simulation Interface is given
 
-
-## Installation
 To install AlphaDeesp execute the following lines: 
 ##### First clone the repos
 `git clone the repository https://github.com/marota/ExpertOp4Grid.git
