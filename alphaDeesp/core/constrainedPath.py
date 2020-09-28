@@ -61,15 +61,19 @@ def from_edges_get_nodes(edges, amont_or_aval: str, constrained_edge):
 def filter_constrained_path_for_nodes(constrained_path):
     # this filters the constrained_path_lists and creates a uniq ordered list that represents the constrained_path
     set_constrained_path = []
-    for edge in constrained_path:
-        for node in edge:
-            if isinstance(node, tuple):
-                for n in node:
-                    if n not in set_constrained_path:
-                        set_constrained_path.append(n)
-            else:
-                if node not in set_constrained_path:
-                    set_constrained_path.append(node)
+    for path in constrained_path:
+        if isinstance(path, tuple):
+            edge=path
+            for n in edge[0:2]:
+                if n not in set_constrained_path:
+                    set_constrained_path.append(n)
+        else:
+            for edge in path:
+                if isinstance(edge, tuple):
+                    for n in edge[0:2]:
+                        if n not in set_constrained_path:
+                            set_constrained_path.append(n)
+
     return set_constrained_path
 
 def filter_constrained_path_for_edges(constrained_path):
