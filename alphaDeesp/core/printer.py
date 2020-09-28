@@ -57,7 +57,7 @@ class Printer:
             for i, value in enumerate(custom_layout):
                 # i += 1
                 # print(f"i:{i} value:{value}")
-                if i < 14:
+                if i < len(custom_layout):
                     dic_pos_attributes[i] = {"pos": (str(value[0]) + ", " + str(value[1]) + "!")}
                 else:
                     i = int("666" + str(ii))
