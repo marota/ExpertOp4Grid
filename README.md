@@ -12,6 +12,9 @@ It simulates the top ranked topologies to eventually give a score of success:
 
 It is an implementation of the paper: "Expert system for topological action discovery in smart grids" - https://hal.archives-ouvertes.fr/hal-01897931/file/_LARGE__bf_Expert_System_for_topological_remedial_action_discovery_in_smart_grids.pdf
 
+![Drag Racing](./alphaDeesp/ressources/g_over_grid2op_ltc9.PNG)
+Influecne Graph example for overloaded line 4->5
+
 Works with 
 * Grid2op version: >= 1.0.1
 * Pypownet version: 2.2.0 (optional installation)
@@ -109,7 +112,7 @@ https://github.com/mjothy/l2rpn-baselines/tree/mj-devs/l2rpn_baselines/ExpertAge
 Instead of configuring through config.ini, you can pass a similar python dictionary to the API
  
 
-## Workflow
+## AlphaDeesp Workflow
 The first three steps of the algorithm are about extracting the situation, creating and 
 structuring the data that will be needed for the rest of the steps.
 
