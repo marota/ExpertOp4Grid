@@ -12,8 +12,8 @@ It simulates the top ranked topologies to eventually give a score of success:
 
 It is an implementation of the paper: "Expert system for topological action discovery in smart grids" - https://hal.archives-ouvertes.fr/hal-01897931/file/_LARGE__bf_Expert_System_for_topological_remedial_action_discovery_in_smart_grids.pdf
 
-![Drag Racing](./alphaDeesp/ressources/g_over_grid2op_ltc9.PNG)
-Influecne Graph example for overloaded line 4->5
+![Influecne Graph example for overloaded line 4->5](./alphaDeesp/ressources/g_over_grid2op_ltc9.PNG)
+
 
 Works with 
 * Grid2op version: >= 1.0.1
