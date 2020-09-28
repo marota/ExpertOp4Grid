@@ -46,8 +46,7 @@ Tests
 =====
 
 To launch the test suite:
-`pipenv run python -m pytest --verbose --continue-on-collection-errors -p no:warnings
-`
+``pipenv run python -m pytest --verbose --continue-on-collection-errors -p no:warnings``
 
 Debug Help
 ==========
