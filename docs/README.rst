@@ -23,5 +23,8 @@ We have a discord located at: $discordlink
 
 License
 -------
+Copyright 2019-2020 RTE France
 
-The project is licensed under the LGPL-3.0 License.
+    RTE: http://www.rte-france.com
+
+This Source Code is subject to the terms of the Mozilla Public License (MPL) v2.
