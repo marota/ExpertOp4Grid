@@ -31,7 +31,7 @@ If you run the same command with '-s 1' to print the plots, you will indeed see 
 * The expert system indeed finds a solution topology for it at substation 4
 .. image:: ../alphaDeesp/ressources/example_4_score_ltc9.PNG
 
-See Algorithm Description section to learn more about the workflow and results.
+See **Algorithm Description section** to learn more about the workflow and results.
 
 In manual mode, further configuration is made through alphadeesp/config.ini
 
