@@ -25,11 +25,12 @@ In any case, an end result dataframe is written in root folder.
 
 If you run the same command with '-s 1' to print the plots, you will indeed see that:
 
-.. image:: ../alphaDeesp/ressources/g_pow_grid2op_ltc9.PNG
 * On the intial state, you had an overflow to solve
+.. image:: ../alphaDeesp/ressources/g_pow_grid2op_ltc9.PNG
 
+* The expert system indeed finds a solution topology for it at substation 4
 .. image:: ../alphaDeesp/ressources/example_4_score_ltc9.PNG
-* The expert system indeed finds a solution topology for it
+
 See Algorithm Description section to learn more about the workflow and results.
 
 In manual mode, further configuration is made through alphadeesp/config.ini
