@@ -6,13 +6,17 @@ Introduction
 ============
 
 This module represents an expert agent that finds solutions to optimize a power network. The expert agent is based
-on a research paper: (link)
+on a research paper (https://hal.archives-ouvertes.fr/hal-01897931/file/_LARGE__bf_Expert_System_for_topological_remedial_action_discovery_in_smart_grids.pdf)
 
-Given a grid object and a line in overflow (referred as *Line to cut*) the expert agent will run simulations on the network
+Given a power grid and a line in overflow (referred as *Line to cut*) the expert agent will run simulations on the network
 and try to find and rank the best topological actions (changing elements of the graph from one bus to the other) to hopefuly solve the overflow.
 
 Workflow overview
 =================
+
+We can decompose the Expert System algorithm along those successive steps. Based on the overload distribution graphs it builds, it tries to identify relevant patterns in it described by expert knowledge, to eventually find good spots to reroute the flows. It ranks those substations apriori by relevance and then test them by simulation to get a final score of sucess. Notice that 2 of those steps involves running simulations: it indeed relies on a simulator backend to work.
+
+.. image:: ../alphaDeesp/ressources/SchemaSystemeExpert.jpg
 
 .. image:: ../alphaDeesp/ressources/SchemaSystemeExpert.jpg
 
