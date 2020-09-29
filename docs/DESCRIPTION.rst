@@ -18,8 +18,6 @@ We can decompose the Expert System algorithm along those successive steps. Based
 
 .. image:: ../alphaDeesp/ressources/SchemaSystemeExpert.jpg
 
-.. image:: ../alphaDeesp/ressources/SchemaSystemeExpert.jpg
-
 Workflow implementation
 =================
 
