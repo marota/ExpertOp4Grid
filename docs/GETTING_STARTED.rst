@@ -21,7 +21,16 @@ To execute in **manual mode**, from root folder, type:
                             Integer representing the timestep number at
                             which we want to run alphadeesp simulation
 
-In any case, an end result dataframe is written in root folder
+In any case, an end result dataframe is written in root folder.
+
+If you run the same command with '-s 1' to print the plots, you will indeed see that:
+
+.. image:: ../alphaDeesp/ressources/g_pow_grid2op_ltc9.png
+* On the intial state, you had an overflow to solve
+
+.. image:: ../alphaDeesp/ressources/example_4_score_ltc9.png
+* The expert system indeed finds a solution topology for it
+See Algorithm Description section to learn more about the workflow and results.
 
 In manual mode, further configuration is made through alphadeesp/config.ini
 
@@ -30,6 +39,7 @@ In manual mode, further configuration is made through alphadeesp/config.ini
 * *CustomLayout* - list of couples reprenting coordinates of grid nodes. If not provided, grid2op will load grid_layout.json in grid folder
 * *grid2opDifficulty* - "0", "1", "2" or "competition". Be careful: grid datasets should have a difficulty_levels.json
 * *7 other constants for alphadeesp computation* can be set in config.ini, with comments within the file
+
 
 
 Agent Mode
