@@ -61,7 +61,7 @@ The main dataframe presenting quantitative information for all simulated topolog
 .. image:: ../alphaDeesp/ressources/end_result_dataframe_extract.jpg
 
 * Simulated flows on the target line (line to cut) before and after topological actions is operated. The delta flow is the difference between both of them
-* Worsened lines: 
+* Worsened lines: new lines that got overloaded or initially overloaded lines which overload increased
 * Redispatched Prod: sum of all the production increase or decrease at each generator
 * Redispatched Load: difference between the total demand and the actual power supply in all loads (production - losses)
 * Internal Topology applied: topology list as used in AlphaDeesp. Represents the bus of each element at the substation (column Substation ID)
