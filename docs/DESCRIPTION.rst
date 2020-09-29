@@ -91,11 +91,11 @@ We want to see snapshots of the grid.
 
 * Beginning of config.ini
 
-.. image:: ../alphaDeesp/ressources/config_l2rpn_2019.jpg
+.. image:: ../alphaDeesp/ressources/config_l2rpn_2019.JPG
 
 * Layout of the grid in its current state (also called g_pow)
 
-.. image:: ../alphaDeesp/ressources/g_pow_grid2op_ltc9.png
+.. image:: ../alphaDeesp/ressources/g_pow_grid2op_ltc9.PNG
 
 The simulator will then compute several objects to provide to AlphaDeesp, which will run a greedy algorithm to determine the best topological action to solve the overload.
 For more details, see the section *Algorithm Details*
@@ -106,15 +106,15 @@ For more details, see the section *Algorithm Details*
 
 * The topology surrounded in green has got a 4 simulated score. We can see on the corresponding snapshot that it has resolved the overflow on line 9 by connected two lines to bus 1 at substation 4, which has divided the power flow in amount of line 9
 
-.. image:: ../alphaDeesp/ressources/example_4_score_ltc9.png
+.. image:: ../alphaDeesp/ressources/example_4_score_ltc9.PNG
 
 * The topology surrounded in red has got a 0 simulated score. It does not resolve the power flow
 
-.. image:: ../alphaDeesp/ressources/example_0_score_ltc9.png
+.. image:: ../alphaDeesp/ressources/example_0_score_ltc9.PNG
 
 * The topology surrounded in orange has got a 1 simulated score. It does resolved the power flow on line 9 but created an other one on an other line
 
-.. image:: ../alphaDeesp/ressources/example_1_score_ltc9.png
+.. image:: ../alphaDeesp/ressources/example_1_score_ltc9.PNG
 
 
 Important limitations
