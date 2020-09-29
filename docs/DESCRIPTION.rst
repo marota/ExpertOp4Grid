@@ -14,6 +14,11 @@ and try to find and rank the best topological actions (changing elements of the 
 Workflow overview
 =================
 
+.. image:: ../alphaDeesp/ressources/SchemaSystemeExpert.jpg
+
+Workflow implementation
+=================
+
 The following picture shows an overview of the different inputs and outputs, and of the major modelisation steps.
 
 .. image:: ../alphaDeesp/ressources/workflow_overview.jpg
