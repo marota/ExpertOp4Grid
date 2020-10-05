@@ -26,7 +26,7 @@ The following inputs will be required to be computed by the Simulation override.
 
 .. image:: ../alphaDeesp/ressources/g_pow_l9_df_of_g.png
 
-.. image:: ../alphaDeesp/ressources/g_pow_prime_grid2op_ltc9.png
+.. image:: ../alphaDeesp/ressources/g_pow_prime_grid2op_ltc9.PNG
 
 .. image:: ../alphaDeesp/ressources/g_over_df_l9.png
 
@@ -41,6 +41,11 @@ The following inputs will be required to be computed by the Simulation override.
 
     * ``substations_elements``
         A local representation of the network from G_OVER (G_POW - G_POW_PRIME) using AlphaDeesp model objects from ``network.py``
+
+        Each PRODUCTION or CONSUMPTION has the value of G_POW (the initial values)
+
+        Each ORIGINLINE or EXTREMITYLINE has the values of flow(G_POW) - flow(G_POW_PRIME)
+
             {
                 \0: [
                     PRODUCTION Object ID: 1, busbar_id: 0, value: 233.4587860107422 ,
