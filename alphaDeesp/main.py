@@ -27,8 +27,8 @@ def main():
                         help="List of integers representing the lines to cut", default = [9])
     parser.add_argument("-t", "--timestep", type=int,
                         help="ID of the timestep to use, starting from 0. Default is 0, i.e. the first time step will be considered", default = 0)
-    parser.add_argument("-c", "--chronicscenario", type=str,
-                        help="Name of chronic scenario to consider, as stored in chronics folder. By default, the first available chronic scenario will be chosen",
+    parser.add_argument("-c", "--chronicscenario",
+                        help="Name or id of chronic scenario to consider, as stored in chronics folder. By default, the first available chronic scenario will be chosen",
                         default=None)
 
     args = parser.parse_args()

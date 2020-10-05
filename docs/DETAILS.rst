@@ -10,6 +10,8 @@ Calling the alphaDeesp engine is done like so :
 ``alphadeesp = AlphaDeesp(g_over, df_of_g, custom_layout, printer, simulator_data,sim.substation_in_cooldown, debug = debug)``
 ``ranked_combinations = alphadeesp.get_ranked_combinations()``
 
+Alphadeesp hence gives you an oredered list of substations and topologies that should be relevant to solve your overload
+
 Inputs
 ======
 The following inputs will be required to be computed by the Simulation override.
@@ -194,5 +196,14 @@ This is a list of dataframes with the following columns :
 * ``node``
     The node on which the topology was applied
 
-This list is then used to simulate all topologies with the Simulation override :
+Simulating AlphaDeesp suggestions
+====
+
+This ranked_combinations list is then used to simulate all topologies with the Simulation override :
 ``expert_system_results, actions = sim.compute_new_network_changes(ranked_combinations)``
+
+You eventually know which selected topologies are indeed successful.
+
+Last Note
+====
+AlphaDeesp substation and topology rankings could be improved to make the selection of actions always more relevant and efficient.

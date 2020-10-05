@@ -6,12 +6,19 @@ Introduction
 ============
 
 This module represents an expert agent that finds solutions to optimize a power network. The expert agent is based
-on a research paper: (link)
+on a research paper (https://hal.archives-ouvertes.fr/hal-01897931/file/_LARGE__bf_Expert_System_for_topological_remedial_action_discovery_in_smart_grids.pdf)
 
-Given a grid object and a line in overflow (referred as *Line to cut*) the expert agent will run simulations on the network
+Given a power grid and a line in overflow (referred as *Line to cut*) the expert agent will run simulations on the network
 and try to find and rank the best topological actions (changing elements of the graph from one bus to the other) to hopefuly solve the overflow.
 
 Workflow overview
+=================
+
+We can decompose the Expert System algorithm along those successive steps. Based on the overload distribution graphs it builds, it tries to identify relevant patterns in it described by expert knowledge, to eventually find good spots to reroute the flows. It ranks those substations apriori by relevance and then test them by simulation to get a final score of sucess. Notice that 2 of those steps involves running simulations: it indeed relies on a simulator backend to work.
+
+.. image:: ../alphaDeesp/ressources/SchemaSystemeExpert.jpg
+
+Workflow implementation
 =================
 
 The following picture shows an overview of the different inputs and outputs, and of the major modelisation steps.
@@ -54,7 +61,7 @@ The main dataframe presenting quantitative information for all simulated topolog
 .. image:: ../alphaDeesp/ressources/end_result_dataframe_extract.jpg
 
 * Simulated flows on the target line (line to cut) before and after topological actions is operated. The delta flow is the difference between both of them
-* Worsened lines: 
+* Worsened lines: new lines that got overloaded or initially overloaded lines which overload increased
 * Redispatched Prod: sum of all the production increase or decrease at each generator
 * Redispatched Load: difference between the total demand and the actual power supply in all loads (production - losses)
 * Internal Topology applied: topology list as used in AlphaDeesp. Represents the bus of each element at the substation (column Substation ID)
@@ -86,11 +93,11 @@ We want to see snapshots of the grid.
 
 * Beginning of config.ini
 
-.. image:: ../alphaDeesp/ressources/config_l2rpn_2019.jpg
+.. image:: ../alphaDeesp/ressources/config_l2rpn_2019.JPG
 
 * Layout of the grid in its current state (also called g_pow)
 
-.. image:: ../alphaDeesp/ressources/g_pow_grid2op_ltc9.png
+.. image:: ../alphaDeesp/ressources/g_pow_grid2op_ltc9.PNG
 
 The simulator will then compute several objects to provide to AlphaDeesp, which will run a greedy algorithm to determine the best topological action to solve the overload.
 For more details, see the section *Algorithm Details*
@@ -101,15 +108,15 @@ For more details, see the section *Algorithm Details*
 
 * The topology surrounded in green has got a 4 simulated score. We can see on the corresponding snapshot that it has resolved the overflow on line 9 by connected two lines to bus 1 at substation 4, which has divided the power flow in amount of line 9
 
-.. image:: ../alphaDeesp/ressources/example_4_score_ltc9.png
+.. image:: ../alphaDeesp/ressources/example_4_score_ltc9.PNG
 
 * The topology surrounded in red has got a 0 simulated score. It does not resolve the power flow
 
-.. image:: ../alphaDeesp/ressources/example_0_score_ltc9.png
+.. image:: ../alphaDeesp/ressources/example_0_score_ltc9.PNG
 
 * The topology surrounded in orange has got a 1 simulated score. It does resolved the power flow on line 9 but created an other one on an other line
 
-.. image:: ../alphaDeesp/ressources/example_1_score_ltc9.png
+.. image:: ../alphaDeesp/ressources/example_1_score_ltc9.PNG
 
 
 Important limitations

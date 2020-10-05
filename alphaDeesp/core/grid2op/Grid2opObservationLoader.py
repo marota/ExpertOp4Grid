@@ -34,16 +34,16 @@ class Grid2opObservationLoader:
 
         # Go to desired chronic scenario (if None, first scenario will be taken)
         if chronic_scenario is not None:
-            found_id = None
-            # Search scenario with provided name
-            for id, sp in enumerate(self.env.chronics_handler.real_data.subpaths):
-                sp_end = os.path.basename(sp)
-                if sp_end == chronic_scenario:
-                    found_id = id
+            if type(chronic_scenario) is str:
+                found_id = self.search_chronic_num_from_name(chronic_scenario)
+            elif type(chronic_scenario) is int:
+                found_id = chronic_scenario
+                scenario_name = self.search_chronic_name_from_num(found_id)
+                print("INFO - the name of the loaded Grid2op scenario is : " + str(scenario_name))
             if found_id is not None:
                 self.env.set_id(found_id)
                 self.env.reset()
-            else:
+            else: # if name not found
                 raise ValueError("Chronic scenario name: "+chronic_scenario+" not found in folder")
 
 
@@ -74,4 +74,15 @@ class Grid2opObservationLoader:
             if id == num:
                 break
         return chronic_scenario
+
+    def search_chronic_num_from_name(self, scenario_name):
+        found_id = None
+        # Search scenario with provided name
+        for id, sp in enumerate(self.env.chronics_handler.real_data.subpaths):
+            sp_end = os.path.basename(sp)
+            if sp_end == scenario_name:
+                found_id = id
+        return found_id
+
+
 
