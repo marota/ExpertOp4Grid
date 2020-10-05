@@ -32,6 +32,16 @@ class Grid2opObservationLoader:
 
     def get_observation(self, chronic_scenario = None, timestep = 0):
 
+        # If an int is provided, chronic_scenario is string by default, so it has to be converted
+        try:
+            chronic_scenario = int(chronic_scenario)
+            print("INFO - An integer has been provided as chronic scenario - looking for the chronic folder in this position")
+        except:
+            if chronic_scenario is None:
+                print("INFO - No value has been provided for chronic scenario - the first chronic folder will be chosen")
+            else:
+                print("INFO - A string value has been provided as chronic scenario - searching for a chronic folder with name "+str(chronic_scenario))
+
         # Go to desired chronic scenario (if None, first scenario will be taken)
         if chronic_scenario is not None:
             if type(chronic_scenario) is str:
