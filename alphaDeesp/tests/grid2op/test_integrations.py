@@ -30,6 +30,7 @@ def build_sim(ltc, param_folder, config_file = "./alphaDeesp/tests/resources_for
     observation_space = env.observation_space
     sim = Grid2opSimulation(obs, action_space, observation_space, param_options=config["DEFAULT"], debug=False,
                             ltc=[ltc])
+                            #, plot=True, plot_folder="./alphaDeesp/tests/output_tempo")
     return sim
 
 
@@ -272,6 +273,7 @@ def test_integration_dataframe_results_with_case_14_realistic():
     g_over = sim.build_graph_from_data_frame([ltc])
     g_pow = sim.build_powerflow_graph_beforecut()
     g_pow_prime = sim.build_powerflow_graph_aftercut()
+
     simulator_data = {"substations_elements": sim.get_substation_elements(),
                       "substation_to_node_mapping": sim.get_substation_to_node_mapping(),
                       "internal_to_external_mapping": sim.get_internal_to_external_mapping()}
@@ -304,9 +306,9 @@ def test_integration_dataframe_results_no_hubs():
     # os.chdir('../../../')
 
     ltc = 9
-    chronic_scenario = "b"
-    timestep = 2
-    param_folder = "./alphaDeesp/tests/resources_for_tests_grid2op/l2rpn_2019_ltc_9"
+    chronic_scenario = "i"
+    timestep = 1
+    param_folder = "./alphaDeesp/tests/resources_for_tests_grid2op/l2rpn_2019_nohubs"
     config_file = "./alphaDeesp/tests/resources_for_tests_grid2op/config_for_tests.ini"
 
     sim = build_sim(ltc, param_folder, config_file = config_file, timestep=timestep, chronic_scenario=chronic_scenario)
@@ -314,6 +316,7 @@ def test_integration_dataframe_results_no_hubs():
     g_over = sim.build_graph_from_data_frame([ltc])
     g_pow = sim.build_powerflow_graph_beforecut()
     g_pow_prime = sim.build_powerflow_graph_aftercut()
+
     simulator_data = {"substations_elements": sim.get_substation_elements(),
                       "substation_to_node_mapping": sim.get_substation_to_node_mapping(),
                       "internal_to_external_mapping": sim.get_internal_to_external_mapping()}
@@ -323,6 +326,7 @@ def test_integration_dataframe_results_no_hubs():
     expert_system_results, actions = sim.compute_new_network_changes(ranked_combinations)
 
     # expert_system_results.to_csv("alphaDeesp/tests/resources_for_tests_grid2op/END_RESULT_DATAFRAME_G2OP_NO_HUBS_generated.csv")
+    # expert_system_results.to_csv(r'D:\RTE\ExpertOp4Grid\5 - Résultats\2021_Timestep0_errors\generated_df.csv')
 
     path_to_saved_end_result_dataframe = \
         Path.cwd() / "alphaDeesp/tests/resources_for_tests_grid2op/END_RESULT_DATAFRAME_G2OP_NO_HUBS.csv"

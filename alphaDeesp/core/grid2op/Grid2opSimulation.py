@@ -403,7 +403,7 @@ class Grid2opSimulation(Simulation):
 
         # Set action which disconects the specified lines (by ids)
         deconexion_action = self.action_space({"set_line_status": [(id_, -1) for id_ in ids]})
-        obs_linecut, reward, done, info = self.obs.simulate(deconexion_action)
+        obs_linecut, reward, done, info = self.obs.simulate(deconexion_action, time_step = 0) #, time_step = 0)
         # Storage of new observation to access features in other function
         self.obs_linecut = obs_linecut
         self.topo_linecut = self.extract_topo_from_obs(self.obs_linecut)
