@@ -13,7 +13,7 @@ def main():
     # Read parameters provided by manual mode (Shell - config.ini - param_folder for the grid)
     shell_print_project_header()
 
-    parser = argparse.ArgumentParser(description="Expert System")
+    parser = argparse.ArgumentParser(description="ExpertOp4Grid")
     parser.add_argument("-d", "--debug", type=int,
                         help="If 1, prints additional information for debugging purposes. If 0, doesn't print any info", default = 0)
     parser.add_argument("-s", "--snapshot", type=int,
@@ -26,10 +26,10 @@ def main():
     parser.add_argument("-l", "--ltc", nargs="+", type=int,
                         help="List of integers representing the lines to cut", default = [9])
     parser.add_argument("-t", "--timestep", type=int,
-                        help="ID of the timestep to use, starting from 0. Default is 0, i.e. the first time step will be considered", default = 0)
+                        help="ID of the timestep to use, starting from 0. Default is 0, i.e. the first time step will be considered", default = 1)
     parser.add_argument("-c", "--chronicscenario",
                         help="Name or id of chronic scenario to consider, as stored in chronics folder. By default, the first available chronic scenario will be chosen",
-                        default=None)
+                        default="i")
 
     args = parser.parse_args()
     config = configparser.ConfigParser()
