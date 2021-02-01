@@ -13,7 +13,7 @@ def expert_operator(sim, plot=False, debug=False):
     custom_layout = sim.get_layout()
     printer = None
     if plot:
-        printer = Printer()
+        printer = Printer(sim.plot_folder)
 
     # ====================================================================
     # Simulation of Expert results with simulator and alphadeesp

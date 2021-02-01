@@ -88,7 +88,13 @@ def main():
         from alphaDeesp.core.grid2op.Grid2opSimulation import Grid2opSimulation
         from alphaDeesp.core.grid2op.Grid2opObservationLoader import Grid2opObservationLoader
 
-        parameters_folder = config["DEFAULT"]["gridPath"]
+        try:
+            parameters_folder = config["DEFAULT"]["gridPath"] # Case there is a grid path given in config.ini
+        except: # Default load l2rpn_2019 in packages data
+            print("Getting default package grid l2rpn_2019")
+            parameters_folder = os.path.join(os.path.dirname(os.path.realpath(__file__)), "ressources",
+                                                                                            'parameters', "l2rpn_2019")
+            config["DEFAULT"]["gridPath"] = parameters_folder
         try:
             difficulty = str(config["DEFAULT"]["grid2opDifficulty"])
         except:
@@ -104,7 +110,11 @@ def main():
 
         # Create plot folders locally
         if args.snapshot:
-            plot_base_folder = "alphaDeesp/ressources/output"
+            try:
+                plot_base_folder = config["DEFAULT"]["outputPath"] # Case there is a grid path given in config.ini
+            except: # Default load l2rpn_2019 in packages data
+                print("No outputPath in config.ini: generating outputs in current folder")
+                plot_base_folder = "output"
             plot_folder = generate_plot_folders(plot_base_folder, args, config)
         else:
             plot_folder = None
@@ -128,7 +138,7 @@ def main():
 
 def generate_plot_folders(plot_folder, args, config):
     os.makedirs(plot_folder, exist_ok=True)
-    gridName = config['DEFAULT']['gridPath'].split('/')[-1]
+    gridName = os.path.basename(os.path.normpath(config['DEFAULT']['gridPath']))    
     plot_folder = os.path.join(plot_folder, gridName)
     os.makedirs(plot_folder, exist_ok=True)
     lineName = 'linetocut_' + str(args.ltc[0])
