@@ -26,14 +26,24 @@ def main():
     parser.add_argument("-l", "--ltc", nargs="+", type=int,
                         help="List of integers representing the lines to cut", default = [9])
     parser.add_argument("-t", "--timestep", type=int,
-                        help="ID of the timestep to use, starting from 0. Default is 0, i.e. the first time step will be considered", default = 1)
+                        help="ID of the timestep to use, starting from 0. Default is 0, i.e. the first time step will be considered", default = 0)
     parser.add_argument("-c", "--chronicscenario",
                         help="Name or id of chronic scenario to consider, as stored in chronics folder. By default, the first available chronic scenario will be chosen",
-                        default="i")
-
+                        default=0)
+    parser.add_argument("-f", "--fileconfig",
+                        help="Path to .ini file that provides detailed configuration of the module. If None, a default config.ini is provided in package",
+                        default=None)
     args = parser.parse_args()
+
+    if args.fileconfig is None:
+        fileconfig = "./alphaDeesp/ressources/config/config.ini"
+    else:
+        fileconfig = args.fileconfig
+        if not os.path.exists(fileconfig):
+            raise FileNotFoundError("no config file at provided path : "+str(fileconfig))
+
     config = configparser.ConfigParser()
-    config.read("./alphaDeesp/config.ini")
+    config.read(fileconfig)
     print("#### PARAMETERS #####")
     for key in config["DEFAULT"]:
         print("key: {} = {}".format(key, config['DEFAULT'][key]))
