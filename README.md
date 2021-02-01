@@ -86,7 +86,7 @@ python setup.py install
 ## Run Alphadeesp
 
 ### To execute in **manual mode** on a given power grid snaphsot for a given overloaded line, from root folder, type:
-`pipenv run python -m alphaDeesp.main -l 9 -s 0 -c 0 -t 0
+`pipenv run python -m alphaDeesp.main -l 9 -s 0 -c 0 -t 0 -f "./alphaDeesp/ressources/config/config.ini"
 `
 
 * -l/--ltc: List of integers representing the lines to cut. For the moment, only one line to cut is handled
@@ -96,6 +96,8 @@ python setup.py install
 * -c/--chronicscenario: integer representing the chronic scenario to consider, starting from 0. By default, the first available chronic scenario will be chosen, i.e. argument is 0
 
 * -t/--timestep: integer representing the timestep number at which we want to run alphadeesp simulation
+
+* -f/--fileconfig: Path to .ini file that provides detailed configuration of the module. If None, a default config.ini is loaded in "./alphaDeesp/ressources/config/config.ini"
 
 In any case, an end result dataframe is written in root folder
 
