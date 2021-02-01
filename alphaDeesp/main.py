@@ -36,7 +36,8 @@ def main():
     args = parser.parse_args()
 
     if args.fileconfig is None:
-        fileconfig = "./alphaDeesp/ressources/config/config.ini"
+        print("Getting default package config.ini")
+        fileconfig = os.path.join(os.path.dirname(os.path.realpath(__file__)), "ressources",'config', "config.ini")
     else:
         fileconfig = args.fileconfig
         if not os.path.exists(fileconfig):
