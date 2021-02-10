@@ -1,15 +1,10 @@
 Installation
 ------------
 
-To install AlphaDeesp execute the following lines:
-
-1. First clone the repos
-^^^^^^^^^^^^^^^^^^^^^^^^
-
-``git clone the repository https://github.com/marota/ExpertOp4Grid.git``
+To install ExpertOp4Grid and AlphaDeesp execute the following lines:
 
 
-2. (Optional)(Recommended) if you want to run in manual mode, install graphviz.
+1. (Optional)(Recommended) if you want to run in manual mode, install graphviz.
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This is for neato package, it allows to transform a dot file into a pdf file.
@@ -33,14 +28,11 @@ Then ensure that graphviz and neato are in the path. You often have to set it ma
 Then you can move to python packages installation
 
 
-3. Install python packages from setup.py
+3. Install the package from Pypi
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-``pip3 install (-U) .``
+``pip install ExpertOp4Grid``
 
-or
-
-``pipenv install (-U) .``
 
 4. (Optional) If you want to run simulation with pypownet instead of Grid2op:
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

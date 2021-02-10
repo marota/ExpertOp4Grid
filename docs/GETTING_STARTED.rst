@@ -5,8 +5,8 @@ Getting Started
 Manual Mode
 ===========
 
-To execute in **manual mode**, from root folder, type:
-``pipenv run python -m alphaDeesp.main -l 9 -s 0 -c 0 -t 0``
+To execute in **manual mode**, type:
+``expertop4grid -l 9 -s 0 -c 0 -t 0``
 
 --ltc | -l int
                             Integer representing the line to cut.
@@ -21,7 +21,7 @@ To execute in **manual mode**, from root folder, type:
                             Integer representing the timestep number at
                             which we want to run alphadeesp simulation
 --fileconfig | -f string
-                            Path to .ini file that provides detailed configuration of the module. If None, a default config.ini is provided in package
+                            Path to .ini file that provides detailed configuration of the module. If none is provided, a default config.ini is provided in package
 
 In any case, an end result dataframe is written in root folder.
 
@@ -59,7 +59,7 @@ Instead of configuring through config.ini, you can pass a similar python diction
 Tests
 =====
 
-To launch the test suite:
+To launch the test suite in git repo:
 ``pipenv run python -m pytest --verbose --continue-on-collection-errors -p no:warnings``
 
 Debug Help
