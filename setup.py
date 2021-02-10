@@ -27,7 +27,7 @@ pkgs = {
         "jupyter-core==4.6.3",
         "kiwisolver==1.2.0",
         "llvmlite==0.32.1",
-        "matplotlib==2.2.5",
+        "matplotlib==3.3.3",
         "metakernel==0.24.4",
         "more-itertools==8.2.0",
         "networkx==2.4",
