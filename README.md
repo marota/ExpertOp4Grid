@@ -104,7 +104,8 @@ In any case, an end result dataframe is written in root folder
 In manual mode, further configuration is made through alphadeesp/config.ini
 
 * *simulatorType* - you can chose Grid2op or Pypownet
-* *gridPath* - path to folder containing files representing the grid
+* *gridPath* - path to folder containing files representing the grid. If no value is provided, a default grid will be loaded (l2rpn_2019) containing one chronic as a simple usecase example
+* *outputPath* - path to write outputs in case snapshot mode is activated. If no path is provided, ExpertOp4Grid will write image results in the current working directory (folder named output/grid/linetocut/scenario/timestep) 
 * *CustomLayout* - list of couples reprenting coordinates of grid nodes. If not provided, grid2op will load grid_layout.json in grid folder
 * *grid2opDifficulty* - "0", "1", "2" or "competition". Be careful: grid datasets should have a difficulty_levels.json
 * *7 other constants for alphadeesp computation* can be set in config.ini, with comments within the file 
