@@ -28,13 +28,13 @@ Then ensure that graphviz and neato are in the path. You often have to set it ma
 Then you can move to python packages installation
 
 
-3. Install the package from Pypi
+2. Install the package from Pypi
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 ``pip install ExpertOp4Grid``
 
 
-4. (Optional) If you want to run simulation with pypownet instead of Grid2op:
+3. (Optional) If you want to run simulation with pypownet instead of Grid2op:
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 - Clone pypownet somewhere else :
@@ -53,7 +53,7 @@ or
 ``cd ../pypownet``
 ``python setup.py install``
 
-5. (Optional) Compile and output the sphinx doc (this documentation)
+4. (Optional) Compile and output the sphinx doc (this documentation)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Run
