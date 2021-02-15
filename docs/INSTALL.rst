@@ -4,8 +4,8 @@ Installation
 To install ExpertOp4Grid and AlphaDeesp execute the following lines:
 
 
-1. (Optional)(Recommended) if you want to run in manual mode, install graphviz.
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+1. (Optional)(Recommended) if you want to run in manual mode, install graphviz
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 This is for neato package, it allows to transform a dot file into a pdf file.
 
