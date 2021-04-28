@@ -15,7 +15,7 @@ pkgs = {
         "decorator==4.4.2",
         "docutils==0.16",
         "graphviz==0.14",
-        "Grid2Op==1.1.1",
+        "Grid2Op==1.5.1",
         "gym==0.12.6",
         "idna==2.9",
         "importlib-metadata==1.6.0",
