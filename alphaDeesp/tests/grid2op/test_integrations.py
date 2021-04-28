@@ -146,11 +146,12 @@ def test_integration_dataframe_results_with_line_9_cut():
     ranked_combinations = alphadeesp.get_ranked_combinations()
     expert_system_results, actions = sim.compute_new_network_changes(ranked_combinations)
 
-    # expert_system_results.to_csv("alphaDeesp/tests/resources_for_tests_grid2op/END_RESULT_DATAFRAME_G2OP_LTC9_9CAPA_230_generated.csv")
+    #expert_system_results.to_csv("alphaDeesp/tests/resources_for_tests_grid2op/END_RESULT_DATAFRAME_G2OP_LTC9_9CAPA_230_generated.csv")
 
     path_to_saved_end_result_dataframe = \
         Path.cwd() / "alphaDeesp/tests/resources_for_tests_grid2op/END_RESULT_DATAFRAME_G2OP_LTC9_9CAPA_230.csv"
 
+    #expert_system_results.to_csv(path_to_saved_end_result_dataframe)
     saved_df = pd.read_csv(path_to_saved_end_result_dataframe, index_col=0)
 
     # List understandable format
@@ -186,11 +187,10 @@ def test_integration_dataframe_results_with_line_8_cut():
     ranked_combinations = alphadeesp.get_ranked_combinations()
     expert_system_results, actions = sim.compute_new_network_changes(ranked_combinations)
 
-    # expert_system_results.to_csv("alphaDeesp/tests/resources_for_tests_grid2op/END_RESULT_DATAFRAME_G2OP_LTC8_8CAPA_88_generated.csv")
-
     path_to_saved_end_result_dataframe = \
         Path.cwd() / "alphaDeesp/tests/resources_for_tests_grid2op/END_RESULT_DATAFRAME_G2OP_LTC8_8CAPA_88.csv"
 
+    # expert_system_results.to_csv(path_to_saved_end_result_dataframe)
     saved_df = pd.read_csv(path_to_saved_end_result_dataframe, index_col=0)
 
     # List understandable format
@@ -240,11 +240,11 @@ def test_integration_dataframe_results_with_modified_substation4():
     ranked_combinations = alphadeesp.get_ranked_combinations()
     expert_system_results, actions = sim.compute_new_network_changes(ranked_combinations)
     # =============
-    # expert_system_results.to_csv("alphaDeesp/tests/resources_for_tests_grid2op/END_RESULT_DATAFRAME_G2OP_MODIFIED_SUBSTATION4_generated.csv")
 
     # Read desired results
     path_to_saved_end_result_dataframe = \
         Path.cwd() / "alphaDeesp/tests/resources_for_tests_grid2op/END_RESULT_DATAFRAME_G2OP_MODIFIED_SUBSTATION4.csv"
+    #expert_system_results.to_csv(path_to_saved_end_result_dataframe)
     saved_df = pd.read_csv(path_to_saved_end_result_dataframe, index_col=0)
 
     ## Properly compare the two dataframes

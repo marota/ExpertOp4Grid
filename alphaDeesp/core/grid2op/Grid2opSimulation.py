@@ -246,11 +246,12 @@ class Grid2opSimulation(Simulation):
             name = str(internal_target_node) + "_" + name
             self.save_bag.append([name, virtual_obs])
             worsened_line_ids = self.create_boolean_array_of_worsened_line_ids(obs, virtual_obs,
-                                                                               self.observation_space.parameters.NB_TIMESTEP_COOLDOWN_LINE)
+                                                                               self.obs._obs_env.parameters.NB_TIMESTEP_COOLDOWN_LINE)
             simulated_score = score_changes_between_two_observations(self.ltc, obs, virtual_obs,
-                                                                     self.observation_space.parameters.NB_TIMESTEP_COOLDOWN_LINE)
+                                                                     self.obs._obs_env.parameters.NB_TIMESTEP_COOLDOWN_LINE)
 
-            # update simulated score to 0 in case our line got disconnected, starting a cascading failure
+            # update simulated score to 0 in case
+            # our line got disconnected, starting a cascading failure
             if (bool(info['disc_lines'][self.ltc])):#other line disconnections are already accounted in worsened lines
             #if (info['disc_lines'].any()):
                 simulated_score = 0
