@@ -397,10 +397,11 @@ class Grid2opSimulation(Simulation):
         """This functions cuts lines: [ids], simulates and returns new line flows"""
 
         # First, set parameter to avoid disconnection
-        self.obs._obs_env.no_overflow_disconnection = True
+        self.obs._obs_env._parameters.NO_OVERFLOW_DISCONNECTION = True
+        self.obs._obs_env._no_overflow_disconnection=True
         max_line_actions=self.obs._obs_env.parameters.MAX_LINE_STATUS_CHANGED
 
-        self.obs._obs_env.parameters.MAX_LINE_STATUS_CHANGED = 999
+        self.obs._obs_env._parameters.MAX_LINE_STATUS_CHANGED = 999
 
         # Set action which disconects the specified lines (by ids)
         deconexion_action = self.action_space({"set_line_status": [(id_, -1) for id_ in ids]})
@@ -416,8 +417,9 @@ class Grid2opSimulation(Simulation):
         # self.g_pow_prime = self.build_powerflow_graph(self.obs_cutted)
 
         # Finaly, reset previous parameter
-        self.obs._obs_env.no_overflow_disconnection = self.no_overflow_disc
-        self.obs._obs_env.parameters.MAX_LINE_STATUS_CHANGED=max_line_actions
+        self.obs._obs_env._no_overflow_disconnection = self.no_overflow_disc
+        self.obs._obs_env._parameters.NO_OVERFLOW_DISCONNECTION = self.no_overflow_disc
+        self.obs._obs_env._parameters.MAX_LINE_STATUS_CHANGED=max_line_actions
 
         return new_flow
 
