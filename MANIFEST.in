@@ -1,0 +1,10 @@
+include README.md
+include LICENSE.md
+include docs/*.rst
+include alphaDeesp/ressources/config/*
+include alphaDeesp/ressources/parameters/l2rpn_2019/chronics/a/*
+include alphaDeesp/ressources/parameters/l2rpn_2019/config.py
+include alphaDeesp/ressources/parameters/l2rpn_2019/difficulty_levels.json
+include alphaDeesp/ressources/parameters/l2rpn_2019/grid.json
+include alphaDeesp/ressources/parameters/l2rpn_2019/grid_layout.json
+include alphaDeesp/ressources/parameters/l2rpn_2019/prods_charac.csv

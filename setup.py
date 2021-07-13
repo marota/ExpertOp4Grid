@@ -28,7 +28,7 @@ pkgs = {
 }
 
 setup(name='ExpertOp4Grid',
-      version='0.0.1',
+      version='0.1.1',
       description='Expert analysis algorithm for solving overloads in a powergrid',
       classifiers=[
           'Development Status :: 4 - Beta',
@@ -41,20 +41,14 @@ setup(name='ExpertOp4Grid',
           "Natural Language :: English"
       ],
       keywords='ML powergrid optmization RL power-systems',
-      author='Nicolas Megel',
-      author_email='nico.megel@gmail.com',
+      author='Antoine Marot',
+      author_email='antoine.marot@rte-france.com',
       url="https://github.com/marota/ExpertOp4Grid/",
+      download_url = 'https://github.com/marota/ExpertOp4Grid/archive/refs/tags/0.1.1.tar.gz',
       license='Mozilla Public License 2.0 (MPL 2.0)',
       packages=setuptools.find_packages(),
       extras_require=pkgs["extras"],
       include_package_data=True,
-      package_data={'alphaDeesp': ["ressources/config/*",
-                                    "ressources/parameters/l2rpn_2019/chronics/a/*",
-                                    "ressources/parameters/l2rpn_2019/config.py",
-                                    "ressources/parameters/l2rpn_2019/difficulty_levels.json",
-                                    "ressources/parameters/l2rpn_2019/grid.json",
-                                    "ressources/parameters/l2rpn_2019/grid_layout.json",
-                                    "ressources/parameters/l2rpn_2019/prods_charac.csv"]},
       install_requires=pkgs["required"],
       zip_safe=False,
       entry_points={'console_scripts': ['expertop4grid=alphaDeesp.main:main']}
