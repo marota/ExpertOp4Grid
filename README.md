@@ -1,6 +1,6 @@
 See the documentation at https://expertop4grid.readthedocs.io/en/latest
 
-# AlphaDeesp
+# ExpertOp4Grid
 This is an Expert System which tries to solve a security issue on a power grid, that is on overload over a power line, when it happens. It uses cheap but non-linear topological actions to do, and does not require any training.
 For any new overloaded situations, it computes an influence graph around the overload of interest, and rank the substations and topologies to explore to find a solution.
 It simulates the top ranked topologies to eventually give a score of success:
@@ -20,11 +20,11 @@ It is an implementation of the paper: "Expert system for topological action disc
 
 ## Installation
 Works with 
-* Grid2op version: >= 1.0.1
+* Grid2op version: >= 1.5.1
 * Pypownet version: 2.2.0 (optional installation)
 Could work with other simulation backend if the Simulation Interface is given
 
-To install AlphaDeesp execute the following lines: 
+To install ExpertOp4Grid execute the following lines: 
 ##### First clone the repos
 `git clone the repository https://github.com/marota/ExpertOp4Grid.git
 `
@@ -83,11 +83,10 @@ python setup.py install
 ```
 
 
-## Run Alphadeesp
+## Run ExpertOp4Grid
 
 ### To execute in **manual mode** on a given power grid snaphsot for a given overloaded line, from root folder, type:
-`pipenv run python -m alphaDeesp.main -l 9 -s 0 -c 0 -t 0 -f "./alphaDeesp/ressources/config/config.ini"
-`
+`pipenv run python -m expertop4grid -l 9 -s 0 -c 0 -t 0 `
 
 * -l/--ltc: List of integers representing the lines to cut. For the moment, only one line to cut is handled
 
@@ -97,7 +96,7 @@ python setup.py install
 
 * -t/--timestep: integer representing the timestep number at which we want to run alphadeesp simulation
 
-* -f/--fileconfig: Path to .ini file that provides detailed configuration of the module. If None, a default config.ini is loaded in "./alphaDeesp/ressources/config/config.ini"
+* -f/--fileconfig: Path to .ini file that provides detailed configuration of the module. If None, a default config.ini is loaded in "this_package_folder/alphaDeesp/ressources/config/config.ini"
 
 In any case, an end result dataframe is written in root folder
 
@@ -117,14 +116,14 @@ https://github.com/mjothy/l2rpn-baselines/tree/mj-devs/l2rpn_baselines/ExpertAge
 Instead of configuring through config.ini, you can pass a similar python dictionary to the API
  
 
-## AlphaDeesp Workflow
+## ExpertOp4Grid Workflow
 The first three steps of the algorithm are about extracting the situation, creating and 
 structuring the data that will be needed for the rest of the steps.
 
 ![Drag Racing](./alphaDeesp/ressources/first_line_algorithm_es_.png)
 
 At this step there is a Overload Graph coupled with organized data in a Dataframe that will enable to do the rest of the steps.
-AlphaDeesp needs a NetworkX graph, a DataFrame, and another dictionary with specific data to properly work.
+ExpertOp4Grid needs a NetworkX graph, a DataFrame, and another dictionary with specific data to properly work.
 
 ![Drag Racing](./alphaDeesp/ressources/second_line_algorithm_es_.png)
 
