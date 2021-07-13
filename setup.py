@@ -8,8 +8,8 @@ pkgs = {
         "Grid2Op==1.5.1",
         "networkx>=2.4",
         "numpy==1.18.4",
-        "oct2py>=5.0.4",
         "pandapower>=2.2.2",
+        "scipy==1.6.0",#needed for pandapower compatibility for now
         "pandas>=1.0.4",
         "pathlib>=1.0.1",
         "pydot>=1.4.1",
@@ -21,7 +21,8 @@ pkgs = {
     ],
     "extras": {
         "optional": [
-            "pypower>=5.1.4"
+            "oct2py>=5.0.4",
+            "pypower>=5.1.4",
             "pypownet>=2.2.0"
         ]
     }
