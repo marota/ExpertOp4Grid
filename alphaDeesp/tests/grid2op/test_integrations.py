@@ -28,9 +28,10 @@ def build_sim(ltc, param_folder, config_file = "./alphaDeesp/tests/resources_for
     if(modified_thermal_Limit):
         env._thermal_limit_a[ltc]=modified_thermal_Limit
     observation_space = env.observation_space
-    sim = Grid2opSimulation(obs, action_space, observation_space, param_options=config["DEFAULT"], debug=False,
+    sim = Grid2opSimulation(obs, env, param_options=config["DEFAULT"], debug=False,
                             ltc=[ltc])
                             #, plot=True, plot_folder="./alphaDeesp/tests/output_tempo")
+
     return sim
 
 
@@ -158,7 +159,9 @@ def test_integration_dataframe_results_with_line_9_cut():
     saved_df["Internal Topology applied "] = saved_df["Internal Topology applied "].str.replace(" ", ",")
 
     #print("The two dataframes are equal: ", are_dataframes_equal(expert_system_results, saved_df))
-    assert are_dataframes_equal(expert_system_results, saved_df)
+    assert are_dataframes_equal(expert_system_results[["Substation ID","Topology applied","Worsened line","Topology simulated score"]],
+                                saved_df[["Substation ID","Topology applied","Worsened line","Topology simulated score"]])
+
 
 
 def test_integration_dataframe_results_with_line_8_cut():
@@ -197,7 +200,10 @@ def test_integration_dataframe_results_with_line_8_cut():
     saved_df["Internal Topology applied "] = saved_df["Internal Topology applied "].str.replace(" ", ",")
 
     #print("The two dataframes are equal: ", are_dataframes_equal(expert_system_results, saved_df))
-    assert are_dataframes_equal(expert_system_results, saved_df)
+    df1=expert_system_results[["Substation ID","Topology applied","Worsened line","Topology simulated score"]]
+    df2=saved_df[["Substation ID","Topology applied","Worsened line","Topology simulated score"]]
+    assert are_dataframes_equal(df1,df2)
+
 
 
 def test_integration_dataframe_results_with_modified_substation4():
@@ -225,7 +231,7 @@ def test_integration_dataframe_results_with_modified_substation4():
     new_obs, reward, done, info = env.step(action)
 
     ## Build simulator and generate objects for alphadeesp
-    sim = Grid2opSimulation(new_obs, action_space, env.observation_space, param_options=config["DEFAULT"], debug=False,
+    sim = Grid2opSimulation(new_obs, env, param_options=config["DEFAULT"], debug=False,
                             ltc=[ltc])
     df_of_g = sim.get_dataframe()
     g_over = sim.build_graph_from_data_frame([ltc])
@@ -251,7 +257,9 @@ def test_integration_dataframe_results_with_modified_substation4():
     # List understandable format
     saved_df["Internal Topology applied "] = saved_df["Internal Topology applied "].str.replace(" ", ",")
     #print("The two dataframes are equal: ", are_dataframes_equal(expert_system_results, saved_df))
-    assert are_dataframes_equal(expert_system_results, saved_df)
+    assert are_dataframes_equal(expert_system_results[["Substation ID","Topology applied","Worsened line","Topology simulated score"]],
+                                saved_df[["Substation ID","Topology applied","Worsened line","Topology simulated score"]])
+
 
 def test_integration_dataframe_results_with_case_14_realistic():
     """
@@ -293,7 +301,9 @@ def test_integration_dataframe_results_with_case_14_realistic():
     saved_df["Internal Topology applied "] = saved_df["Internal Topology applied "].str.replace(" ", ",")
 
     #print("The two dataframes are equal: ", are_dataframes_equal(expert_system_results, saved_df))
-    assert are_dataframes_equal(expert_system_results, saved_df)
+    assert are_dataframes_equal(expert_system_results[["Substation ID","Topology applied","Worsened line","Topology simulated score"]],
+                                saved_df[["Substation ID","Topology applied","Worsened line","Topology simulated score"]])
+
 
 def test_integration_dataframe_results_no_hubs():
     """
@@ -306,13 +316,26 @@ def test_integration_dataframe_results_no_hubs():
     # os.chdir('../../../')
 
     ltc = 9
-    chronic_scenario = "i"
-    timestep = 1
-    param_folder = "./alphaDeesp/tests/resources_for_tests_grid2op/l2rpn_2019_nohubs"
+    chronic_scenario = "i"#None#
+    timestep = 0#1
+    param_folder = "./alphaDeesp/tests/resources_for_tests_grid2op/l2rpn_2019_nohubs"#"rte_case14_realistic"#
     config_file = "./alphaDeesp/tests/resources_for_tests_grid2op/config_for_tests.ini"
 
     sim = build_sim(ltc, param_folder, config_file = config_file, timestep=timestep, chronic_scenario=chronic_scenario)
     df_of_g = sim.get_dataframe()
+
+    # emulate that edges 4->3, 5->10, 12->13 are grey edges, hence not to be considered in the graphs later.
+    # hence no hubs will be identified
+    df_of_g["delta_flows"].iloc[6] = 0.0
+    df_of_g["gray_edges"].iloc[6] = True
+
+    df_of_g["delta_flows"].iloc[12] = 0.0
+    df_of_g["gray_edges"].iloc[12] = True
+
+    df_of_g["delta_flows"].iloc[19] = 0.0
+    df_of_g["gray_edges"].iloc[19] = True
+    ####
+
     g_over = sim.build_graph_from_data_frame([ltc])
     g_pow = sim.build_powerflow_graph_beforecut()
     g_pow_prime = sim.build_powerflow_graph_aftercut()
@@ -337,7 +360,9 @@ def test_integration_dataframe_results_no_hubs():
     saved_df["Internal Topology applied "] = saved_df["Internal Topology applied "].str.replace(" ", ",")
 
     #print("The two dataframes are equal: ", are_dataframes_equal(expert_system_results, saved_df))
-    assert are_dataframes_equal(expert_system_results, saved_df)
+    assert are_dataframes_equal(expert_system_results[["Substation ID","Topology applied","Worsened line","Topology simulated score"]],
+                                saved_df[["Substation ID","Topology applied","Worsened line","Topology simulated score"]])
+
 
 def test_integration_l2rpn_wcci_2020_computation_time():
     """
