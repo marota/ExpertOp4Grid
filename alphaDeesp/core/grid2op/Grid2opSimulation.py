@@ -37,7 +37,7 @@ class Grid2opSimulation(Simulation):
     def get_layout(self):
         return self.layout
 
-    def __init__(self, obs, action_space, observation_space, param_options=None, debug = False, ltc=[9],other_ltc=[], plot=False, plot_folder = None,reward_type=None):
+    def __init__(self, obs, env, param_options=None, debug = False, ltc=[9],other_ltc=[], plot=False, plot_folder = None,reward_type=None):
         super().__init__()
 
         # Get Grid2op objects
@@ -48,8 +48,9 @@ class Grid2opSimulation(Simulation):
             self.printer = Printer(plot_folder)
         self.obs = obs
         self.obs_linecut = None
-        self.action_space = action_space
-        self.observation_space = observation_space
+        self.action_space = env.action_space
+        self.observation_space = env.observation_space
+        self.env=env
         self.plot_helper = self.get_plot_helper()
         self.no_overflow_disc = self.obs._obs_env.no_overflow_disconnection # Keep it in memory to activate and deactivate during computation steps
 
@@ -252,7 +253,7 @@ class Grid2opSimulation(Simulation):
 
             # update simulated score to 0 in case
             # our line got disconnected, starting a cascading failure
-            if (bool(info['disc_lines'][self.ltc])):#other line disconnections are already accounted in worsened lines
+            if (bool(info['disc_lines'][self.ltc]>=0)):#other line disconnections are already accounted in worsened lines
             #if (info['disc_lines'].any()):
                 simulated_score = 0
 
