@@ -5,7 +5,7 @@ pkgs = {
     "required": [
         "docutils>=0.16",
         "graphviz>=0.14",
-        "Grid2Op==1.5.1",
+        "Grid2Op==1.6.4",
         "networkx>=2.4",
         "numpy==1.18.4",
         "pandapower>=2.2.2",
@@ -29,7 +29,7 @@ pkgs = {
 }
 
 setup(name='ExpertOp4Grid',
-      version='0.1.1',
+      version='0.1.2',
       description='Expert analysis algorithm for solving overloads in a powergrid',
       classifiers=[
           'Development Status :: 4 - Beta',
@@ -45,7 +45,7 @@ setup(name='ExpertOp4Grid',
       author='Antoine Marot',
       author_email='antoine.marot@rte-france.com',
       url="https://github.com/marota/ExpertOp4Grid/",
-      download_url = 'https://github.com/marota/ExpertOp4Grid/archive/refs/tags/0.1.1.tar.gz',
+      download_url = 'https://github.com/marota/ExpertOp4Grid/archive/refs/tags/0.1.2.tar.gz',
       license='Mozilla Public License 2.0 (MPL 2.0)',
       packages=setuptools.find_packages(),
       extras_require=pkgs["extras"],
