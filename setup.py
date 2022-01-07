@@ -29,7 +29,7 @@ pkgs = {
 }
 
 setup(name='ExpertOp4Grid',
-      version='0.1.3',
+      version='0.1.3.post1',
       description='Expert analysis algorithm for solving overloads in a powergrid',
       classifiers=[
           'Development Status :: 4 - Beta',
@@ -45,7 +45,7 @@ setup(name='ExpertOp4Grid',
       author='Antoine Marot',
       author_email='antoine.marot@rte-france.com',
       url="https://github.com/marota/ExpertOp4Grid/",
-      download_url = 'https://github.com/marota/ExpertOp4Grid/archive/refs/tags/0.1.3.tar.gz',
+      download_url = 'https://github.com/marota/ExpertOp4Grid/archive/refs/tags/0.1.3.post1.tar.gz',
       license='Mozilla Public License 2.0 (MPL 2.0)',
       packages=setuptools.find_packages(),
       extras_require=pkgs["extras"],
