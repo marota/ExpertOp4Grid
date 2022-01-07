@@ -28,11 +28,11 @@ def build_sim(ltc, param_folder, config_file = "./alphaDeesp/tests/resources_for
     if(modified_thermal_Limit):
         env._thermal_limit_a[ltc]=modified_thermal_Limit
     observation_space = env.observation_space
-    sim = Grid2opSimulation(obs, env, param_options=config["DEFAULT"], debug=False,
+    sim = Grid2opSimulation(obs, action_space,observation_space, param_options=config["DEFAULT"], debug=False,
                             ltc=[ltc])
                             #, plot=True, plot_folder="./alphaDeesp/tests/output_tempo")
 
-    return sim
+    return sim,env
 
 
 def test_save_red_dataframe():
@@ -134,7 +134,7 @@ def test_integration_dataframe_results_with_line_9_cut():
     ltc = 9
     param_folder = "./alphaDeesp/tests/resources_for_tests_grid2op/l2rpn_2019_ltc_9"
 
-    sim = build_sim(ltc, param_folder)
+    sim,env = build_sim(ltc, param_folder)
     df_of_g = sim.get_dataframe()
     g_over = sim.build_graph_from_data_frame([ltc])
     g_pow = sim.build_powerflow_graph_beforecut()
@@ -177,7 +177,7 @@ def test_integration_dataframe_results_with_line_8_cut():
     ltc = 8
     param_folder = "./alphaDeesp/tests/resources_for_tests_grid2op/l2rpn_2019_ltc_8"
 
-    sim = build_sim(ltc, param_folder)
+    sim,env = build_sim(ltc, param_folder)
     df_of_g = sim.get_dataframe()
     g_over = sim.build_graph_from_data_frame([ltc])
     g_pow = sim.build_powerflow_graph_beforecut()
@@ -231,7 +231,7 @@ def test_integration_dataframe_results_with_modified_substation4():
     new_obs, reward, done, info = env.step(action)
 
     ## Build simulator and generate objects for alphadeesp
-    sim = Grid2opSimulation(new_obs, env, param_options=config["DEFAULT"], debug=False,
+    sim = Grid2opSimulation(new_obs, action_space,env.observation_space, param_options=config["DEFAULT"], debug=False,
                             ltc=[ltc])
     df_of_g = sim.get_dataframe()
     g_over = sim.build_graph_from_data_frame([ltc])
@@ -276,7 +276,7 @@ def test_integration_dataframe_results_with_case_14_realistic():
     param_folder = "./alphaDeesp/ressources/parameters/rte_case14_realistic" # We go directly in the folder to avoid double storing of "heavy" data
     config_file = "./alphaDeesp/tests/resources_for_tests_grid2op/config_for_tests.ini"
 
-    sim = build_sim(ltc, param_folder, config_file = config_file, timestep=timestep, chronic_scenario=chronic_scenario)
+    sim,env = build_sim(ltc, param_folder, config_file = config_file, timestep=timestep, chronic_scenario=chronic_scenario)
     df_of_g = sim.get_dataframe()
     g_over = sim.build_graph_from_data_frame([ltc])
     g_pow = sim.build_powerflow_graph_beforecut()
@@ -321,7 +321,7 @@ def test_integration_dataframe_results_no_hubs():
     param_folder = "./alphaDeesp/tests/resources_for_tests_grid2op/l2rpn_2019_nohubs"#"rte_case14_realistic"#
     config_file = "./alphaDeesp/tests/resources_for_tests_grid2op/config_for_tests.ini"
 
-    sim = build_sim(ltc, param_folder, config_file = config_file, timestep=timestep, chronic_scenario=chronic_scenario)
+    sim,env = build_sim(ltc, param_folder, config_file = config_file, timestep=timestep, chronic_scenario=chronic_scenario)
     df_of_g = sim.get_dataframe()
 
     # emulate that edges 4->3, 5->10, 12->13 are grey edges, hence not to be considered in the graphs later.
@@ -382,7 +382,7 @@ def test_integration_l2rpn_wcci_2020_computation_time():
     timestep = 100
     param_folder = "./alphaDeesp/tests/resources_for_tests_grid2op/l2rpn_wcci_2020"
     config_file = "./alphaDeesp/tests/resources_for_tests_grid2op/config_for_tests.ini"
-    sim = build_sim(ltc, param_folder, config_file = config_file, timestep=timestep, chronic_scenario=chronic_scenario)
+    sim,env = build_sim(ltc, param_folder, config_file = config_file, timestep=timestep, chronic_scenario=chronic_scenario)
 
     # Starting time
     start = time.time()
@@ -426,7 +426,7 @@ def test_double_lines_wcci_2020():
     config_file = "./alphaDeesp/tests/resources_for_tests_grid2op/config_for_tests.ini"
 
     modified_thermal_Limit=150#the flow in the line is about 158amps
-    sim = build_sim(ltc, param_folder, config_file = config_file, timestep=timestep, chronic_scenario=chronic_scenario,modified_thermal_Limit=modified_thermal_Limit)
+    sim,env = build_sim(ltc, param_folder, config_file = config_file, timestep=timestep, chronic_scenario=chronic_scenario,modified_thermal_Limit=modified_thermal_Limit)
 
     # Starting time
     start = time.time()

@@ -104,6 +104,7 @@ def main():
         env, obs, action_space = loader.get_observation(chronic_scenario= args.chronicscenario, timestep=args.timestep)
         observation_space = env.observation_space
 
+
         # Lok for scenario Name if none has been given (first one by default)
         if args.chronicscenario is None:
             args.chronicscenario = loader.search_chronic_name_from_num(0)
@@ -119,7 +120,7 @@ def main():
         else:
             plot_folder = None
 
-        sim = Grid2opSimulation(obs, env, param_options=config["DEFAULT"], debug=args.debug,
+        sim = Grid2opSimulation(obs, action_space, observation_space, param_options=config["DEFAULT"], debug=args.debug,
                                  ltc=args.ltc, plot=args.snapshot, plot_folder = plot_folder)
 
     elif config["DEFAULT"]["simulatorType"] == "RTE":
