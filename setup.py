@@ -5,11 +5,12 @@ pkgs = {
     "required": [
         "docutils>=0.16",
         "graphviz>=0.14",
-        "Grid2Op==1.6.4",
+        "Grid2Op>=1.6.4",
+        "lightsim2grid>=0.5.5",
         "networkx>=2.4",
-        "numpy==1.18.4",
+        "numpy>=1.18.4",
         "pandapower>=2.2.2",
-        "scipy==1.6.0",#needed for pandapower compatibility for now
+        "scipy>=1.6.0",#needed for pandapower compatibility for now
         "pandas>=1.0.4",
         "pathlib>=1.0.1",
         "pydot>=1.4.1",

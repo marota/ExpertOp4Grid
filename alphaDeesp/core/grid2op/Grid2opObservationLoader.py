@@ -43,6 +43,8 @@ class Grid2opObservationLoader:
                 print("INFO - A string value has been provided as chronic scenario - searching for a chronic folder with name "+str(chronic_scenario))
 
         # Go to desired chronic scenario (if None, first scenario will be taken)
+        if chronic_scenario is None:
+            chronic_scenario = self.env.chronics_handler.get_name()
         if chronic_scenario is not None:
             if type(chronic_scenario) is str:
                 found_id = self.search_chronic_num_from_name(chronic_scenario)
@@ -55,7 +57,6 @@ class Grid2opObservationLoader:
                 self.env.reset()
             else: # if name not found
                 raise ValueError("Chronic scenario name: "+chronic_scenario+" not found in folder")
-
 
         # Method fast_forward_chronics doesnt work properly
         if timestep >0:
