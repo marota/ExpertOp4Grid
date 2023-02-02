@@ -1,6 +1,6 @@
 docutils >= 0.16
 graphviz >= 0.14
-Grid2Op == 1.7.2
+Grid2Op == 1.8.1
 lightsim2grid == 0.7.0.post1
 networkx >= 2.4
 numpy >= 1.18.4
