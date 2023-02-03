@@ -53,5 +53,5 @@ setup(name='ExpertOp4Grid',
       include_package_data=True,
       install_requires=pkgs["required"],
       zip_safe=False,
-      entry_points={'console_scripts': ['expertop4grid=alphaDeesp.main:main']}
+      entry_points={'console_scripts': ['expertop4grid=alphaDeesp.main:main']},
 )
