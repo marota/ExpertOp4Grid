@@ -30,8 +30,9 @@ pkgs = {
 }
 
 setup(name='ExpertOp4Grid',
-      version='0.1.5.post1',
+      version='0.1.5.post2',
       description='Expert analysis algorithm for solving overloads in a powergrid',
+      long_description_content_type="text/markdown",
       classifiers=[
           'Development Status :: 4 - Beta',
           'Programming Language :: Python :: 3.6',
