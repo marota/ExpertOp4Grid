@@ -36,7 +36,11 @@ jobs:
       - run:
           name: Run tests
           # This assumes pytest is installed via the install-package step above
-          command: pytest --ignore=alphaDeesp/tests/pypownet/
+          command: pytest --ignore=alphaDeesp/tests/pypownet/ --ignore=alphaDeesp/tests/test_cli.py
+      - run:
+          name: Run cli test
+          # This assumes pytest is installed via the install-package step above
+          command: pytest alphaDeesp/tests/test_cli.py
 
 # Invoke jobs via workflows
 # See: https://circleci.com/docs/2.0/configuration-reference/#workflows

@@ -134,7 +134,7 @@ def main():
     # Call agent mode with possible plot and debug fonctionalities
     ranked_combinations, expert_system_results, action = expert_operator(sim, plot=args.snapshot)
 
-    return ranked_combinations, expert_system_results, action
+    #return ranked_combinations#, expert_system_results, action #no mean to return some value in a main function of a package that will be called in a cli
 
 
 def generate_plot_folders(plot_folder, args, config):
