@@ -2,6 +2,7 @@ from pprint import pprint
 import ast
 
 import numpy as np
+import pandas as pd
 from math import fabs
 import networkx as nx
 from grid2op.dtypes import dt_int
@@ -213,8 +214,9 @@ class Grid2opSimulation(Simulation):
 
                 score_data=self.compute_one_network_change_score_data(obs,virtual_obs,done,info,new_conf,internal_target_node,alphaDeesp_Internal_topo,new_conf_grid2op,score_topo)
                 #print(score_data)
-                max_index = end_result_dataframe.shape[0]  # rows
-                end_result_dataframe.loc[max_index] = score_data
+                #max_index = end_result_dataframe.shape[0]  # rows
+                #end_result_dataframe.loc[max_index] = score_data
+                end_result_dataframe=end_result_dataframe.append(pd.Series(score_data, index=end_result_dataframe.columns ),ignore_index=True)
                 ii += 1
                 j += 1
 
