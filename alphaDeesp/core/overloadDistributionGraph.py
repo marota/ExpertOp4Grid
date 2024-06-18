@@ -25,11 +25,26 @@ class ConstrainedPath:
         """Returns a list of edges that are in "aval" """
         return self.aval_edges
 
-    def full_e_constrained_path(self):
-        return filter_constrained_path_for_edges([self.amont_edges, self.constrained_edge, self.aval_edges])
+    def filter_constrained_path_for_nodes(self):
+        # this filters the constrained_path_lists and creates a uniq ordered list that represents the constrained_path
+        set_constrained_path = []
+        for path in [self.amont_edges, self.constrained_edge, self.aval_edges]:
+            if isinstance(path, tuple):
+                edge = path
+                for n in edge[0:2]:
+                    if n not in set_constrained_path:
+                        set_constrained_path.append(n)
+            else:
+                for edge in path:
+                    if isinstance(edge, tuple):
+                        for n in edge[0:2]:
+                            if n not in set_constrained_path:
+                                set_constrained_path.append(n)
+
+        return set_constrained_path
 
     def full_n_constrained_path(self):
-        return filter_constrained_path_for_nodes([self.amont_edges, self.constrained_edge, self.aval_edges])
+        return self.filter_constrained_path_for_nodes()
 
     # def __repr__(self):
     #     return "ConstrainedPath(amont: %s, constrained_edge: %s, aval: %s) ## Recap: Constrained Path = %s" % (
@@ -199,34 +214,3 @@ def from_edges_get_nodes(edges, amont_or_aval: str, constrained_edge):
     else:
         raise ValueError("Error in function from_edges_get_nodes")
 
-
-def filter_constrained_path_for_nodes(constrained_path):
-    # this filters the constrained_path_lists and creates a uniq ordered list that represents the constrained_path
-    set_constrained_path = []
-    for path in constrained_path:
-        if isinstance(path, tuple):
-            edge=path
-            for n in edge[0:2]:
-                if n not in set_constrained_path:
-                    set_constrained_path.append(n)
-        else:
-            for edge in path:
-                if isinstance(edge, tuple):
-                    for n in edge[0:2]:
-                        if n not in set_constrained_path:
-                            set_constrained_path.append(n)
-
-    return set_constrained_path
-
-def filter_constrained_path_for_edges(constrained_path):
-    # this filters the constrained_path_lists and creates a uniq ordered list that represents the constrained_path
-    set_constrained_path = []
-    for edge in constrained_path:
-        if isinstance(edge, tuple):
-            set_constrained_path.append(edge)
-        elif isinstance(edge, list):
-            for e in edge:
-                if isinstance(e, tuple):
-                    set_constrained_path.append(e)
-
-    return set_constrained_path
