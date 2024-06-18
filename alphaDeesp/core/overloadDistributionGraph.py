@@ -41,18 +41,22 @@ class ConstrainedPath:
                "################################################################" % (
                    self.full_n_constrained_path(), self.amont_edges, self.constrained_edge, self.aval_edges)
 
-class Overload_Distibution_Graph:
+class Structured_Overload_Distribution_Graph:
+    """
+    Staring from a raw overload distibution graph with color edges, this class identifies the underlying path structure in terms of constrained path, loop paths and hub nodes
+    """
     def __init__(self,g):
         self.g_init=g
-        self.g_without_pos_edges = self.delete_color_edges(self.g_init, "red")
-        self.g_only_blue_components = self.delete_color_edges(self.g_without_pos_edges, "gray")
+        self.g_without_pos_edges = self.delete_color_edges(self.g_init, "red") #graph without loop path that have positive/red-coloured weight edges
+        self.g_only_blue_components = self.delete_color_edges(self.g_without_pos_edges, "gray") #graph with only negative/blue-coloured weight edges
         self.g_without_constrained_edge = self.delete_color_edges(self.g_init, "black")
         self.g_without_gray_and_c_edge = self.delete_color_edges(self.g_without_constrained_edge, "gray")
-        self.g_only_red_components = self.delete_color_edges(self.g_without_gray_and_c_edge, "blue")
-        self.constrained_path= self.find_constrained_path()
+        self.g_only_red_components = self.delete_color_edges(self.g_without_gray_and_c_edge, "blue")#graph with only loop path that have positive/red-coloured weight edges
+        self.constrained_path= self.find_constrained_path() #constrained path that contains the constrained edges and their connected component of blue edges
         self.type=""#
-        self.hubs = self.find_hubs()
-        self.red_loops = self.find_loops()
+        self.red_loops = self.find_loops() #parallel path to the constrained path on which flow can be rerouted
+        self.hubs = self.find_hubs() #specific nodes at substations connecting loop paths to constrained path. This is where flow can be most easily rerouted
+
 
     def get_amont_blue_edges(self, g, node):
         res = []
@@ -184,7 +188,7 @@ def from_edges_get_nodes(edges, amont_or_aval: str, constrained_edge):
     if edges:
         nodes = []
         for e in edges:
-            for node in e:
+            for node in e[:2]:
                 if node not in nodes:
                     nodes.append(node)
         return nodes
