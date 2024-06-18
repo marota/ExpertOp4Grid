@@ -5,7 +5,7 @@ import itertools
 import pprint
 import numpy as np
 
-from alphaDeesp.core.overloadDistributionGraph import Overload_Distibution_Graph
+from alphaDeesp.core.overloadDistributionGraph import Structured_Overload_Distribution_Graph
 from alphaDeesp.core.elements import *
 from math import fabs, ceil
 import subprocess
@@ -44,7 +44,7 @@ class AlphaDeesp:  # AKA SOLVER
         ranked_combinations = pd.DataFrame(ranked_combinations_structure_initiation)
 
         #Compute the overload distribution graph (constrained path, loops, hubs)
-        self.g_distribution_graph=Overload_Distibution_Graph(self.g)
+        self.g_distribution_graph=Structured_Overload_Distribution_Graph(self.g)
 
         # this function takes the dataFrame self.red_loops and adds the min cut_values to it.
         self.rank_red_loops()
