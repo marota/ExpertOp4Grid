@@ -43,19 +43,8 @@ class AlphaDeesp:  # AKA SOLVER
         }
         ranked_combinations = pd.DataFrame(ranked_combinations_structure_initiation)
 
-        #Compute the overload distribution graph
+        #Compute the overload distribution graph (constrained path, loops, hubs)
         self.g_distribution_graph=Overload_Distibution_Graph(self.g)
-#
-        self.constrained_path = self.g_distribution_graph.get_constrained_path() #ConstrainedPath(e_amont, constrained_edge, e_aval)
-        # print("n_amont = ", self.constrained_path.n_amont())
-        # print("n_aval = ", self.constrained_path.n_aval())
-
-        self.hubs = self.g_distribution_graph.get_hubs()#self.get_hubs()
-
-        # red_loops is a dataFrame
-        self.red_loops = self.g_distribution_graph.get_loops()#self.get_loops()
-        # print("self.red_loops = ")
-        # print(self.red_loops)
 
         # this function takes the dataFrame self.red_loops and adds the min cut_values to it.
         self.rank_red_loops()
@@ -395,7 +384,9 @@ class AlphaDeesp:  # AKA SOLVER
         # print('\nnoeud '+str(node)+' topo '+str(topo_vect))
 
         #  ########## IS IN AMONT ##########
-        if node in self.constrained_path.n_amont():
+        constrained_path=self.g_distribution_graph.get_constrained_path()
+        red_loops = self.g_distribution_graph.get_loops()
+        if node in constrained_path.n_amont():
             # ======================================
             #print("AMONT")
             if self.debug:
@@ -442,7 +433,7 @@ class AlphaDeesp:  # AKA SOLVER
                 print("Final score = ", final_score)
 
         #  ########## IS IN AVAL ##########
-        elif node in self.constrained_path.n_aval():
+        elif node in constrained_path.n_aval():
             # =============================================================
             #print("AVAL")
             if self.debug:
@@ -500,7 +491,7 @@ class AlphaDeesp:  # AKA SOLVER
 
         #  ########## IS IN Loop ##########
         # you want a node with the maximum output lines connected to the ingoing red loop edges, not connected to other ingoing edges
-        elif node in set([x for loop in range(len(self.red_loops.Path)) for x in self.red_loops.Path[loop]]):
+        elif node in set([x for loop in range(len(red_loops.Path)) for x in red_loops.Path[loop]]):
             # ========================================================================
             # print("AUTRE")
             node2 = int("666" + str(node))
@@ -643,16 +634,19 @@ class AlphaDeesp:  # AKA SOLVER
         # get all nodes from c_path, loops, //paths, {set of all those nodes}
         # for nodes in interesting_nodes:
         #   classify to category 1, 2, 3, 4.
-        df_sorted_hubs = self.sort_hubs(self.hubs)
+        hubs= self.g_distribution_graph.get_hubs()
+        df_sorted_hubs = self.sort_hubs(hubs)
         if df_sorted_hubs is None:
             return {}
         else:
             category1 = list(df_sorted_hubs["hubs"])
-            set_category2 = set(self.constrained_path.full_n_constrained_path()) - set(category1)
+
+            constrained_path = self.g_distribution_graph.get_constrained_path()
+            set_category2 = set(constrained_path.full_n_constrained_path()) - set(category1)
 
             sort_redLoopBuses = sorted(self.rankedLoopBuses.items(), key=lambda x: x[1], reverse=True)
             category3 = [sort_redLoopBuses[i][0] for i in range(len(sort_redLoopBuses))]  # set()  # @TODO
-            set_category4 = set(self.constrained_path.n_aval()) - (set(category1) | set_category2 | set(category3))
+            set_category4 = set(constrained_path.n_aval()) - (set(category1) | set_category2 | set(category3))
 
             d = {1: category1, 2: set_category2, 3: category3, 4: set_category4}
         return d
@@ -664,7 +658,8 @@ class AlphaDeesp:  # AKA SOLVER
         all_edges_xlabel_attributes = nx.get_edge_attributes(graph, "xlabel")
 
         Strength_Bus_dic = {}
-        for index, loop in self.red_loops.iterrows():
+        red_loops = self.g_distribution_graph.get_loops()
+        for index, loop in red_loops.iterrows():
             # for loop in self.red_loops:
             for bus in loop.Path:
                 if (bus != loop.Source) & (bus != loop.Target):
@@ -718,7 +713,9 @@ class AlphaDeesp:  # AKA SOLVER
         cut_values = []
         cut_sets = []  # contains the edges that ended up having the minimum cut_values
         g_red_DiGraph=self.to_DiGraph(self.g_distribution_graph.g_only_red_components)#self.g_only_red_components)#necessary to be able to compute minimum_cut
-        for i, row in self.red_loops.iterrows():#red_loops.iterrows():
+
+        red_loops = self.g_distribution_graph.get_loops()
+        for i, row in red_loops.iterrows():#red_loops.iterrows():
             source = row["Source"]
             target = row["Target"]
             p = row["Path"]
@@ -742,8 +739,8 @@ class AlphaDeesp:  # AKA SOLVER
 
         # print("cut_values = ", cut_values)
 
-        self.red_loops["min_cut_values"] = cut_values
-        self.red_loops["min_cut_edges"] = cut_sets
+        red_loops["min_cut_values"] = cut_values
+        red_loops["min_cut_edges"] = cut_sets
         # print("======================= cut_values added =======================")
         # print(self.red_loops)
 
