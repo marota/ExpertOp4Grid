@@ -3,6 +3,7 @@
 from alphaDeesp.core.alphadeesp import AlphaDeesp
 from alphaDeesp.core.printer import Printer
 import pandas as pd
+from alphaDeesp.core.graphsAndPaths import OverFlowGraph,PowerFlowGraph
 
 
 def expert_operator(sim, plot=False, debug=False):
@@ -20,9 +21,9 @@ def expert_operator(sim, plot=False, debug=False):
 
     # Get data representing the grid before and after line cutting, and topologies
     df_of_g = sim.get_dataframe()
-    g_over = sim.build_graph_from_data_frame(ltc)
-    g_pow = sim.build_powerflow_graph_beforecut()
-    g_pow_prime = sim.build_powerflow_graph_aftercut()
+    g_over =  OverFlowGraph(sim.topo, ltc, df_of_g).g#sim.build_graph_from_data_frame(ltc)
+    g_pow = PowerFlowGraph(sim.topo, sim.lines_outaged)#.g sim.build_powerflow_graph_beforecut()
+    g_pow_prime = PowerFlowGraph(sim.topo_linecut, sim.lines_outaged_cut) #sim.build_powerflow_graph_aftercut()
     simulator_data = {"substations_elements": sim.get_substation_elements(),
                       "substation_to_node_mapping": sim.get_substation_to_node_mapping(),
                       "internal_to_external_mapping": sim.get_internal_to_external_mapping()}
