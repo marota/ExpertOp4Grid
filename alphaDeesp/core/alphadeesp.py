@@ -5,7 +5,7 @@ import itertools
 import pprint
 import numpy as np
 
-from alphaDeesp.core.overloadDistributionGraph import Structured_Overload_Distribution_Graph
+from alphaDeesp.core.graphsAndPaths import Structured_Overload_Distribution_Graph
 from alphaDeesp.core.elements import *
 from math import fabs, ceil
 import subprocess

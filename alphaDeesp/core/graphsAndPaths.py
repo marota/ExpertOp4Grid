@@ -126,6 +126,9 @@ class PowerFlowGraph:
         else:
             raise RuntimeError("Graph's GType not understood, cannot build_edges!")
 
+    def get_graph(self):
+        return self.g
+
 class OverFlowGraph(PowerFlowGraph):
     """
     Staring from a raw overload distibution graph with color edges, this class identifies the underlying path structure in terms of constrained path, loop paths and hub nodes
