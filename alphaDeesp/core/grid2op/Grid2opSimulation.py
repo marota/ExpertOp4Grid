@@ -13,6 +13,7 @@ from alphaDeesp.core.simulation import Simulation
 from alphaDeesp.core.network import Network
 from alphaDeesp.core.elements import OriginLine, Consumption, Production, ExtremityLine
 from alphaDeesp.core.printer import Printer
+from alphaDeesp.core.graphsAndPaths import OverFlowGraph,PowerFlowGraph
 
 
 class Grid2opSimulation(Simulation):
@@ -48,6 +49,7 @@ class Grid2opSimulation(Simulation):
             self.plot_folder = plot_folder
             self.printer = Printer(plot_folder)
         self.obs = obs
+        self.lines_outaged = np.argwhere(self.obs.line_status == False)[:, 0]
         self.obs_linecut = None
         self.action_space = action_space#env.action_space
         self.observation_space = observation_space#env.observation_space
@@ -413,6 +415,7 @@ class Grid2opSimulation(Simulation):
         # Storage of new observation to access features in other function
         self.obs_linecut = obs_linecut
         self.topo_linecut = self.extract_topo_from_obs(self.obs_linecut)
+        self.lines_outaged_cut = np.argwhere(self.obs_linecut.line_status == False)[:, 0]
 
         # Get new flow simulated
         new_flow = self.obs_linecut.p_or
@@ -432,16 +435,18 @@ class Grid2opSimulation(Simulation):
         Builds a graph of the grid and its powerflow before the lines are cut
         :return: NetworkX Graph of representing the grid
         """
-        g = build_powerflow_graph(self.topo, self.obs)
-        return g
+        lines_cut = np.argwhere(self.obs.line_status == False)[:, 0]
+        #g = build_powerflow_graph(self.topo, lines_cut)
+        return PowerFlowGraph(self.topo, lines_cut).g
 
     def build_powerflow_graph_aftercut(self):
         """
         Builds a graph of the grid and its powerflow after the lines have been cut
         :return: NetworkX Graph of representing the grid
         """
-        g = build_powerflow_graph(self.topo_linecut, self.obs_linecut)
-        return g
+        lines_cut = np.argwhere(self.obs_linecut.line_status == False)[:, 0]
+        #g = build_powerflow_graph(self.topo_linecut, lines_cut)
+        return PowerFlowGraph(self.topo_linecut, lines_cut).g
 
     def get_dataframe(self):
         """
@@ -513,20 +518,6 @@ class Grid2opSimulation(Simulation):
         linesAtBusbar_dic[sub_ex] = linesAtBusbarEx
         return linesAtBusbar_dic
 
-    def build_graph_from_data_frame(self, lines_to_cut):
-        """This function creates a graph G from a DataFrame"""
-        g = nx.MultiDiGraph()
-        build_nodes(g, self.topo["nodes"]["are_prods"], self.topo["nodes"]["are_loads"],
-                    self.topo["nodes"]["prods_values"], self.topo["nodes"]["loads_values"])
-
-        self.build_edges_from_df(g, lines_to_cut)
-
-        # print("WE ARE IN BUILD GRAPH FROM DATA FRAME ===========")
-        # all_edges_xlabel_attributes = nx.get_edge_attributes(g, "xlabel")  # dict[edge]
-        # print("all_edges_xlabel_attributes = ", all_edges_xlabel_attributes)
-
-        return g
-
     def build_detailed_graph_from_internal_structure(self, lines_to_cut):
         """This function create a detailed graph from internal self structures as self.substations_elements..."""
         g = nx.MultiDiGraph()
@@ -543,28 +534,6 @@ class Grid2opSimulation(Simulation):
         build_edges_v2(g, network.substation_id_busbar_id_node_id_mapping, self.substations_elements)
         # print("This graph is weakly connected : ", nx.is_weakly_connected(g))
         return g
-
-    def build_edges_from_df(self, g, lines_to_cut):
-        i = 0
-        for origin, extremity, reported_flow, gray_edge in zip(self.df["idx_or"], self.df["idx_ex"],
-                                                               self.df["delta_flows"], self.df["gray_edges"]):
-            penwidth = fabs(reported_flow) / 10
-            if penwidth == 0.0:
-                penwidth = 0.1
-            if i in lines_to_cut:
-                g.add_edge(origin, extremity, capacity=float("%.2f" % reported_flow), xlabel="%.2f" % reported_flow,
-                           color="black", style="dotted, setlinewidth(2)", fontsize=10, penwidth="%.2f" % penwidth,
-                           constrained=True)
-            elif gray_edge:  # Gray
-                g.add_edge(origin, extremity, capacity=float("%.2f" % reported_flow), xlabel="%.2f" % reported_flow,
-                           color="gray", fontsize=10, penwidth="%.2f" % penwidth)
-            elif reported_flow < 0:  # Blue
-                g.add_edge(origin, extremity, capacity=float("%.2f" % reported_flow), xlabel="%.2f" % reported_flow,
-                           color="blue", fontsize=10, penwidth="%.2f" % penwidth)
-            else:  # > 0  # Red
-                g.add_edge(origin, extremity, capacity=float("%.2f" % reported_flow), xlabel="%.2f" % reported_flow,
-                           color="red", fontsize=10, penwidth="%.2f" % penwidth)
-            i += 1
 
     def plot_grid_beforecut(self):
         """
@@ -600,7 +569,8 @@ class Grid2opSimulation(Simulation):
             type_ = "base"
 
         if name == "g_overflow_print":  # Use printer API to plot g_over (graphviz/neato)
-            g_over = self.build_graph_from_data_frame(self.ltc)
+            overflowGraph = OverFlowGraph(self.topo, self.ltc, self.df)
+            g_over = overflowGraph.g#self.build_graph_from_data_frame(self.ltc)
             self.printer.display_geo(g_over, self.get_layout(), name=name)
         else:   # Use grid2op plot functionalities to plot all other graphs
             output_name = self.printer.create_namefile("geo", name = name, type = type_)
@@ -618,104 +588,6 @@ class Grid2opSimulation(Simulation):
         return new_obs
 
 
-def build_powerflow_graph(topo, obs):
-    """This function takes a Grid2op Observation and returns a NetworkX Graph"""
-    g = nx.MultiDiGraph()
-
-    # Get the id of lines that are disconnected from network
-    lines_cut = np.argwhere(obs.line_status == False)[:, 0]
-
-    # Get the whole topology information
-    idx_or = topo["edges"]['idx_or']
-    idx_ex = topo["edges"]['idx_ex']
-    are_prods = topo["nodes"]['are_prods']
-    are_loads = topo["nodes"]['are_loads']
-    prods_values = topo["nodes"]['prods_values']
-    loads_values = topo["nodes"]['loads_values']
-    current_flows = topo["edges"]['init_flows']
-
-    # =========================================== NODE PART ===========================================
-    build_nodes(g, are_prods, are_loads, prods_values, loads_values, debug=False)
-    # =========================================== EDGE PART ===========================================
-    build_edges(g, idx_or, idx_ex, edge_weights=current_flows, debug=False,
-                gtype="powerflow", lines_cut=lines_cut)
-    return g
-
-
-def build_nodes(g, are_prods, are_loads, prods_values, loads_values, debug=False):
-    # =========================================== NODE PART ===========================================
-    # print(f"There are {len(are_loads)} nodes")
-    prods_iter, loads_iter = iter(prods_values), iter(loads_values)
-    i = 0
-    # We color the nodes depending if they are production or consumption
-    for is_prod, is_load in zip(are_prods, are_loads):
-        prod = next(prods_iter) if is_prod else 0.
-        load = next(loads_iter) if is_load else 0.
-        prod_minus_load = prod - load
-        if debug:
-            print(f"Node n°[{i}] : Production value: [{prod}] - Load value: [{load}] ")
-        if prod_minus_load > 0:  # PROD
-            g.add_node(i, pin=True, prod_or_load="prod", value=str(prod_minus_load), style="filled",
-                       fillcolor="#f30000")  # red color
-        elif prod_minus_load < 0:  # LOAD
-            g.add_node(i, pin=True, prod_or_load="load", value=str(prod_minus_load), style="filled",
-                       fillcolor="#478fd0")  # blue color
-        else:  # WHITE COLOR
-            g.add_node(i, pin=True, prod_or_load="load", value=str(prod_minus_load), style="filled",
-                       fillcolor="#ffffed")  # white color
-        i += 1
-
-
-def build_edges(g, idx_or, idx_ex, edge_weights, gtype, gray_edges=None, lines_cut=None, debug=False,
-                initial_flows=None):
-    if gtype is "powerflow":
-        for origin, extremity, weight_value in zip(idx_or, idx_ex, edge_weights):
-            # origin += 1
-            # extremity += 1
-            pen_width = fabs(weight_value) / 10
-            if pen_width == 0.0:
-                pen_width = 0.1
-
-            if weight_value >= 0:
-                g.add_edge(origin, extremity, xlabel="%.2f" % weight_value, color="gray", fontsize=10,
-                           penwidth="%.2f" % pen_width)
-            else:
-                g.add_edge(extremity, origin, xlabel="%.2f" % fabs(weight_value), color="gray", fontsize=10,
-                           penwidth="%.2f" % pen_width)
-
-    elif gtype is "overflow" and initial_flows is not None:
-        i = 0
-        for origin, extremity, reported_flow, initial_flow, gray_edge in zip(idx_or, idx_ex, edge_weights,
-                                                                             initial_flows, gray_edges):
-            # origin += 1
-            # extremity += 1
-            penwidth = fabs(reported_flow) / 10
-            if penwidth == 0.0:
-                penwidth = 0.1
-            if i in lines_cut:
-                g.add_edge(origin, extremity, xlabel="%.2f" % reported_flow, color="black",
-                           style="dotted, setlinewidth(2)", fontsize=10, penwidth="%.2f" % penwidth,
-                           constrained=True)
-            elif gray_edge:  # Gray
-                if reported_flow <= 0 and fabs(reported_flow) > 2 * fabs(initial_flow):
-                    g.add_edge(extremity, origin, xlabel="%.2f" % reported_flow, color="gray", fontsize=10,
-                               penwidth="%.2f" % penwidth)
-                else:  # positive
-                    g.add_edge(origin, extremity, xlabel="%.2f" % reported_flow, color="gray", fontsize=10,
-                               penwidth="%.2f" % penwidth)
-            elif reported_flow < 0:  # Blue
-                if fabs(reported_flow) > 2 * fabs(initial_flow):
-                    g.add_edge(extremity, origin, xlabel="%.2f" % reported_flow, color="blue", fontsize=10,
-                               penwidth="%.2f" % penwidth)
-                else:
-                    g.add_edge(origin, extremity, xlabel="%.2f" % reported_flow, color="blue", fontsize=10,
-                               penwidth="%.2f" % penwidth)
-            else:  # > 0  # Red
-                g.add_edge(origin, extremity, xlabel="%.2f" % reported_flow, color="red", fontsize=10,
-                           penwidth="%.2f" % penwidth)
-            i += 1
-    else:
-        raise RuntimeError("Graph's GType not understood, cannot build_edges!")
 
 def build_nodes_v2(g, nodes_prod_values: list):
     """nodes_prod_values is a list of tuples, (graphical_node_id, prod_cons_total_value)

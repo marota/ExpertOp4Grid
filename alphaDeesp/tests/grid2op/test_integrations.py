@@ -10,6 +10,7 @@ import time
 
 from alphaDeesp.core.grid2op.Grid2opObservationLoader import Grid2opObservationLoader
 from alphaDeesp.core.grid2op.Grid2opSimulation import Grid2opSimulation
+from alphaDeesp.core.graphsAndPaths import OverFlowGraph, PowerFlowGraph
 
 
 custom_layout = [(-280, -81), (-100, -270), (366, -270), (366, -54), (-64, -54), (-64, 54), (366, 0),
@@ -136,9 +137,9 @@ def test_integration_dataframe_results_with_line_9_cut():
 
     sim,env = build_sim(ltc, param_folder)
     df_of_g = sim.get_dataframe()
-    g_over = sim.build_graph_from_data_frame([ltc])
-    g_pow = sim.build_powerflow_graph_beforecut()
-    g_pow_prime = sim.build_powerflow_graph_aftercut()
+    g_over = OverFlowGraph(sim.topo, [ltc], df_of_g).g#sim.build_graph_from_data_frame([ltc])
+    g_pow = PowerFlowGraph(sim.topo, sim.lines_outaged)#.g sim.build_powerflow_graph_beforecut()
+    g_pow_prime = PowerFlowGraph(sim.topo_linecut, sim.lines_outaged_cut) #sim.build_powerflow_graph_aftercut()
     simulator_data = {"substations_elements": sim.get_substation_elements(),
                       "substation_to_node_mapping": sim.get_substation_to_node_mapping(),
                       "internal_to_external_mapping": sim.get_internal_to_external_mapping()}
@@ -179,9 +180,9 @@ def test_integration_dataframe_results_with_line_8_cut():
 
     sim,env = build_sim(ltc, param_folder)
     df_of_g = sim.get_dataframe()
-    g_over = sim.build_graph_from_data_frame([ltc])
-    g_pow = sim.build_powerflow_graph_beforecut()
-    g_pow_prime = sim.build_powerflow_graph_aftercut()
+    g_over = OverFlowGraph(sim.topo, [ltc], df_of_g).g
+    g_pow = PowerFlowGraph(sim.topo, sim.lines_outaged)#.g sim.build_powerflow_graph_beforecut()
+    g_pow_prime = PowerFlowGraph(sim.topo_linecut, sim.lines_outaged_cut) #sim.build_powerflow_graph_aftercut()
     simulator_data = {"substations_elements": sim.get_substation_elements(),
                       "substation_to_node_mapping": sim.get_substation_to_node_mapping(),
                       "internal_to_external_mapping": sim.get_internal_to_external_mapping()}
@@ -234,9 +235,9 @@ def test_integration_dataframe_results_with_modified_substation4():
     sim = Grid2opSimulation(new_obs, action_space,env.observation_space, param_options=config["DEFAULT"], debug=False,
                             ltc=[ltc])
     df_of_g = sim.get_dataframe()
-    g_over = sim.build_graph_from_data_frame([ltc])
-    g_pow = sim.build_powerflow_graph_beforecut()
-    g_pow_prime = sim.build_powerflow_graph_aftercut()
+    g_over = OverFlowGraph(sim.topo, [ltc], df_of_g).g
+    g_pow = PowerFlowGraph(sim.topo, sim.lines_outaged)#.g sim.build_powerflow_graph_beforecut()
+    g_pow_prime = PowerFlowGraph(sim.topo_linecut, sim.lines_outaged_cut) #sim.build_powerflow_graph_aftercut()
     simulator_data = {"substations_elements": sim.get_substation_elements(),
                       "substation_to_node_mapping": sim.get_substation_to_node_mapping(),
                       "internal_to_external_mapping": sim.get_internal_to_external_mapping()}
@@ -278,9 +279,9 @@ def test_integration_dataframe_results_with_case_14_realistic():
 
     sim,env = build_sim(ltc, param_folder, config_file = config_file, timestep=timestep, chronic_scenario=chronic_scenario)
     df_of_g = sim.get_dataframe()
-    g_over = sim.build_graph_from_data_frame([ltc])
-    g_pow = sim.build_powerflow_graph_beforecut()
-    g_pow_prime = sim.build_powerflow_graph_aftercut()
+    g_over = OverFlowGraph(sim.topo, [ltc], df_of_g).g
+    g_pow = PowerFlowGraph(sim.topo, sim.lines_outaged)#.g sim.build_powerflow_graph_beforecut()
+    g_pow_prime = PowerFlowGraph(sim.topo_linecut, sim.lines_outaged_cut) #sim.build_powerflow_graph_aftercut()
 
     simulator_data = {"substations_elements": sim.get_substation_elements(),
                       "substation_to_node_mapping": sim.get_substation_to_node_mapping(),
@@ -336,9 +337,9 @@ def test_integration_dataframe_results_no_hubs():
     df_of_g["gray_edges"].iloc[19] = True
     ####
 
-    g_over = sim.build_graph_from_data_frame([ltc])
-    g_pow = sim.build_powerflow_graph_beforecut()
-    g_pow_prime = sim.build_powerflow_graph_aftercut()
+    g_over = OverFlowGraph(sim.topo, [ltc], df_of_g).g
+    g_pow = PowerFlowGraph(sim.topo, sim.lines_outaged)#.g sim.build_powerflow_graph_beforecut()
+    g_pow_prime = PowerFlowGraph(sim.topo_linecut, sim.lines_outaged_cut) #sim.build_powerflow_graph_aftercut()
 
     simulator_data = {"substations_elements": sim.get_substation_elements(),
                       "substation_to_node_mapping": sim.get_substation_to_node_mapping(),
@@ -389,9 +390,9 @@ def test_integration_l2rpn_wcci_2020_computation_time():
 
     # Simulation objects
     df_of_g = sim.get_dataframe()
-    g_over = sim.build_graph_from_data_frame([ltc])
-    g_pow = sim.build_powerflow_graph_beforecut()
-    g_pow_prime = sim.build_powerflow_graph_aftercut()
+    g_over = OverFlowGraph(sim.topo, [ltc], df_of_g).g
+    g_pow = PowerFlowGraph(sim.topo, sim.lines_outaged)#.g sim.build_powerflow_graph_beforecut()
+    g_pow_prime = PowerFlowGraph(sim.topo_linecut, sim.lines_outaged_cut) #sim.build_powerflow_graph_aftercut()
     simulator_data = {"substations_elements": sim.get_substation_elements(),
                       "substation_to_node_mapping": sim.get_substation_to_node_mapping(),
                       "internal_to_external_mapping": sim.get_internal_to_external_mapping()}
@@ -433,13 +434,13 @@ def test_double_lines_wcci_2020():
 
     # Simulation objects
     df_of_g = sim.get_dataframe()
-    g_over = sim.build_graph_from_data_frame([ltc])
+    g_over = OverFlowGraph(sim.topo, [ltc], df_of_g).g
 
     if(len(df_of_g)!=g_over.number_of_edges()):
         print("some edges were not properly added to the graph")
         assert(len(df_of_g)==g_over.number_of_edges())
-    g_pow = sim.build_powerflow_graph_beforecut()
-    g_pow_prime = sim.build_powerflow_graph_aftercut()
+    g_pow = PowerFlowGraph(sim.topo, sim.lines_outaged)#.g sim.build_powerflow_graph_beforecut()
+    g_pow_prime = PowerFlowGraph(sim.topo_linecut, sim.lines_outaged_cut) #sim.build_powerflow_graph_aftercut()
     simulator_data = {"substations_elements": sim.get_substation_elements(),
                       "substation_to_node_mapping": sim.get_substation_to_node_mapping(),
                       "internal_to_external_mapping": sim.get_internal_to_external_mapping()}

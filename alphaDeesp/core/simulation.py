@@ -54,23 +54,11 @@ class Simulation(ABC):
         """TODO"""
 
     @abstractmethod
-    def build_graph_from_data_frame(self, lines_to_cut: list):
-        """TODO"""
-
-    @abstractmethod
-    def build_powerflow_graph_beforecut(self):
-        """TODO"""
-
-    @abstractmethod
     def get_reference_topovec_sub(self):
         """TODO"""
 
     @abstractmethod
     def get_overload_disconnection_topovec_subor(self):
-        """TODO"""
-
-    @abstractmethod
-    def build_powerflow_graph_aftercut(self):
         """TODO"""
 
     @staticmethod

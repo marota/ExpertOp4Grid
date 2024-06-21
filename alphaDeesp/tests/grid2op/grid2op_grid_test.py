@@ -6,7 +6,8 @@ import configparser
 import networkx as nx
 from alphaDeesp.core.network import Network
 from alphaDeesp.core.grid2op.Grid2opObservationLoader import Grid2opObservationLoader
-from alphaDeesp.core.grid2op.Grid2opSimulation import Grid2opSimulation, build_powerflow_graph
+from alphaDeesp.core.grid2op.Grid2opSimulation import Grid2opSimulation#, build_powerflow_graph
+from alphaDeesp.core.graphsAndPaths import OverFlowGraph, PowerFlowGraph
 from alphaDeesp.core.alphadeesp import AlphaDeesp
 
 
@@ -27,7 +28,7 @@ def build_sim():
 def test_powerflow_graph():
     sim,env = build_sim()
 
-    g_pow = build_powerflow_graph(sim.topo, sim.obs)
+    g_pow = PowerFlowGraph(sim.topo, sim.lines_outaged).get_graph()
     print(sim.df)
     path_to_saved_graph = "./alphaDeesp/tests/resources_for_tests_grid2op/saved_graphs/g_pow.dot"
     saved_g = nx.drawing.nx_pydot.read_dot(path_to_saved_graph)
@@ -47,7 +48,8 @@ def test_overflow_grid():
     """This function, given the input folder in test/path,
     it computes the overflow graph and compares it with the saved graph: saved_overflow_graph.dot"""
     sim,env = build_sim()
-    g_over = sim.build_graph_from_data_frame([9])
+    df_of_g = sim.get_dataframe()
+    g_over = OverFlowGraph(sim.topo, [9], df_of_g).get_graph()
     path_to_saved_graph = "./alphaDeesp/tests/resources_for_tests_grid2op/saved_graphs/g_over.dot"
 
     saved_g = nx.drawing.nx_pydot.read_dot(path_to_saved_graph)
@@ -155,9 +157,9 @@ def test_apply_topo():
 
     # Get data from simulator representing the grid before and after line cutting, and topologies. Then initialize ALphadeesp
     df_of_g = sim.get_dataframe()
-    g_over = sim.build_graph_from_data_frame(ltc)
-    g_pow = sim.build_powerflow_graph_beforecut()
-    g_pow_prime = sim.build_powerflow_graph_aftercut()
+    g_over = OverFlowGraph(sim.topo, ltc, df_of_g).get_graph()
+    #g_pow = sim.build_powerflow_graph_beforecut()
+    #g_pow_prime = sim.build_powerflow_graph_aftercut()
     simulator_data = {"substations_elements": sim.get_substation_elements(),
                       "substation_to_node_mapping": sim.get_substation_to_node_mapping(),
                       "internal_to_external_mapping": sim.get_internal_to_external_mapping()}

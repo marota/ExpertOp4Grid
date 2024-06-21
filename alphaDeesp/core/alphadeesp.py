@@ -5,7 +5,7 @@ import itertools
 import pprint
 import numpy as np
 
-from alphaDeesp.core.constrainedPath import ConstrainedPath
+from alphaDeesp.core.graphsAndPaths import Structured_Overload_Distribution_Graph
 from alphaDeesp.core.elements import *
 from math import fabs, ceil
 import subprocess
@@ -42,24 +42,9 @@ class AlphaDeesp:  # AKA SOLVER
             "node": ["X"]
         }
         ranked_combinations = pd.DataFrame(ranked_combinations_structure_initiation)
-        # otherwise proceed
-        self.g_without_pos_edges = self.delete_color_edges(self.g, "red")
-        self.g_only_blue_components = self.delete_color_edges(self.g_without_pos_edges, "gray")
-        self.g_without_constrained_edge = self.delete_color_edges(self.g, "black")
-        self.g_without_gray_and_c_edge = self.delete_color_edges(self.g_without_constrained_edge, "gray")
-        self.g_only_red_components = self.delete_color_edges(self.g_without_gray_and_c_edge, "blue")
 
-        e_amont, constrained_edge, e_aval = self.get_constrained_path()
-        self.constrained_path = ConstrainedPath(e_amont, constrained_edge, e_aval)
-        # print("n_amont = ", self.constrained_path.n_amont())
-        # print("n_aval = ", self.constrained_path.n_aval())
-
-        self.hubs = self.get_hubs()
-
-        # red_loops is a dataFrame
-        self.red_loops = self.get_loops()
-        # print("self.red_loops = ")
-        # print(self.red_loops)
+        #Compute the overload distribution graph (constrained path, loops, hubs)
+        self.g_distribution_graph=Structured_Overload_Distribution_Graph(self.g)
 
         # this function takes the dataFrame self.red_loops and adds the min cut_values to it.
         self.rank_red_loops()
@@ -399,7 +384,9 @@ class AlphaDeesp:  # AKA SOLVER
         # print('\nnoeud '+str(node)+' topo '+str(topo_vect))
 
         #  ########## IS IN AMONT ##########
-        if node in self.constrained_path.n_amont():
+        constrained_path=self.g_distribution_graph.get_constrained_path()
+        red_loops = self.g_distribution_graph.get_loops()
+        if node in constrained_path.n_amont():
             # ======================================
             #print("AMONT")
             if self.debug:
@@ -446,7 +433,7 @@ class AlphaDeesp:  # AKA SOLVER
                 print("Final score = ", final_score)
 
         #  ########## IS IN AVAL ##########
-        elif node in self.constrained_path.n_aval():
+        elif node in constrained_path.n_aval():
             # =============================================================
             #print("AVAL")
             if self.debug:
@@ -504,7 +491,7 @@ class AlphaDeesp:  # AKA SOLVER
 
         #  ########## IS IN Loop ##########
         # you want a node with the maximum output lines connected to the ingoing red loop edges, not connected to other ingoing edges
-        elif node in set([x for loop in range(len(self.red_loops.Path)) for x in self.red_loops.Path[loop]]):
+        elif node in set([x for loop in range(len(red_loops.Path)) for x in red_loops.Path[loop]]):
             # ========================================================================
             # print("AUTRE")
             node2 = int("666" + str(node))
@@ -551,17 +538,6 @@ class AlphaDeesp:  # AKA SOLVER
         # print("SCORE   ---  "+str(final_score))
         # print('\n')
         return final_score
-
-    def is_in_aval(self, graph, node):  # in Aval of constrained_edge
-        """ This functions check if node is in Aval of constrained_edge"""
-        g = self.g
-        aval_constrained_node = self.constrained_path.constrained_edge[1]
-        if node == aval_constrained_node:
-            return True
-        if node in list(g.successors(aval_constrained_node)):
-            return True
-        else:
-            return False
 
     def get_prod_conso_sum(self, node, interesting_bus_id, topo_vect):
         total = 0
@@ -611,52 +587,6 @@ class AlphaDeesp:  # AKA SOLVER
             print("######################################################")
         return bool
 
-    def is_in_amont(self, graph, node):  # in Amont of constrained_edge
-        # g = self.g
-        g = graph
-        amont_constrained_node = self.constrained_path.constrained_edge[0]
-        # print("constrained path = ", self.constrained_path)
-        if node == amont_constrained_node:
-            return True
-        if node in list(g.predecessors(amont_constrained_node)):
-            return True
-        else:
-            return False
-
-    @staticmethod
-    def is_in_aval_of_node_x(g, node, node_x):
-        """This function returns a boolean True or False.
-        True if node is in aval of node_x. False if not."""
-
-        nodes_succ = set()
-        successors = list(nx.edge_dfs(g, node_x))
-        for p in successors:
-            for t in p:
-                if isinstance(t, int):
-                    nodes_succ.add(t)
-        # print("successors = ", successors)
-        # print("nodes successors = ", nodes_succ)
-        if node in nodes_succ:
-            return True
-        else:
-            return False
-
-    @staticmethod
-    def is_in_amont_of_node_x(g, node, node_x):
-        nodes_pred = set()
-        predecessors = list(nx.edge_dfs(g, node_x, orientation="reverse"))
-        for p in predecessors:
-            for t in p:  # for tuple in predcessors
-                if isinstance(t, int):
-                    nodes_pred.add(t)
-
-        # print("predecessors = ", predecessors)
-        # print("nodes predcessors = ", nodes_pred)
-        if node in nodes_pred:
-            return True
-        else:
-            return False
-
     def sort_hubs(self, hubs):
         # creates a DATAFRAME and sort it, returns the sorted hubs
         # print("================= sort_hubs =================")
@@ -704,16 +634,19 @@ class AlphaDeesp:  # AKA SOLVER
         # get all nodes from c_path, loops, //paths, {set of all those nodes}
         # for nodes in interesting_nodes:
         #   classify to category 1, 2, 3, 4.
-        df_sorted_hubs = self.sort_hubs(self.hubs)
+        hubs= self.g_distribution_graph.get_hubs()
+        df_sorted_hubs = self.sort_hubs(hubs)
         if df_sorted_hubs is None:
             return {}
         else:
             category1 = list(df_sorted_hubs["hubs"])
-            set_category2 = set(self.constrained_path.full_n_constrained_path()) - set(category1)
+
+            constrained_path = self.g_distribution_graph.get_constrained_path()
+            set_category2 = set(constrained_path.full_n_constrained_path()) - set(category1)
 
             sort_redLoopBuses = sorted(self.rankedLoopBuses.items(), key=lambda x: x[1], reverse=True)
             category3 = [sort_redLoopBuses[i][0] for i in range(len(sort_redLoopBuses))]  # set()  # @TODO
-            set_category4 = set(self.constrained_path.n_aval()) - (set(category1) | set_category2 | set(category3))
+            set_category4 = set(constrained_path.n_aval()) - (set(category1) | set_category2 | set(category3))
 
             d = {1: category1, 2: set_category2, 3: category3, 4: set_category4}
         return d
@@ -725,7 +658,8 @@ class AlphaDeesp:  # AKA SOLVER
         all_edges_xlabel_attributes = nx.get_edge_attributes(graph, "xlabel")
 
         Strength_Bus_dic = {}
-        for index, loop in self.red_loops.iterrows():
+        red_loops = self.g_distribution_graph.get_loops()
+        for index, loop in red_loops.iterrows():
             # for loop in self.red_loops:
             for bus in loop.Path:
                 if (bus != loop.Source) & (bus != loop.Target):
@@ -778,8 +712,10 @@ class AlphaDeesp:  # AKA SOLVER
     def rank_red_loops(self):
         cut_values = []
         cut_sets = []  # contains the edges that ended up having the minimum cut_values
-        g_red_DiGraph=self.to_DiGraph(self.g_only_red_components)#necessary to be able to compute minimum_cut
-        for i, row in self.red_loops.iterrows():
+        g_red_DiGraph=self.to_DiGraph(self.g_distribution_graph.g_only_red_components)#self.g_only_red_components)#necessary to be able to compute minimum_cut
+
+        red_loops = self.g_distribution_graph.get_loops()
+        for i, row in red_loops.iterrows():#red_loops.iterrows():
             source = row["Source"]
             target = row["Target"]
             p = row["Path"]
@@ -794,7 +730,7 @@ class AlphaDeesp:  # AKA SOLVER
             # info from doc - ‘partition’ here is a tuple with the two sets of nodes that define the minimum cut.
             # You can compute the cut set of edges that induce the minimum cut as follows:
             cutset = set()
-            for u, nbrs in ((n, self.g_only_red_components[n]) for n in reachable):
+            for u, nbrs in ((n, self.g_distribution_graph.g_only_red_components[n]) for n in reachable):
                 cutset.update((u, v) for v in nbrs if v in non_reachable)
             # print("sorted(cutset) = ", sorted(cutset))
 
@@ -803,8 +739,8 @@ class AlphaDeesp:  # AKA SOLVER
 
         # print("cut_values = ", cut_values)
 
-        self.red_loops["min_cut_values"] = cut_values
-        self.red_loops["min_cut_edges"] = cut_sets
+        red_loops["min_cut_values"] = cut_values
+        red_loops["min_cut_edges"] = cut_sets
         # print("======================= cut_values added =======================")
         # print(self.red_loops)
 
@@ -818,77 +754,6 @@ class AlphaDeesp:  # AKA SOLVER
             else:
                 G.add_edge(u, v, capacity=w)
         return G
-
-    def joke(self):
-        print("Heard about the new restaurant called Karma ?...")
-        print("....")
-        print("There's no menu:")
-        print("You get what you deserve.")
-
-    def get_amont_blue_edges(self, g, node):
-        res = []
-        for e in nx.edge_dfs(g, node, orientation="reverse"):
-            if g.edges[(e[0], e[1],e[2])]["color"] == "blue":
-                res.append((e[0], e[1],e[2]))
-        return res
-
-    def get_aval_blue_edges(self, g, node):
-        res = []
-        # print("debug AlphaDeesp get aval blue edges")
-        # print(list(nx.edge_dfs(g, node, orientation="original")))
-        for e in nx.edge_dfs(g, node, orientation="original"):
-            if g.edges[(e[0], e[1],e[2])]["color"] == "blue":
-                res.append((e[0], e[1],e[2]))
-        return res
-
-    def delete_positive_edges(self, _g):
-        """Returns a copy of g without positive edges"""
-        g = _g.copy()
-        # array containing the indices of edges with positive report flow
-        pos_edges = []
-
-        # get indices of positive edges
-        i = 1
-        for u, v, report in g.edges(data="xlabel",keys=True):
-            if float(report) > 0:
-                pos_edges.append((i, (u, v)))
-            i += 1
-
-        # delete from graph positive edges
-        # this extracts the (u,v) from pos_edges
-        # # print("pos_edges test = ", list(zip(*pos_edges))[1])
-        if pos_edges:
-            g.remove_edges_from(list(zip(*pos_edges))[1])
-        return g
-
-    def delete_color_edges(self, _g, edge_color):
-        """Returns a copy of g without gray edges"""
-        g = _g.copy()
-
-        gray_edges = []
-        i = 1
-        for u, v,idx, color in g.edges(data="color",keys=True):
-            if color == edge_color:
-                gray_edges.append((i, (u, v,idx)))
-            i += 1
-
-        # delete from graph gray edges
-        # this extracts the (u,v) from pos_edges
-        if gray_edges:
-            g.remove_edges_from(list(zip(*gray_edges))[1])
-        return g
-
-    def from_edges_get_nodes(self, edges):
-        """edges is a list of tuples"""
-        nodes = []
-        for e in edges:
-            if isinstance(e, int):
-                nodes.append(e)
-            else:
-                for node in e:
-                    if node not in nodes:
-                        nodes.append(node)
-        return nodes
 
     def compute_meaningful_structures(self):
         self.data["constrained_path"] = self.get_constrained_path()
@@ -914,144 +779,6 @@ class AlphaDeesp:  # AKA SOLVER
                     if node not in set_constrained_path:
                         set_constrained_path.append(node)
         return set_constrained_path
-
-    def get_blue_components(self):
-        """return a list of sorted (by biggest len) components (sets of nodes)"""
-        if self.g_only_blue_components is not None:
-            res = [(len(c), c) for c in
-                   sorted(nx.weakly_connected_components(self.g_only_blue_components), key=len, reverse=True)]
-        else:
-            raise ValueError(
-                "Error : self.g_only_blue_components graph was not properly created in __init__ function...")
-
-        fres = list(filter(lambda x: x[0] > 1, res))  # this filters all components that are just one node
-
-        return fres
-
-    def get_constrained_path(self):
-        """Return the constrained path"""
-        constrained_edge = None
-        tmp_constrained_path = []
-        edge_list = nx.get_edge_attributes(self.g_only_blue_components, "color")
-        for edge, color in edge_list.items():
-            if color == "black":
-                constrained_edge = edge
-        amont_edges = self.get_amont_blue_edges(self.g_only_blue_components, constrained_edge[0])
-        aval_edges = self.get_aval_blue_edges(self.g_only_blue_components, constrained_edge[1])
-        tmp_constrained_path.append(amont_edges)
-        tmp_constrained_path.append(constrained_edge)
-        tmp_constrained_path.append(aval_edges)
-        return tmp_constrained_path
-
-    def get_hubs(self):
-        """A hub (carrefour_electrique) has a constrained_path and positiv reports"""
-        g = self.g_without_constrained_edge
-        hubs = []
-
-        if self.constrained_path is not None:
-            print("In get_hubs(): c = ")
-            print(self.constrained_path)
-        else:
-            e_amont, constrained_edge, e_aval = self.get_constrained_path()
-            self.constrained_path = ConstrainedPath(e_amont, constrained_edge, e_aval)
-
-        # for nodes in aval, if node has RED inputs (ie incoming flows) then it is a hub
-        for node in self.constrained_path.n_aval():
-            in_edges = list(g.in_edges(node,keys=True))
-            for e in in_edges:
-                if g.edges[e]["color"] == "red":
-                    hubs.append(node)
-                    break
-
-        # for nodes in amont, if node has RED outputs (ie outgoing flows) then it is a hub
-        for node in self.constrained_path.n_amont():
-            out_edges = list(g.out_edges(node,keys=True))
-            for e in out_edges:
-                if g.edges[e]["color"] == "red":
-                    hubs.append(node)
-                    break
-
-        # print("get_hubs = ", hubs)
-        return hubs
-
-    def get_loops(self):
-        """This function returns all parallel paths. After discussing with Antoine, start with the most "en Aval" node,
-        and walk in reverse for loops and parallel path returns a dict with all data """
-
-        # print("==================== In function get_loops ====================")
-        g = self.g_only_red_components
-        c_path_n = self.constrained_path.full_n_constrained_path()
-        all_loop_paths = {}
-        ii = 0
-
-        for i in range(len(c_path_n)):
-            for j in reversed(range(len(c_path_n))):
-                if i < j:
-                    # # print(i, j)
-                    # # print("we compare paths from source: {} to target: {}".format(c_path_n[i], c_path_n[j]))
-                    try:
-                        res = nx.all_shortest_paths(g, c_path_n[i], c_path_n[j])
-                        for p in res:
-                            # print("path = ", p)
-                            all_loop_paths[ii] = p
-                            ii += 1
-                    except nx.NetworkXNoPath:
-                        print("shortest path between {0} and {1} failed".format(c_path_n[i], c_path_n[j]))
-
-        # print("### Print in get_loops ###, all_loop_paths")
-        # pprint.pprint(all_loop_paths)
-
-        data_for_df = {"Source": [], "Target": [], "Path": []}
-        for path in list(all_loop_paths.keys()):
-            data_for_df["Source"].append(all_loop_paths[path][0])
-            data_for_df["Target"].append(all_loop_paths[path][-1])
-            data_for_df["Path"].append(all_loop_paths[path])
-
-        # pprint.pprint(data_for_df)
-
-        return pd.DataFrame.from_dict(data_for_df)
-
-    def get_color_path_from_node(self, g, node, _color: str, orientation="original"):
-        """This function returns an array with "_color" edges predecessors and successors (depending on orientation)"""
-        """orientation has to be : "original" or "reverse" """
-        res = {0: []}
-        i = 1
-        for e in nx.edge_bfs(g, node, orientation=orientation):
-            if g.edges[(e[0], e[1],e[2])]["color"] == _color:
-                # print(e)
-                if not res[0]:  # if empty
-                    res[0].append((e[0], e[1],e[2]))
-
-                # if pred
-                elif res[0][-1][0] == e[1]:
-                    res[0].append((e[0], e[1],e[2]))
-
-                # elif e[0] in res.values():
-
-                else:
-                    # we check in res, or new branch
-                    found = False
-                    for p in list(res.keys()):
-                        # print("we check res[p] = ", res[p])
-
-                        path = list(res[p])
-                        if e[1] == path[-1][0]:
-                            res[p].append((e[0], e[1]))
-                            # print("we append e = ", e)
-                            found = True
-                            break
-
-                    if not found:
-                        # create new list
-                        res[i] = [(e[0], e[1])]
-                        # print("we create new list for e = ", e)
-                        i += 1
-
-        i += 1
-        # for p in list(res.keys()):
-        #     res[p] = list(reversed(res[p]))
-
-        return res
 
     def isAntenna(self):
         pass
