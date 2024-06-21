@@ -3,7 +3,7 @@
 
 # sys.path.append(os.path.abspath("../../alphaDeesp.core"))
 import networkx as nx
-from alphaDeesp.core.overloadDistributionGraph import ConstrainedPath,Structured_Overload_Distribution_Graph
+from alphaDeesp.core.graphsAndPaths import ConstrainedPath,Structured_Overload_Distribution_Graph
 from alphaDeesp.core.alphadeesp import *
 from alphaDeesp.core.printer import Printer
 
