@@ -1,11 +1,11 @@
-"""Class representing a constrained path"""
+
 import pandas as pd
 import networkx as nx
 from math import fabs
 
 class PowerFlowGraph:
     """
-    Staring from a raw overload distibution graph with color edges, this class identifies the underlying path structure in terms of constrained path, loop paths and hub nodes
+    A coloured graph of current grid state with productions, consumptions and topology
     """
 
     def __init__(self, topo,lines_cut):
@@ -28,7 +28,7 @@ class PowerFlowGraph:
         #self.g=self.build_powerflow_graph()
 
     def build_graph(self):
-        """This function takes a Grid2op Observation and returns a NetworkX Graph"""
+        """This method creates the NetworkX Graph of the grid state"""
         g = nx.MultiDiGraph()
 
         # Get the id of lines that are disconnected from network
@@ -45,14 +45,35 @@ class PowerFlowGraph:
         current_flows = topo["edges"]['init_flows']
 
         # =========================================== NODE PART ===========================================
-        self.build_nodes(g, are_prods, are_loads, prods_values, loads_values, debug=False)
+        self.build_nodes(g, are_prods, are_loads, prods_values, loads_values)
         # =========================================== EDGE PART ===========================================
-        self.build_edges(g, idx_or, idx_ex, edge_weights=current_flows, debug=False,
-                    gtype="powerflow", lines_cut=self.lines_cut)
+        self.build_edges(g, idx_or, idx_ex, edge_weights=current_flows)
         #return g
         self.g=g
 
-    def build_nodes(self,g, are_prods, are_loads, prods_values, loads_values, debug=False):
+    def build_nodes(self,g, are_prods, are_loads, prods_values, loads_values,debug=False):
+        """
+        Create nodes in graph for current grid state
+
+        Parameters
+        ----------
+
+        g: :class:`nx:MultiDiGraph`
+            a networkx graph to which to add edges
+
+        are_prods: ``array`` boolean
+            if there are productions at each node
+
+        are_loads: ``array`` boolean
+            if there are cosnumptions at each node
+
+        prods_values: ``array`` float
+            the production values at each node
+
+        loads_values: ``array`` float
+            the consumption values at each node
+
+        """
         # =========================================== NODE PART ===========================================
         # print(f"There are {len(are_loads)} nodes")
         prods_iter, loads_iter = iter(prods_values), iter(loads_values)
@@ -75,63 +96,86 @@ class PowerFlowGraph:
                            fillcolor="#ffffed")  # white color
             i += 1
 
-    def build_edges(self,g, idx_or, idx_ex, edge_weights, gtype, gray_edges=None, lines_cut=None, debug=False,
-                    initial_flows=None):
-        if gtype is "powerflow":
-            for origin, extremity, weight_value in zip(idx_or, idx_ex, edge_weights):
-                # origin += 1
-                # extremity += 1
-                pen_width = fabs(weight_value) / 10
-                if pen_width == 0.0:
-                    pen_width = 0.1
+    def build_edges(self,g, idx_or, idx_ex, edge_weights):
 
-                if weight_value >= 0:
-                    g.add_edge(origin, extremity, xlabel="%.2f" % weight_value, color="gray", fontsize=10,
-                               penwidth="%.2f" % pen_width)
-                else:
-                    g.add_edge(extremity, origin, xlabel="%.2f" % fabs(weight_value), color="gray", fontsize=10,
-                               penwidth="%.2f" % pen_width)
+        """
+        Create edges in graph for current grid state
 
-        elif gtype is "overflow" and initial_flows is not None:
-            i = 0
-            for origin, extremity, reported_flow, initial_flow, gray_edge in zip(idx_or, idx_ex, edge_weights,
-                                                                                 initial_flows, gray_edges):
-                # origin += 1
-                # extremity += 1
-                penwidth = fabs(reported_flow) / 10
-                if penwidth == 0.0:
-                    penwidth = 0.1
-                if i in lines_cut:
-                    g.add_edge(origin, extremity, xlabel="%.2f" % reported_flow, color="black",
-                               style="dotted, setlinewidth(2)", fontsize=10, penwidth="%.2f" % penwidth,
-                               constrained=True)
-                elif gray_edge:  # Gray
-                    if reported_flow <= 0 and fabs(reported_flow) > 2 * fabs(initial_flow):
-                        g.add_edge(extremity, origin, xlabel="%.2f" % reported_flow, color="gray", fontsize=10,
-                                   penwidth="%.2f" % penwidth)
-                    else:  # positive
-                        g.add_edge(origin, extremity, xlabel="%.2f" % reported_flow, color="gray", fontsize=10,
-                                   penwidth="%.2f" % penwidth)
-                elif reported_flow < 0:  # Blue
-                    if fabs(reported_flow) > 2 * fabs(initial_flow):
-                        g.add_edge(extremity, origin, xlabel="%.2f" % reported_flow, color="blue", fontsize=10,
-                                   penwidth="%.2f" % penwidth)
-                    else:
-                        g.add_edge(origin, extremity, xlabel="%.2f" % reported_flow, color="blue", fontsize=10,
-                                   penwidth="%.2f" % penwidth)
-                else:  # > 0  # Red
-                    g.add_edge(origin, extremity, xlabel="%.2f" % reported_flow, color="red", fontsize=10,
-                               penwidth="%.2f" % penwidth)
-                i += 1
-        else:
-            raise RuntimeError("Graph's GType not understood, cannot build_edges!")
+        Parameters
+        ----------
+
+        g: :class:`nx:MultiDiGraph`
+            a networkx graph to which to add edges
+
+        idx_or: ``array`` int
+            first extremity of edge for each edge
+
+        idx_ex: ``array`` int
+            second extremity of edge for each edge
+
+        edge_weights: ``array`` float
+            the flow value for each edge
+
+        gtype: ``str``
+            if we want a powerflow graph or
+
+        """
+
+        #if gtype is "powerflow":
+        for origin, extremity, weight_value in zip(idx_or, idx_ex, edge_weights):
+            # origin += 1
+            # extremity += 1
+            pen_width = fabs(weight_value) / 10
+            if pen_width == 0.0:
+                pen_width = 0.1
+
+            if weight_value >= 0:
+                g.add_edge(origin, extremity, xlabel="%.2f" % weight_value, color="gray", fontsize=10,
+                           penwidth="%.2f" % pen_width)
+            else:
+                g.add_edge(extremity, origin, xlabel="%.2f" % fabs(weight_value), color="gray", fontsize=10,
+                           penwidth="%.2f" % pen_width)
+
+        #elif gtype is "overflow" and initial_flows is not None:
+        #    i = 0
+        #    for origin, extremity, reported_flow, initial_flow, gray_edge in zip(idx_or, idx_ex, edge_weights,
+        #                                                                         initial_flows, gray_edges):
+        #        # origin += 1
+        #        # extremity += 1
+        #        penwidth = fabs(reported_flow) / 10
+        #        if penwidth == 0.0:
+        #            penwidth = 0.1
+        #        if i in lines_cut:
+        #            g.add_edge(origin, extremity, xlabel="%.2f" % reported_flow, color="black",
+        #                       style="dotted, setlinewidth(2)", fontsize=10, penwidth="%.2f" % penwidth,
+        #                       constrained=True)
+        #        elif gray_edge:  # Gray
+        #            if reported_flow <= 0 and fabs(reported_flow) > 2 * fabs(initial_flow):
+        #                g.add_edge(extremity, origin, xlabel="%.2f" % reported_flow, color="gray", fontsize=10,
+        #                           penwidth="%.2f" % penwidth)
+        #            else:  # positive
+        #                g.add_edge(origin, extremity, xlabel="%.2f" % reported_flow, color="gray", fontsize=10,
+        #                           penwidth="%.2f" % penwidth)
+        #        elif reported_flow < 0:  # Blue
+        #            if fabs(reported_flow) > 2 * fabs(initial_flow):
+        #                g.add_edge(extremity, origin, xlabel="%.2f" % reported_flow, color="blue", fontsize=10,
+        #                           penwidth="%.2f" % penwidth)
+        #            else:
+        #                g.add_edge(origin, extremity, xlabel="%.2f" % reported_flow, color="blue", fontsize=10,
+        #                           penwidth="%.2f" % penwidth)
+        #        else:  # > 0  # Red
+        #            g.add_edge(origin, extremity, xlabel="%.2f" % reported_flow, color="red", fontsize=10,
+        #                       penwidth="%.2f" % penwidth)
+        #        i += 1
+        #else:
+        #    raise RuntimeError("Graph's GType not understood, cannot build_edges!")
 
     def get_graph(self):
         return self.g
 
 class OverFlowGraph(PowerFlowGraph):
     """
-    Staring from a raw overload distibution graph with color edges, this class identifies the underlying path structure in terms of constrained path, loop paths and hub nodes
+    A coloured graph of grid overflow redispatch, displaying the delta flows before and after disconnecting the overloaded lines
     """
 
     def __init__(self, topo,lines_to_cut,df_overflow):
@@ -149,14 +193,14 @@ class OverFlowGraph(PowerFlowGraph):
 
         df_overflow: :class:``pd.Dataframe``
             pandas dataframe of deltaflows after disconnecting the overloaded lines. see create_df in simulation.py. One row per powerline
-            columns: idx_or, idx_ex, init_flows, delta_flows, gray_edges (for unsignificant delta_flows below a threshold)
+            columns: idx_or, idx_ex, init_flows, new_flows, delta_flows, gray_edges (for unsignificant delta_flows below a threshold)
 
         """
         self.df = df_overflow
         super().__init__(topo, lines_to_cut)
 
     def build_graph(self):
-        """This function creates a graph G from a DataFrame"""
+        """This method creates the NetworkX Graph of the overflow redispatch """
         g = nx.MultiDiGraph()
         self.build_nodes(g, self.topo["nodes"]["are_prods"], self.topo["nodes"]["are_loads"],
                     self.topo["nodes"]["prods_values"], self.topo["nodes"]["loads_values"])
@@ -170,6 +214,20 @@ class OverFlowGraph(PowerFlowGraph):
         self.g=g
 
     def build_edges_from_df(self, g, lines_to_cut):
+        """
+        Create edges in graph for overflow redispatch
+
+        Parameters
+        ----------
+
+        g: :class:`nx:MultiDiGraph`
+            a networkx graph to which to add edges
+
+        lines_to_cut: ``array`` int
+            list of lines in overflow that are getting disconnected
+
+        """
+
         i = 0
         for origin, extremity, reported_flow, gray_edge in zip(self.df["idx_or"], self.df["idx_ex"],
                                                                self.df["delta_flows"], self.df["gray_edges"]):
@@ -192,11 +250,18 @@ class OverFlowGraph(PowerFlowGraph):
             i += 1
 
 class ConstrainedPath:
+
+    """
+    A connected path of lines that includes the overloaded lines and for which the overflow redipsatch is negative.
+    This can be regarded as the main path through which the flows get in and out of the overloaded lines.
+    Hence flows should be pushed on other path to relieve the overloads.
+    """
+
     def __init__(self, amont_edges, constrained_edge, aval_edges):
         print("Constrained path created")
-        self.amont_edges = amont_edges
-        self.constrained_edge = constrained_edge
-        self.aval_edges = aval_edges
+        self.amont_edges = amont_edges #lines which flow goes into the overloaded lines
+        self.constrained_edge = constrained_edge #overloaded lines
+        self.aval_edges = aval_edges #lines which flow comes from the overloaded lines
 
     def n_amont(self) -> list:
         """Returns a list of nodes that are in "amont" """
@@ -215,7 +280,16 @@ class ConstrainedPath:
         return self.aval_edges
 
     def filter_constrained_path_for_nodes(self):
-        # this filters the constrained_path_lists and creates a uniq ordered list that represents the constrained_path
+        """
+        This filters the constrained_path_lists and creates a uniq ordered list that represents the constrained_path
+
+        Returns
+        ----------
+
+        res: ``array`` int
+            ordered list of nodes on the constrained path
+
+        """
         set_constrained_path = []
         for path in [self.amont_edges, self.constrained_edge, self.aval_edges]:
             if isinstance(path, tuple):
@@ -235,10 +309,6 @@ class ConstrainedPath:
     def full_n_constrained_path(self):
         return self.filter_constrained_path_for_nodes()
 
-    # def __repr__(self):
-    #     return "ConstrainedPath(amont: %s, constrained_edge: %s, aval: %s) ## Recap: Constrained Path = %s" % (
-    #     self.amont_edges, self.constrained_edge, self.aval_edges, self.full_n_constrained_path())
-
     def __repr__(self):
         return "################################################################\n" \
                "ConstrainedPath = %s \nDetails: (amont: %s, constrained_edge: %s, aval: %s)\n" \
@@ -247,9 +317,17 @@ class ConstrainedPath:
 
 class Structured_Overload_Distribution_Graph:
     """
-    Staring from a raw overload distibution graph with color edges, this class identifies the underlying path structure in terms of constrained path, loop paths and hub nodes
+    Staring from a raw overload distribution graph with color edges, this class identifies the underlying path structure in terms of constrained path, loop paths and hub nodes
     """
     def __init__(self,g):
+        """
+        Parameters
+        ----------
+
+        g: :class:`nx:MultiDiGraph`
+            a raw graph from OverflowGraph
+
+        """
         self.g_init=g
         self.g_without_pos_edges = self.delete_color_edges(self.g_init, "red") #graph without loop path that have positive/red-coloured weight edges
         self.g_only_blue_components = self.delete_color_edges(self.g_without_pos_edges, "gray") #graph with only negative/blue-coloured weight edges
@@ -263,6 +341,25 @@ class Structured_Overload_Distribution_Graph:
 
 
     def get_amont_blue_edges(self, g, node):
+        """
+        From a given node, get blue edges (with negative overflow redispatch) that are above this node
+
+        Parameters
+        ----------
+
+        g: :class:`nx:MultiDiGraph`
+            an overflow redispatch networkx graph
+
+        node: int
+            node of interest
+
+        Returns
+        ----------
+
+        res: ``array`` int
+            ordered list of edges
+
+        """
         res = []
         for e in nx.edge_dfs(g, node, orientation="reverse"):
             if g.edges[(e[0], e[1],e[2])]["color"] == "blue":
@@ -270,6 +367,25 @@ class Structured_Overload_Distribution_Graph:
         return res
 
     def get_aval_blue_edges(self, g, node):
+        """
+        From a given node, get blue edges (with negative overflow redispatch) that are after this node
+
+        Parameters
+        ----------
+
+        g: :class:`nx:MultiDiGraph`
+            an overflow redispatch networkx graph
+
+        node: int
+            node of interest
+
+        Returns
+        ----------
+
+        res: ``array`` int
+            ordered list of edges
+
+        """
         res = []
         # print("debug AlphaDeesp get aval blue edges")
         # print(list(nx.edge_dfs(g, node, orientation="original")))
@@ -279,25 +395,53 @@ class Structured_Overload_Distribution_Graph:
         return res
 
     def delete_color_edges(self, _g, edge_color):
-        """Returns a copy of g without gray edges"""
+        """
+        Returns a copy of a graph without edges of a given color. Gray for instance, with values below a threshold of significance
+
+        From a given node, get blue edges (with negative overflow redispatch) that are above this node
+
+        Parameters
+        ----------
+
+        _g: :class:`nx:MultiDiGraph`
+            an overflow redispatch networkx graph
+
+        edge_color: ``str``
+            color of edges to delete from graoh
+
+        Returns
+        ----------
+
+        res: :class:`nx:MultiDiGraph`
+            the graph without edges for the targeted color
+
+        """
         g = _g.copy()
 
-        gray_edges = []
+        TargetColor_edges = []
         i = 1
         for u, v,idx, color in g.edges(data="color",keys=True):
             if color == edge_color:
-                gray_edges.append((i, (u, v,idx)))
+                TargetColor_edges.append((i, (u, v,idx)))
             i += 1
 
         # delete from graph gray edges
         # this extracts the (u,v) from pos_edges
-        if gray_edges:
-            g.remove_edges_from(list(zip(*gray_edges))[1])
+        if TargetColor_edges:
+            g.remove_edges_from(list(zip(*TargetColor_edges))[1])
         return g
 
 
     def find_hubs(self):
-        """A hub (carrefour_electrique) has a constrained_path and positiv reports"""
+        """
+        "A hub (carrefour_electrique) has a constrained_path and positiv reports"
+
+        Returns
+        ----------
+
+        res: list int
+            a list of nodes that are detected as hubs
+        """
         g = self.g_without_constrained_edge
         hubs = []
 
@@ -331,8 +475,16 @@ class Structured_Overload_Distribution_Graph:
         return self.hubs
 
     def find_loops(self):
+
         """This function returns all parallel paths. After discussing with Antoine, start with the most "en Aval" node,
-        and walk in reverse for loops and parallel path returns a dict with all data """
+        and walk in reverse for loops and parallel path returns a dict with all data
+
+        Returns
+        ----------
+
+        res: pd.DataFrame
+            a dataframe with rows representing each detected path, with column attibutes "Source, Target, Path" with Path representing a list of nodes
+        """
 
         # print("==================== In function get_loops ====================")
         g = self.g_only_red_components
@@ -371,7 +523,14 @@ class Structured_Overload_Distribution_Graph:
         return self.red_loops
 
     def find_constrained_path(self):
-        """Return the constrained path"""
+        """Find and return the constrained path
+
+         Returns
+        ----------
+
+        res: :class:`ConstrainedPath`
+            a constrained path object
+        """
         constrained_edge = None
         tmp_constrained_path = []
         edge_list = nx.get_edge_attributes(self.g_only_blue_components, "color")
