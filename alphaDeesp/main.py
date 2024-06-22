@@ -116,7 +116,7 @@ def main():
             except: # Default load l2rpn_2019 in packages data
                 print("No outputPath in config.ini: generating outputs in current folder")
                 plot_base_folder = "output"
-            plot_folder = generate_plot_folders(plot_base_folder, args, config)
+            plot_folder = generate_plot_folders(plot_base_folder, args.ltc,args.chronicscenario,args.timestep, config)
         else:
             plot_folder = None
 
@@ -137,18 +137,18 @@ def main():
     #return ranked_combinations#, expert_system_results, action #no mean to return some value in a main function of a package that will be called in a cli
 
 
-def generate_plot_folders(plot_folder, args, config):
+def generate_plot_folders(plot_folder, ltc, chronicscenario,timestep, config):
     os.makedirs(plot_folder, exist_ok=True)
     gridName = os.path.basename(os.path.normpath(config['DEFAULT']['gridPath']))    
     plot_folder = os.path.join(plot_folder, gridName)
     os.makedirs(plot_folder, exist_ok=True)
-    lineName = 'linetocut_' + str(args.ltc[0])
+    lineName = 'linetocut_' + str(ltc[0])
     plot_folder = os.path.join(plot_folder, lineName)
     os.makedirs(plot_folder, exist_ok=True)
-    scenarioName = 'Scenario_' + str(args.chronicscenario)
+    scenarioName = 'Scenario_' + str(chronicscenario)
     plot_folder = os.path.join(plot_folder, scenarioName)
     os.makedirs(plot_folder, exist_ok=True)
-    timestepName = 'Timestep_' + str(args.timestep)
+    timestepName = 'Timestep_' + str(timestep)
     plot_folder = os.path.join(plot_folder, timestepName)
     os.makedirs(plot_folder, exist_ok=True)
     return plot_folder
