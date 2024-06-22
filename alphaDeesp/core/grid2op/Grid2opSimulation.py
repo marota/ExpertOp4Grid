@@ -45,6 +45,7 @@ class Grid2opSimulation(Simulation):
         # Get Grid2op objects
         if ltc is None:
             ltc = [9]
+        self.plot_folder=None
         if plot: # Manual mode
             self.plot_folder = plot_folder
             self.printer = Printer(plot_folder)
@@ -54,7 +55,6 @@ class Grid2opSimulation(Simulation):
         self.action_space = action_space#env.action_space
         self.observation_space = observation_space#env.observation_space
         #self.env=env
-        self.plot_helper = self.get_plot_helper()
         self.no_overflow_disc = self.obs._obs_env.no_overflow_disconnection # Keep it in memory to activate and deactivate during computation steps
 
         # Get Alphadeesp configuration
@@ -123,10 +123,6 @@ class Grid2opSimulation(Simulation):
 
     def get_internal_to_external_mapping(self):
         return self.internal_to_external_mapping
-
-    def get_plot_helper(self):
-        plot_helper = PlotMatplot(self.observation_space)
-        return plot_helper
 
     @staticmethod
     def merge_two_dicts(x, y):
@@ -535,48 +531,53 @@ class Grid2opSimulation(Simulation):
         # print("This graph is weakly connected : ", nx.is_weakly_connected(g))
         return g
 
-    def plot_grid_beforecut(self):
-        """
-        Plots the grid with Grid2op PlotHelper for Observations, before lines are cut
-        :return: Figure
-        """
-        return self.plot_grid(self.obs, name = "g_pow")
+    #def plot_grid_beforecut(self):
+    #    """
+    #    Plots the grid with Grid2op PlotHelper for Observations, before lines are cut
+    #    :return: Figure
+    #    """
+    #    return self.plot_grid(self.obs, name = "g_pow")
+#
+    #def plot_grid_aftercut(self):
+    #    """
+    #    Plots the grid with Grid2op PlotHelper for Observations, after lines have been cut
+    #    :return: Figure
+    #    """
+    #    return self.plot_grid(self.obs_linecut, name = "g_pow_prime")
+#
+    #def plot_grid_delta(self):
+    #    """
+    #    Plots the grid with alphadeesp.printer API for delta between Observations before and after lines have been cut
+    #    :return: Figure
+    #    """
+    #    return self.plot_grid(None, name="g_overflow_print")
+#
+    #def plot_grid_from_obs(self, obs, name):
+    #    """
+    #    Plots the grid with Grid2op PlotHelper from given observation
+    #    :return: Figure
+    #    """
+    #    return self.plot_grid(obs, name=name)
 
-    def plot_grid_aftercut(self):
-        """
-        Plots the grid with Grid2op PlotHelper for Observations, after lines have been cut
-        :return: Figure
-        """
-        return self.plot_grid(self.obs_linecut, name = "g_pow_prime")
+    def plot(self,obs,save_file_path):
+        plot_helper = PlotMatplot(self.observation_space)
+        fig_obs = plot_helper.plot_obs(obs, line_info='p')
+        fig_obs.savefig(save_file_path)
 
-    def plot_grid_delta(self):
-        """
-        Plots the grid with alphadeesp.printer API for delta between Observations before and after lines have been cut
-        :return: Figure
-        """
-        return self.plot_grid(None, name="g_overflow_print")
-
-    def plot_grid_from_obs(self, obs, name):
-        """
-        Plots the grid with Grid2op PlotHelper from given observation
-        :return: Figure
-        """
-        return self.plot_grid(obs, name=name)
-
-    def plot_grid(self, obs, name):
-        type_ = "results"
-        if name in ["g_pow", "g_overflow_print", "g_pow_prime"]:
-            type_ = "base"
-
-        if name == "g_overflow_print":  # Use printer API to plot g_over (graphviz/neato)
-            overflowGraph = OverFlowGraph(self.topo, self.ltc, self.df)
-            g_over = overflowGraph.g#self.build_graph_from_data_frame(self.ltc)
-            self.printer.display_geo(g_over, self.get_layout(), name=name)
-        else:   # Use grid2op plot functionalities to plot all other graphs
-            output_name = self.printer.create_namefile("geo", name = name, type = type_)
-            fig_obs = self.plot_helper.plot_obs(obs, line_info='p')
-            fig_obs.savefig(output_name[1])
-
+    #def plot_grid(self, obs, name):
+    #    type_ = "results"
+    #    if name in ["g_pow", "g_overflow_print", "g_pow_prime"]:
+    #        type_ = "base"
+#
+    #    if name == "g_overflow_print":  # Use printer API to plot g_over (graphviz/neato)
+    #        overflowGraph = OverFlowGraph(self.topo, self.ltc, self.df)
+    #        g_over = overflowGraph.g#self.build_graph_from_data_frame(self.ltc)
+    #        self.printer.display_geo(g_over, self.get_layout(), name=name)
+    #    else:   # Use grid2op plot functionalities to plot all other graphs
+    #        output_name = self.printer.create_namefile("geo", name = name, type = type_)
+    #        fig_obs = self.plot_helper.plot_obs(obs, line_info='p')
+    #        fig_obs.savefig(output_name[1])
+#
     def change_nodes_configurations(self, new_configurations, node_ids, env):
         change = []
         for (conf, node) in zip(new_configurations, node_ids):
