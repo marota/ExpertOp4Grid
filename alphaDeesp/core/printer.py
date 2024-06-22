@@ -5,7 +5,7 @@ import pprint
 import datetime
 import networkx as nx
 
-from alphaDeesp.core import alphadeesp
+import subprocess
 
 from pathlib import Path
 
@@ -35,22 +35,7 @@ class Printer:
 
         dic_pos_attributes = {}
         if custom_layout is not None:
-            custom_layout2 = {
-                '6661': (-280, -151),
-                '6662': (-100, -340),
-                '6663': (366, -340),
-                '6664': (390, -110),
-                '6665': (-14, -74),
-                '6666': (-184, 54),
-                '6667': (400, -80),
-                '6668': (438, 100),
-                '6669': (326, 140),
-                '66610': (200, 8),
-                '66611': (79, 12),
-                '66612': (-152, 170),
-                '66613': (-70, 200),
-                '66614': (222, 200)
-            }
+
             assert isinstance(custom_layout, list) is True
             # we create a dictionary to add a position attribute to the nodes
             ii = 0
@@ -78,20 +63,14 @@ class Printer:
             cmd_line = 'neato -n -Tpdf "' + str(filename_dot) + '" -o "' + str(filename_pdf) + '"'
         print("we print the cmd line = ", cmd_line)
 
-        assert alphadeesp.execute_command(cmd_line)
+        assert execute_command(cmd_line)
 
-        # os.system(cmd_line)
 
-        cmd_line = f"evince {str(filename_pdf)} &"
-        os.system(cmd_line)
-
-        # try:
-        #     alphadeesp.execute_command(cmd_line)
-        # except RuntimeError:
-        #     print("A problem while executing a command occured.")
-
-        os.system(cmd_line)
-        os.system("evince " + str(filename_pdf) + " &")
+        #cmd_line = f"evince {str(filename_pdf)} &"
+        #os.system(cmd_line)
+#
+        #os.system(cmd_line)
+        #os.system("evince " + str(filename_pdf) + " &")
 
         # if save is False:
         #     assert(alphadeesp.execute_command(f"rm {filename_dot}"))
@@ -138,3 +117,37 @@ class Printer:
 
 def shell_print_project_header():
     os.system("cat ./print_header.txt")
+
+########################################################################################################################
+# ######################################### EXTERNAL COMMANDS ##########################################################
+########################################################################################################################
+
+
+def execute_command(command: str):
+    """
+    This function executes a command on the local machine, and fill self.output and self.error with results of
+    command.
+    @return True if command went through
+    """
+
+    # # print("command = ", command)
+    sub_p = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+    stdout, stderr = sub_p.communicate()
+    exit_code = sub_p.returncode
+    # pid = sub_p.pid
+
+    output = stdout.decode()
+    error = stderr.decode()
+
+    # print("--------------------\n output is:", output)
+    # print("--------------------\n stderr is:", error)
+    # print("--------------------\n exit code is:", exit_code)
+    # # print("--------------------\n pid is:", pid)
+
+    if not error:
+        # string error is empty
+        return True
+    else:
+        # string error is full
+        # # print(f"Error {error}")
+        return False
