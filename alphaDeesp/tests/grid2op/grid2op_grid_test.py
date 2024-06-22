@@ -167,7 +167,7 @@ def test_apply_topo():
     custom_layout = sim.get_layout()
     debug = False
     g_copy = g_over.copy() # Very important step ! otherwise, apply_new_topo will change g_over and it won't be chainable
-    alphadeesp = AlphaDeesp(g_over, df_of_g, custom_layout, printer, simulator_data, sim.substation_in_cooldown, debug=debug)
+    alphadeesp = AlphaDeesp(g_over, df_of_g,simulator_data, sim.substation_in_cooldown, debug=debug)
 
 
     # Apply topo twice with Alphadeesp core on this Network and check if applied correctly

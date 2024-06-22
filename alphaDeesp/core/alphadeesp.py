@@ -8,7 +8,7 @@ import numpy as np
 from alphaDeesp.core.graphsAndPaths import Structured_Overload_Distribution_Graph
 from alphaDeesp.core.elements import *
 from math import fabs, ceil
-import subprocess
+
 
 import os
 
@@ -17,7 +17,7 @@ import os
 
 
 class AlphaDeesp:  # AKA SOLVER
-    def __init__(self, _g, df_of_g, printer=None, custom_layout=None, simulator_data=None, substation_in_cooldown=[], debug=False):
+    def __init__(self, _g, df_of_g, simulator_data=None, substation_in_cooldown=[], debug=False):
         # used for postprocessing
         self.bag_of_graphs = {}
         self.debug = debug
@@ -30,8 +30,6 @@ class AlphaDeesp:  # AKA SOLVER
         self.g = _g  # here the g is the overflow graph
         self.df = df_of_g
         self.initial_graph = self.g.copy()
-        self.printer = printer
-        self.custom_layout = custom_layout
         self.substation_in_cooldown = substation_in_cooldown  # we cannot play with those substations so no need to compute simulations
 
         # check that line extemity does not have only load or productions: otherwise there is either node merging to do or nothing else
@@ -793,36 +791,3 @@ class AlphaDeesp:  # AKA SOLVER
         pass
 
 
-########################################################################################################################
-# ######################################### EXTERNAL COMMANDS ##########################################################
-########################################################################################################################
-
-
-def execute_command(command: str):
-    """
-    This function executes a command on the local machine, and fill self.output and self.error with results of
-    command.
-    @return True if command went through
-    """
-
-    # # print("command = ", command)
-    sub_p = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
-    stdout, stderr = sub_p.communicate()
-    exit_code = sub_p.returncode
-    # pid = sub_p.pid
-
-    output = stdout.decode()
-    error = stderr.decode()
-
-    # print("--------------------\n output is:", output)
-    # print("--------------------\n stderr is:", error)
-    # print("--------------------\n exit code is:", exit_code)
-    # # print("--------------------\n pid is:", pid)
-
-    if not error:
-        # string error is empty
-        return True
-    else:
-        # string error is full
-        # # print(f"Error {error}")
-        return False

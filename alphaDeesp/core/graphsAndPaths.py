@@ -2,13 +2,14 @@
 import pandas as pd
 import networkx as nx
 from math import fabs
+from alphaDeesp.core.printer import Printer
 
 class PowerFlowGraph:
     """
     A coloured graph of current grid state with productions, consumptions and topology
     """
 
-    def __init__(self, topo,lines_cut):
+    def __init__(self, topo,lines_cut,layout=None):
         """
         Parameters
         ----------
@@ -24,6 +25,7 @@ class PowerFlowGraph:
         """
         self.topo=topo
         self.lines_cut=lines_cut
+        self.layout=layout
         self.build_graph()
         #self.g=self.build_powerflow_graph()
 
@@ -136,49 +138,31 @@ class PowerFlowGraph:
                 g.add_edge(extremity, origin, xlabel="%.2f" % fabs(weight_value), color="gray", fontsize=10,
                            penwidth="%.2f" % pen_width)
 
-        #elif gtype is "overflow" and initial_flows is not None:
-        #    i = 0
-        #    for origin, extremity, reported_flow, initial_flow, gray_edge in zip(idx_or, idx_ex, edge_weights,
-        #                                                                         initial_flows, gray_edges):
-        #        # origin += 1
-        #        # extremity += 1
-        #        penwidth = fabs(reported_flow) / 10
-        #        if penwidth == 0.0:
-        #            penwidth = 0.1
-        #        if i in lines_cut:
-        #            g.add_edge(origin, extremity, xlabel="%.2f" % reported_flow, color="black",
-        #                       style="dotted, setlinewidth(2)", fontsize=10, penwidth="%.2f" % penwidth,
-        #                       constrained=True)
-        #        elif gray_edge:  # Gray
-        #            if reported_flow <= 0 and fabs(reported_flow) > 2 * fabs(initial_flow):
-        #                g.add_edge(extremity, origin, xlabel="%.2f" % reported_flow, color="gray", fontsize=10,
-        #                           penwidth="%.2f" % penwidth)
-        #            else:  # positive
-        #                g.add_edge(origin, extremity, xlabel="%.2f" % reported_flow, color="gray", fontsize=10,
-        #                           penwidth="%.2f" % penwidth)
-        #        elif reported_flow < 0:  # Blue
-        #            if fabs(reported_flow) > 2 * fabs(initial_flow):
-        #                g.add_edge(extremity, origin, xlabel="%.2f" % reported_flow, color="blue", fontsize=10,
-        #                           penwidth="%.2f" % penwidth)
-        #            else:
-        #                g.add_edge(origin, extremity, xlabel="%.2f" % reported_flow, color="blue", fontsize=10,
-        #                           penwidth="%.2f" % penwidth)
-        #        else:  # > 0  # Red
-        #            g.add_edge(origin, extremity, xlabel="%.2f" % reported_flow, color="red", fontsize=10,
-        #                       penwidth="%.2f" % penwidth)
-        #        i += 1
-        #else:
-        #    raise RuntimeError("Graph's GType not understood, cannot build_edges!")
-
     def get_graph(self):
         return self.g
+
+    def plot(self,save_folder,name,state="before",sim=None):
+        printer = Printer(save_folder)
+
+        #in case the simulator also provides a plot function, use it
+        if sim is not None and hasattr(sim, 'plot'):
+            output_name = printer.create_namefile("geo", name=name, type="base")
+            if state == "before":
+                obs = sim.obs
+            else:
+                obs = sim.obs_linecut
+            sim.plot(obs,save_file_path=output_name[1])
+        else:
+            if self.layout:
+                printer.display_geo(self.g, self.layout, name=name)
+
 
 class OverFlowGraph(PowerFlowGraph):
     """
     A coloured graph of grid overflow redispatch, displaying the delta flows before and after disconnecting the overloaded lines
     """
 
-    def __init__(self, topo,lines_to_cut,df_overflow):
+    def __init__(self, topo,lines_to_cut,df_overflow,layout=None):
         """
         Parameters
         ----------
@@ -197,7 +181,7 @@ class OverFlowGraph(PowerFlowGraph):
 
         """
         self.df = df_overflow
-        super().__init__(topo, lines_to_cut)
+        super().__init__(topo, lines_to_cut,layout)
 
     def build_graph(self):
         """This method creates the NetworkX Graph of the overflow redispatch """
@@ -248,6 +232,9 @@ class OverFlowGraph(PowerFlowGraph):
                 g.add_edge(origin, extremity, capacity=float("%.2f" % reported_flow), xlabel="%.2f" % reported_flow,
                            color="red", fontsize=10, penwidth="%.2f" % penwidth)
             i += 1
+    def plot(self,layout,save_folder=""):
+        printer=Printer(save_folder)
+        printer.display_geo(self.g, layout, name="g_overflow_print")
 
 class ConstrainedPath:
 

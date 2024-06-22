@@ -137,9 +137,7 @@ def test_integration_dataframe_results_with_line_9_cut():
 
     sim,env = build_sim(ltc, param_folder)
     df_of_g = sim.get_dataframe()
-    g_over = OverFlowGraph(sim.topo, [ltc], df_of_g).g#sim.build_graph_from_data_frame([ltc])
-    g_pow = PowerFlowGraph(sim.topo, sim.lines_outaged)#.g sim.build_powerflow_graph_beforecut()
-    g_pow_prime = PowerFlowGraph(sim.topo_linecut, sim.lines_outaged_cut) #sim.build_powerflow_graph_aftercut()
+    g_over = OverFlowGraph(sim.topo, [ltc], df_of_g).get_graph()#sim.build_graph_from_data_frame([ltc])
     simulator_data = {"substations_elements": sim.get_substation_elements(),
                       "substation_to_node_mapping": sim.get_substation_to_node_mapping(),
                       "internal_to_external_mapping": sim.get_internal_to_external_mapping()}
@@ -180,9 +178,7 @@ def test_integration_dataframe_results_with_line_8_cut():
 
     sim,env = build_sim(ltc, param_folder)
     df_of_g = sim.get_dataframe()
-    g_over = OverFlowGraph(sim.topo, [ltc], df_of_g).g
-    g_pow = PowerFlowGraph(sim.topo, sim.lines_outaged)#.g sim.build_powerflow_graph_beforecut()
-    g_pow_prime = PowerFlowGraph(sim.topo_linecut, sim.lines_outaged_cut) #sim.build_powerflow_graph_aftercut()
+    g_over = OverFlowGraph(sim.topo, [ltc], df_of_g).get_graph()
     simulator_data = {"substations_elements": sim.get_substation_elements(),
                       "substation_to_node_mapping": sim.get_substation_to_node_mapping(),
                       "internal_to_external_mapping": sim.get_internal_to_external_mapping()}
@@ -235,9 +231,7 @@ def test_integration_dataframe_results_with_modified_substation4():
     sim = Grid2opSimulation(new_obs, action_space,env.observation_space, param_options=config["DEFAULT"], debug=False,
                             ltc=[ltc])
     df_of_g = sim.get_dataframe()
-    g_over = OverFlowGraph(sim.topo, [ltc], df_of_g).g
-    g_pow = PowerFlowGraph(sim.topo, sim.lines_outaged)#.g sim.build_powerflow_graph_beforecut()
-    g_pow_prime = PowerFlowGraph(sim.topo_linecut, sim.lines_outaged_cut) #sim.build_powerflow_graph_aftercut()
+    g_over = OverFlowGraph(sim.topo, [ltc], df_of_g).get_graph()
     simulator_data = {"substations_elements": sim.get_substation_elements(),
                       "substation_to_node_mapping": sim.get_substation_to_node_mapping(),
                       "internal_to_external_mapping": sim.get_internal_to_external_mapping()}
@@ -279,9 +273,7 @@ def test_integration_dataframe_results_with_case_14_realistic():
 
     sim,env = build_sim(ltc, param_folder, config_file = config_file, timestep=timestep, chronic_scenario=chronic_scenario)
     df_of_g = sim.get_dataframe()
-    g_over = OverFlowGraph(sim.topo, [ltc], df_of_g).g
-    g_pow = PowerFlowGraph(sim.topo, sim.lines_outaged)#.g sim.build_powerflow_graph_beforecut()
-    g_pow_prime = PowerFlowGraph(sim.topo_linecut, sim.lines_outaged_cut) #sim.build_powerflow_graph_aftercut()
+    g_over = OverFlowGraph(sim.topo, [ltc], df_of_g).get_graph()
 
     simulator_data = {"substations_elements": sim.get_substation_elements(),
                       "substation_to_node_mapping": sim.get_substation_to_node_mapping(),
@@ -337,9 +329,7 @@ def test_integration_dataframe_results_no_hubs():
     df_of_g["gray_edges"].iloc[19] = True
     ####
 
-    g_over = OverFlowGraph(sim.topo, [ltc], df_of_g).g
-    g_pow = PowerFlowGraph(sim.topo, sim.lines_outaged)#.g sim.build_powerflow_graph_beforecut()
-    g_pow_prime = PowerFlowGraph(sim.topo_linecut, sim.lines_outaged_cut) #sim.build_powerflow_graph_aftercut()
+    g_over = OverFlowGraph(sim.topo, [ltc], df_of_g).get_graph()
 
     simulator_data = {"substations_elements": sim.get_substation_elements(),
                       "substation_to_node_mapping": sim.get_substation_to_node_mapping(),
@@ -390,9 +380,7 @@ def test_integration_l2rpn_wcci_2020_computation_time():
 
     # Simulation objects
     df_of_g = sim.get_dataframe()
-    g_over = OverFlowGraph(sim.topo, [ltc], df_of_g).g
-    g_pow = PowerFlowGraph(sim.topo, sim.lines_outaged)#.g sim.build_powerflow_graph_beforecut()
-    g_pow_prime = PowerFlowGraph(sim.topo_linecut, sim.lines_outaged_cut) #sim.build_powerflow_graph_aftercut()
+    g_over = OverFlowGraph(sim.topo, [ltc], df_of_g).get_graph()
     simulator_data = {"substations_elements": sim.get_substation_elements(),
                       "substation_to_node_mapping": sim.get_substation_to_node_mapping(),
                       "internal_to_external_mapping": sim.get_internal_to_external_mapping()}
@@ -400,7 +388,7 @@ def test_integration_l2rpn_wcci_2020_computation_time():
     # create AlphaDeesp
     printer = None
     custom_layout = sim.get_layout()
-    alphadeesp = AlphaDeesp(g_over, df_of_g, custom_layout, printer, simulator_data, sim.substation_in_cooldown, debug=False)
+    alphadeesp = AlphaDeesp(g_over, df_of_g, simulator_data, sim.substation_in_cooldown, debug=False)
 
     # End time
     elapsed_time = time.time() - start
@@ -434,13 +422,11 @@ def test_double_lines_wcci_2020():
 
     # Simulation objects
     df_of_g = sim.get_dataframe()
-    g_over = OverFlowGraph(sim.topo, [ltc], df_of_g).g
+    g_over = OverFlowGraph(sim.topo, [ltc], df_of_g).get_graph()
 
     if(len(df_of_g)!=g_over.number_of_edges()):
         print("some edges were not properly added to the graph")
         assert(len(df_of_g)==g_over.number_of_edges())
-    g_pow = PowerFlowGraph(sim.topo, sim.lines_outaged)#.g sim.build_powerflow_graph_beforecut()
-    g_pow_prime = PowerFlowGraph(sim.topo_linecut, sim.lines_outaged_cut) #sim.build_powerflow_graph_aftercut()
     simulator_data = {"substations_elements": sim.get_substation_elements(),
                       "substation_to_node_mapping": sim.get_substation_to_node_mapping(),
                       "internal_to_external_mapping": sim.get_internal_to_external_mapping()}
@@ -448,7 +434,7 @@ def test_double_lines_wcci_2020():
     # create AlphaDeesp
     printer = None
     custom_layout = sim.get_layout()
-    alphadeesp = AlphaDeesp(g_over, df_of_g, custom_layout, printer, simulator_data, sim.substation_in_cooldown, debug=False)
+    alphadeesp = AlphaDeesp(g_over, df_of_g, simulator_data, sim.substation_in_cooldown, debug=False)
 
     # End time
 
