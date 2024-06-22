@@ -388,7 +388,7 @@ def test_integration_l2rpn_wcci_2020_computation_time():
     # create AlphaDeesp
     printer = None
     custom_layout = sim.get_layout()
-    alphadeesp = AlphaDeesp(g_over, df_of_g, custom_layout, printer, simulator_data, sim.substation_in_cooldown, debug=False)
+    alphadeesp = AlphaDeesp(g_over, df_of_g, simulator_data, sim.substation_in_cooldown, debug=False)
 
     # End time
     elapsed_time = time.time() - start
@@ -434,7 +434,7 @@ def test_double_lines_wcci_2020():
     # create AlphaDeesp
     printer = None
     custom_layout = sim.get_layout()
-    alphadeesp = AlphaDeesp(g_over, df_of_g, custom_layout, printer, simulator_data, sim.substation_in_cooldown, debug=False)
+    alphadeesp = AlphaDeesp(g_over, df_of_g, simulator_data, sim.substation_in_cooldown, debug=False)
 
     # End time
 
