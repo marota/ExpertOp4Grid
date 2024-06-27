@@ -330,11 +330,11 @@ class Structured_Overload_Distribution_Graph:
         self.g_without_constrained_edge = delete_color_edges(self.g_init, "black")
         self.g_without_gray_and_c_edge = delete_color_edges(self.g_without_constrained_edge, "gray")
         self.g_only_red_components = delete_color_edges(self.g_without_gray_and_c_edge, "blue")#graph with only loop path that have positive/red-coloured weight edges
+
         self.constrained_path= self.find_constrained_path() #constrained path that contains the constrained edges and their connected component of blue edges
         self.type=""#
         self.red_loops = self.find_loops() #parallel path to the constrained path on which flow can be rerouted
         self.hubs = self.find_hubs() #specific nodes at substations connecting loop paths to constrained path. This is where flow can be most easily rerouted
-
 
     def get_amont_blue_edges(self, g, node):
         """
@@ -456,14 +456,17 @@ class Structured_Overload_Distribution_Graph:
                 if i < j:
                     # # print(i, j)
                     # # print("we compare paths from source: {} to target: {}".format(c_path_n[i], c_path_n[j]))
-                    try:
-                        res = nx.all_shortest_paths(g, c_path_n[i], c_path_n[j])
-                        for p in res:
-                            # print("path = ", p)
-                            all_loop_paths[ii] = p
-                            ii += 1
-                    except nx.NetworkXNoPath:
-                        print("shortest path between {0} and {1} failed".format(c_path_n[i], c_path_n[j]))
+                    node_source=c_path_n[i]
+                    node_target = c_path_n[j]
+                    if (node_source in g.nodes) and  (node_target in g.nodes):
+                        try:
+                            res = nx.all_shortest_paths(g, node_source, node_target)
+                            for p in res:
+                                # print("path = ", p)
+                                all_loop_paths[ii] = p
+                                ii += 1
+                        except nx.NetworkXNoPath:
+                            print("shortest path between {0} and {1} failed".format(c_path_n[i], c_path_n[j]))
 
         # print("### Print in get_loops ###, all_loop_paths")
         # pprint.pprint(all_loop_paths)
