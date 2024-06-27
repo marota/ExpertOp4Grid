@@ -138,6 +138,7 @@ class PowerFlowGraph:
                 g.add_edge(extremity, origin, xlabel="%.2f" % fabs(weight_value), color="gray", fontsize=10,
                            penwidth="%.2f" % pen_width)
 
+
     def get_graph(self):
         return self.g
 
@@ -232,9 +233,17 @@ class OverFlowGraph(PowerFlowGraph):
                 g.add_edge(origin, extremity, capacity=float("%.2f" % reported_flow), xlabel="%.2f" % reported_flow,
                            color="red", fontsize=10, penwidth="%.2f" % penwidth)
             i += 1
-    def plot(self,layout,save_folder=""):
+    def plot(self,layout,save_folder="",without_gray_edges=False):
         printer=Printer(save_folder)
-        printer.display_geo(self.g, layout, name="g_overflow_print")
+        g=self.g
+        if without_gray_edges:
+            g=delete_color_edges(g, "gray")
+        if save_folder=="":
+            output_graphviz_svg=printer.plot_graphviz(g, layout, name="g_overflow_print")
+            return output_graphviz_svg
+        else:
+            printer.display_geo(g, layout, name="g_overflow_print")
+            return None
 
 class ConstrainedPath:
 
@@ -316,11 +325,11 @@ class Structured_Overload_Distribution_Graph:
 
         """
         self.g_init=g
-        self.g_without_pos_edges = self.delete_color_edges(self.g_init, "red") #graph without loop path that have positive/red-coloured weight edges
-        self.g_only_blue_components = self.delete_color_edges(self.g_without_pos_edges, "gray") #graph with only negative/blue-coloured weight edges
-        self.g_without_constrained_edge = self.delete_color_edges(self.g_init, "black")
-        self.g_without_gray_and_c_edge = self.delete_color_edges(self.g_without_constrained_edge, "gray")
-        self.g_only_red_components = self.delete_color_edges(self.g_without_gray_and_c_edge, "blue")#graph with only loop path that have positive/red-coloured weight edges
+        self.g_without_pos_edges = delete_color_edges(self.g_init, "red") #graph without loop path that have positive/red-coloured weight edges
+        self.g_only_blue_components = delete_color_edges(self.g_without_pos_edges, "gray") #graph with only negative/blue-coloured weight edges
+        self.g_without_constrained_edge = delete_color_edges(self.g_init, "black")
+        self.g_without_gray_and_c_edge = delete_color_edges(self.g_without_constrained_edge, "gray")
+        self.g_only_red_components = delete_color_edges(self.g_without_gray_and_c_edge, "blue")#graph with only loop path that have positive/red-coloured weight edges
         self.constrained_path= self.find_constrained_path() #constrained path that contains the constrained edges and their connected component of blue edges
         self.type=""#
         self.red_loops = self.find_loops() #parallel path to the constrained path on which flow can be rerouted
@@ -380,43 +389,6 @@ class Structured_Overload_Distribution_Graph:
             if g.edges[(e[0], e[1],e[2])]["color"] == "blue":
                 res.append((e[0], e[1],e[2]))
         return res
-
-    def delete_color_edges(self, _g, edge_color):
-        """
-        Returns a copy of a graph without edges of a given color. Gray for instance, with values below a threshold of significance
-
-        From a given node, get blue edges (with negative overflow redispatch) that are above this node
-
-        Parameters
-        ----------
-
-        _g: :class:`nx:MultiDiGraph`
-            an overflow redispatch networkx graph
-
-        edge_color: ``str``
-            color of edges to delete from graoh
-
-        Returns
-        ----------
-
-        res: :class:`nx:MultiDiGraph`
-            the graph without edges for the targeted color
-
-        """
-        g = _g.copy()
-
-        TargetColor_edges = []
-        i = 1
-        for u, v,idx, color in g.edges(data="color",keys=True):
-            if color == edge_color:
-                TargetColor_edges.append((i, (u, v,idx)))
-            i += 1
-
-        # delete from graph gray edges
-        # this extracts the (u,v) from pos_edges
-        if TargetColor_edges:
-            g.remove_edges_from(list(zip(*TargetColor_edges))[1])
-        return g
 
 
     def find_hubs(self):
@@ -549,3 +521,40 @@ def from_edges_get_nodes(edges, amont_or_aval: str, constrained_edge):
     else:
         raise ValueError("Error in function from_edges_get_nodes")
 
+def delete_color_edges(_g, edge_color):
+    """
+    Returns a copy of a graph without edges of a given color. Gray for instance, with values below a threshold of significance
+
+    From a given node, get blue edges (with negative overflow redispatch) that are above this node
+
+    Parameters
+    ----------
+
+    _g: :class:`nx:MultiDiGraph`
+        an overflow redispatch networkx graph
+
+    edge_color: ``str``
+        color of edges to delete from graoh
+
+    Returns
+    ----------
+
+    res: :class:`nx:MultiDiGraph`
+        the graph without edges for the targeted color
+
+    """
+    g = _g.copy()
+
+    TargetColor_edges = []
+    i = 1
+    for u, v,idx, color in g.edges(data="color",keys=True):
+        if color == edge_color:
+            TargetColor_edges.append((i, (u, v,idx)))
+        i += 1
+
+    # delete from graph gray edges
+    # this extracts the (u,v) from pos_edges
+    if TargetColor_edges:
+        g.remove_edges_from(list(zip(*TargetColor_edges))[1])
+        g.remove_nodes_from(list(nx.isolates(g)))
+    return g
