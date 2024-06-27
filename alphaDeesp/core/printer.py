@@ -4,6 +4,7 @@ import os
 import pprint
 import datetime
 import networkx as nx
+import pydot
 
 import subprocess
 
@@ -23,6 +24,36 @@ class Printer:
         self.results_output_path = os.path.join(self.default_output_path,"Result graph")
         os.makedirs(self.results_output_path, exist_ok=True)
         print("self.default output path = ", self.default_output_path)
+
+    def plot_graphviz(self, g, custom_layout=None, axial_symetry=False, save=False, name=None):
+        "filenames are pathlib.Paths objects"
+
+        dic_pos_attributes = {}
+        if custom_layout is not None:
+
+            assert isinstance(custom_layout, list) is True
+            # we create a dictionary to add a position attribute to the nodes
+            ii = 0
+            for i, value in enumerate(custom_layout):
+                # i += 1
+                # print(f"i:{i} value:{value}")
+                if i < len(custom_layout):
+                    dic_pos_attributes[i] = {"pos": (str(value[0]) + ", " + str(value[1]) + "!")}
+                else:
+                    i = int("666" + str(ii))
+                    dic_pos_attributes[i] = {"pos": (str(value[0]) + ", " + str(value[1]) + "!")}
+                    ii += 1
+
+            # we update the graph with some specific position
+            nx.set_node_attributes(g, dic_pos_attributes)
+        graph = nx.drawing.nx_pydot.to_pydot(g)
+        if custom_layout is not None:
+            output_graphviz_svg = graph.create_svg(prog="neato")
+        else:
+            output_graphviz_svg = graph.create_svg(prog="dot")
+
+        return output_graphviz_svg
+
 
     def display_geo(self, g, custom_layout=None, axial_symetry=False, save=False, name=None):
         """This function displays the graph g in a "geographical" way"""
@@ -58,7 +89,8 @@ class Printer:
         nx.drawing.nx_pydot.write_dot(g, filename_dot)
 
         if custom_layout is None:
-            cmd_line = 'neato -Tpdf "' + str(filename_dot) + '" -o "' + str(filename_pdf) + '"'
+
+            cmd_line = 'dot -Tpdf "' + str(filename_dot) + '" -o "' + str(filename_pdf) + '"'#'neato -Tpdf "' + str(filename_dot) + '" -o "' + str(filename_pdf) + '"'
         else:
             cmd_line = 'neato -n -Tpdf "' + str(filename_dot) + '" -o "' + str(filename_pdf) + '"'
         print("we print the cmd line = ", cmd_line)
