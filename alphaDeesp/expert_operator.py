@@ -28,7 +28,7 @@ def expert_operator(sim, plot=False, debug=False):
         # Common plot API
         PowerFlowGraph(sim.topo, sim.lines_outaged).plot(sim.plot_folder,name="g_pow",state="before",sim=sim)#grid state plot before overload disconnection
         PowerFlowGraph(sim.topo_linecut, sim.lines_outaged_cut).plot(sim.plot_folder, name="g_pow_prime", state="after", sim=sim)#grid state plot after overload disconnection
-        g_over.plot(sim.layout,sim.plot_folder)
+        g_over.plot(layout=None,save_folder=sim.plot_folder)#g_over.plot(sim.layout,sim.plot_folder)
 
     #check if problem is not simply an antenna
     isAntenna_Sub=sim.isAntenna()
