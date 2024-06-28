@@ -643,7 +643,7 @@ class AlphaDeesp:  # AKA SOLVER
             set_category2 = set(constrained_path.full_n_constrained_path()) - set(category1)
 
             sort_redLoopBuses = sorted(self.rankedLoopBuses.items(), key=lambda x: x[1], reverse=True)
-            category3 = [sort_redLoopBuses[i][0] for i in range(len(sort_redLoopBuses))]  # set()  # @TODO
+            category3 = list(set([sort_redLoopBuses[i][0] for i in range(len(sort_redLoopBuses))]))  # set()  # @TODO
             set_category4 = set(constrained_path.n_aval()) - (set(category1) | set_category2 | set(category3))
 
             d = {1: category1, 2: set_category2, 3: category3, 4: set_category4}
