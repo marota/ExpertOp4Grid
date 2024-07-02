@@ -1,0 +1,30 @@
+{
+    "datetime_beg": {
+        "Scenario_april_42": "2012-04-17 00:00",
+        "Scenario_august_01": "2012-08-15 00:00",
+        "Scenario_december_12": "2012-12-17 00:00",
+        "Scenario_february_40": "2012-02-20 00:00",
+        "Scenario_january_28": "2012-01-11 00:00",
+        "Scenario_july_10": "2012-07-18 00:00",
+        "Scenario_june_01": "2012-06-18 00:00",
+        "Scenario_march_07": "2012-03-19 00:00",
+        "Scenario_may_17": "2012-05-20 00:00",
+        "Scenario_november_34": "2012-11-19 00:00",
+        "Scenario_october_21": "2012-10-19 00:00",
+        "Scenario_september_09": "2012-09-20 00:00"
+    },
+    "datetime_end": {
+        "Scenario_april_42": "2012-04-24 00:00",
+        "Scenario_august_01": "2012-08-22 00:00",
+        "Scenario_december_12": "2012-12-24 00:00",
+        "Scenario_february_40": "2012-02-27 00:00",
+        "Scenario_january_28": "2012-01-18 00:00",
+        "Scenario_july_10": "2012-07-25 00:00",
+        "Scenario_june_01": "2012-06-25 00:00",
+        "Scenario_march_07": "2012-03-26 00:00",
+        "Scenario_may_17": "2012-05-27 00:00",
+        "Scenario_november_34": "2012-11-26 00:00",
+        "Scenario_october_21": "2012-10-26 00:00",
+        "Scenario_september_09": "2012-09-27 00:00"
+    }
+}

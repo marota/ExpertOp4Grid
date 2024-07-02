@@ -460,7 +460,7 @@ class Structured_Overload_Distribution_Graph:
                     node_target = c_path_n[j]
                     if (node_source in g.nodes) and  (node_target in g.nodes):
                         try:
-                            res = nx.all_shortest_paths(g, node_source, node_target)
+                            res = nx.all_simple_paths(g, node_source, node_target)#nx.all_shortest_paths(g, node_source, node_target)
                             for p in res:
                                 # print("path = ", p)
                                 all_loop_paths[ii] = p
