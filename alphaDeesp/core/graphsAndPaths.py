@@ -233,6 +233,41 @@ class OverFlowGraph(PowerFlowGraph):
                 g.add_edge(origin, extremity, capacity=float("%.2f" % reported_flow), xlabel="%.2f" % reported_flow,
                            color="red", fontsize=10, penwidth="%.2f" % penwidth)
             i += 1
+
+    def consolidate_constrained_path(self, hub_sources,hub_targets):
+        """
+        Consolidate constrained blue path for some edges that were discarded with lower values but are actually on the path
+        knowing the hubs in the SuscturedOverflowGraph
+
+        Parameters
+        ----------
+
+        g: :class:`nx:MultiDiGraph`
+            a networkx graph to which to add edges
+
+        hub_sources: ``array``
+            list of nodes that are hubs and sources of loop paths in the structured graph
+
+        hub_targets: ``array``
+            list of nodes that are hubs and targets of loop paths in the structured graph
+
+        """
+        all_edges_to_recolor = []
+
+        # we capture all edges with negative value that we find in between the two hubs (source and target)
+        # this is important for graphs with double or triple edges for instance between nodes
+        g_without_pos_edges = delete_color_edges(self.g, "red")
+        for source, target in zip(hub_sources, hub_targets):
+            paths = nx.all_simple_edge_paths(g_without_pos_edges, source, target)
+            for path in paths:
+                all_edges_to_recolor += path
+
+        all_edges_to_recolor=set(all_edges_to_recolor)
+
+        current_colors = nx.get_edge_attributes(self.g, 'color')
+        edge_attribues_to_set = {edge: {"color": "blue"} for edge in all_edges_to_recolor if current_colors[edge]!="black"}
+        nx.set_edge_attributes(self.g, edge_attribues_to_set)
+
     def plot(self,layout,save_folder="",without_gray_edges=False):
         printer=Printer(save_folder)
         g=self.g
