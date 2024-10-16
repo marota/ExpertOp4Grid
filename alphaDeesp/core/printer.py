@@ -29,7 +29,6 @@ class Printer:
         "filenames are pathlib.Paths objects"
 
         dic_pos_attributes = {}
-        dict_node_size={}
         if custom_layout is not None:
             if rescale_factor is not None:
                 custom_layout=[(e[0]/rescale_factor,e[1]/rescale_factor) for e in custom_layout]
@@ -51,7 +50,6 @@ class Printer:
             # we update the graph with some specific position
             # see here "node_attributes" for more attributes you can update in the drawing https://github.com/pydot/pydot/blob/a892962a2db1a71f5e0aa83cfa734720ce2bb077/src/pydot/core.py#L61
             nx.set_node_attributes(g, dic_pos_attributes)
-            nx.set_node_attributes(g, dict_node_size)
             if fontsize is not None:
                 nx.set_node_attributes(g, fontsize,"fontsize")
                 nx.set_node_attributes(g, 0, "margin")
@@ -82,7 +80,6 @@ class Printer:
         filename_dot, filename_pdf = self.create_namefile("geo", name=name, type = type_)
 
         dic_pos_attributes = {}
-        dict_node_size={}
         if custom_layout is not None:
             if rescale_factor is not None:
                 custom_layout=[(e[0]/rescale_factor,e[1]/rescale_factor) for e in custom_layout]
@@ -104,14 +101,13 @@ class Printer:
             # we update the graph with some specific position
             # see here "node_attributes" for more attributes you can update in the drawing https://github.com/pydot/pydot/blob/a892962a2db1a71f5e0aa83cfa734720ce2bb077/src/pydot/core.py#L61
             nx.set_node_attributes(g, dic_pos_attributes)
-            nx.set_node_attributes(g, dict_node_size)
             if fontsize is not None:
                 nx.set_node_attributes(g, fontsize,"fontsize")
                 nx.set_node_attributes(g, 0, "margin")
 
             #nx.set_edge_attributes(g,overlap_margin,"len")
 
-        graph = nx.drawing.nx_pydot.to_pydot(g)
+        nx.drawing.nx_pydot.write_dot(g, filename_dot)
 
         if custom_layout is None:
 
