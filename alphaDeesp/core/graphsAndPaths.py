@@ -268,16 +268,25 @@ class OverFlowGraph(PowerFlowGraph):
         edge_attribues_to_set = {edge: {"color": "blue"} for edge in all_edges_to_recolor if current_colors[edge]!="black"}
         nx.set_edge_attributes(self.g, edge_attribues_to_set)
 
-    def plot(self,layout,save_folder="",without_gray_edges=False):
+    def plot(self,layout,rescale_factor=None,allow_overlap=True,fontsize=None,save_folder="",without_gray_edges=False):
         printer=Printer(save_folder)
         g=self.g
+
+        if layout is not None:
+            layout_dict = {n: coord for n, coord in zip(g.nodes, layout)}
+
         if without_gray_edges:
             g=delete_color_edges(g, "gray")
+            kept_nodes=g.nodes
+
+            if layout is not None:
+                layout=[layout_dict[node] for node in kept_nodes]# for node, coord in layout_dict.items() if node in kept_nodes]
+
         if save_folder=="":
-            output_graphviz_svg=printer.plot_graphviz(g, layout, name="g_overflow_print")
+            output_graphviz_svg=printer.plot_graphviz(g, layout,rescale_factor=rescale_factor,allow_overlap=allow_overlap,fontsize=fontsize, name="g_overflow_print")
             return output_graphviz_svg
         else:
-            printer.display_geo(g, layout, name="g_overflow_print")
+            printer.display_geo(g, layout,rescale_factor=rescale_factor,fontsize=fontsize, name="g_overflow_print")
             return None
 
 class ConstrainedPath:
