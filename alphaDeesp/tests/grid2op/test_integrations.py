@@ -30,7 +30,7 @@ def build_sim(ltc, param_folder, config_file = "./alphaDeesp/tests/resources_for
         env._thermal_limit_a[ltc]=modified_thermal_Limit
     observation_space = env.observation_space
     sim = Grid2opSimulation(obs, action_space,observation_space, param_options=config["DEFAULT"], debug=False,
-                            ltc=[ltc])
+                            ltc=[ltc],simu_step=timestep)
                             #, plot=True, plot_folder="./alphaDeesp/tests/output_tempo")
 
     return sim,env
@@ -229,7 +229,7 @@ def test_integration_dataframe_results_with_modified_substation4():
 
     ## Build simulator and generate objects for alphadeesp
     sim = Grid2opSimulation(new_obs, action_space,env.observation_space, param_options=config["DEFAULT"], debug=False,
-                            ltc=[ltc])
+                            ltc=[ltc],simu_step=timestep)
     df_of_g = sim.get_dataframe()
     g_over = OverFlowGraph(sim.topo, [ltc], df_of_g).get_graph()
     simulator_data = {"substations_elements": sim.get_substation_elements(),
