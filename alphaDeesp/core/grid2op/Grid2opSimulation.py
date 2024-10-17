@@ -184,7 +184,7 @@ class Grid2opSimulation(Simulation):
                 obs = self.obs
 
                 # realign timestep if still inconsistent alignment in Grid2op when chaining simulations
-                time_step_simu = max(obs.current_step - self.simu_step -1,0)
+                time_step_simu = max(self.simu_step-obs.current_step,0)
 
                 # target_node = row["node"] + 1
                 internal_target_node = row["node"]
@@ -417,7 +417,7 @@ class Grid2opSimulation(Simulation):
         deconexion_action = self.action_space({"set_line_status": [(id_, -1) for id_ in ids]})
 
         #realign timestep if still inconsistent alignment in Grid2op when chaining simulations
-        time_step_simu=max(self.obs.current_step-self.simu_step-1,0)
+        time_step_simu = max(self.simu_step-self.obs.current_step,0)
 
         #simulation should be done on same timestep than observation, but with time alignment correction
         obs_linecut, reward, done, info = self.obs.simulate(deconexion_action, time_step = time_step_simu) #, time_step = 0)
