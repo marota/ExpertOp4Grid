@@ -233,7 +233,7 @@ class OverFlowGraph(PowerFlowGraph):
                 g.add_edge(origin, extremity, capacity=float("%.2f" % reported_flow), xlabel="%.2f" % reported_flow,
                            color="red", fontsize=10, penwidth="%.2f" % penwidth)
             i += 1
-        nx.set_edge_attributes(g, {e:self.df["line_name"][i] for i,e in enumerate(g.edges)}, name="name")
+        #nx.set_edge_attributes(g, {e:self.df["line_name"][i] for i,e in enumerate(g.edges)}, name="name")
 
     def consolidate_constrained_path(self, hub_sources,hub_targets):
         """
@@ -332,7 +332,6 @@ class OverFlowGraph(PowerFlowGraph):
                 all_edges_to_recolor += path
 
         all_edges_to_recolor=set(all_edges_to_recolor)
-        print(all_edges_to_recolor)
 
         current_colors = nx.get_edge_attributes(self.g, 'color')
         #all_edges_to_recolor=
