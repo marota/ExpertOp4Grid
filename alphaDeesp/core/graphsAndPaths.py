@@ -233,6 +233,7 @@ class OverFlowGraph(PowerFlowGraph):
                 g.add_edge(origin, extremity, capacity=float("%.2f" % reported_flow), xlabel="%.2f" % reported_flow,
                            color="red", fontsize=10, penwidth="%.2f" % penwidth)
             i += 1
+        nx.set_edge_attributes(g, {e:self.df["line_name"][i] for i,e in enumerate(g.edges)}, name="name")
 
     def consolidate_constrained_path(self, hub_sources,hub_targets):
         """
@@ -241,9 +242,6 @@ class OverFlowGraph(PowerFlowGraph):
 
         Parameters
         ----------
-
-        g: :class:`nx:MultiDiGraph`
-            a networkx graph to which to add edges
 
         hub_sources: ``array``
             list of nodes that are hubs and sources of loop paths in the structured graph
@@ -267,6 +265,81 @@ class OverFlowGraph(PowerFlowGraph):
         current_colors = nx.get_edge_attributes(self.g, 'color')
         edge_attribues_to_set = {edge: {"color": "blue"} for edge in all_edges_to_recolor if current_colors[edge]!="black"}
         nx.set_edge_attributes(self.g, edge_attribues_to_set)
+
+    def reverse_blue_edges_in_looppaths(self, constrained_path):
+        """
+        Reverse blue edges that are not on the constrained paths, and that should be regarded as edges on which we are pushing
+        the flows
+
+        Parameters
+        ----------
+
+        constrained_path: ``list``
+            list of nodes that areon the constrained path
+
+        """
+        g_without_pos_edges = delete_color_edges(self.g, "red")
+        #g_only_blue_components = delete_color_edges(g_without_pos_edges, "gray")
+        #g_only_blue_components.remove_nodes_from(constrained_path)
+        g_without_pos_edges.remove_nodes_from(constrained_path)
+
+        #edges that have positive capacities, and significant enough (more than 1MW delta_flow) among gray edges should not be touched
+        capacities_dict = nx.get_edge_attributes(g_without_pos_edges, "capacity")
+        g_without_pos_edges.remove_edges_from([edge for edge,capacity in capacities_dict.items() if capacity>-1])
+
+        #modifies blue edges (reverse them and color them red) that are not on constrained path
+        #on the graph
+        #changing colors only for significative flows (non gray) here
+        current_colors = nx.get_edge_attributes(g_without_pos_edges, 'color')
+
+        new_colors = {e: {"color": "red"} for e, color
+                               in current_colors.items() if color!="gray"}
+        nx.set_edge_attributes(g_without_pos_edges, new_colors)
+
+        # reversing capacities (with negative values) and direction for all edges here
+        reduced_capacities_dict = nx.get_edge_attributes(g_without_pos_edges, "capacity")
+        new_attributes_dict = {e: {"capacity": -capacity, "xlabel": "%.2f" % -capacity} for e, capacity
+                               in reduced_capacities_dict.items()}
+        nx.set_edge_attributes(g_without_pos_edges, new_attributes_dict)
+
+        self.g.add_edges_from([(edge[1], edge[0], edge[2]) for edge in g_without_pos_edges.edges(data=True)])
+        self.g.remove_edges_from(g_without_pos_edges.edges)
+
+    def consolidate_loop_path(self, hub_sources,hub_targets):
+        """
+        Consolidate constrained red path for some edges that were discarded with lower values but are actually on the path
+        knowing the hubs in the SuscturedOverflowGraph
+        WARNING: prefer to reverse blue edges first with reverse_blue_edges_in_looppaths, to get a better result
+
+        Parameters
+        ----------
+
+        hub_sources: ``array``
+            list of nodes that are hubs and sources of loop paths in the structured graph
+
+        hub_targets: ``array``
+            list of nodes that are hubs and targets of loop paths in the structured graph
+
+        """
+        all_edges_to_recolor = []
+
+        # we capture all edges with negative value that we find in between the two hubs (source and target)
+        # this is important for graphs with double or triple edges for instance between nodes
+        g_without_blue_edges = delete_color_edges(self.g, "blue")
+        for source, target in zip(hub_sources, hub_targets):
+            paths = nx.all_simple_edge_paths(g_without_blue_edges, source, target)
+            for path in paths:
+                all_edges_to_recolor += path
+
+        all_edges_to_recolor=set(all_edges_to_recolor)
+        print(all_edges_to_recolor)
+
+        current_colors = nx.get_edge_attributes(self.g, 'color')
+        #all_edges_to_recolor=
+        edge_attribues_to_set = {edge: {"color": "red"} for i,edge in enumerate(g_without_blue_edges.edges) if edge in all_edges_to_recolor and current_colors[edge]=="gray"}
+        nx.set_edge_attributes(self.g, edge_attribues_to_set)
+
+
 
     def plot(self,layout,rescale_factor=None,allow_overlap=True,fontsize=None,save_folder="",without_gray_edges=False):
         printer=Printer(save_folder)
