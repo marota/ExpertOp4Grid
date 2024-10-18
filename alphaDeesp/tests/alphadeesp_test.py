@@ -95,6 +95,49 @@ def test_structured_overload_distribution_graph():
     assert loops_df.loc[0]["Source"]==3
     assert loops_df.loc[0]["Target"] == 6
 
+def test_consolidate_constrained_path():
+    config = configparser.ConfigParser()
+    config.read("./alphaDeesp/tests/resources_for_tests_grid2op/config_for_tests.ini")
+
+    data_folder="./alphaDeesp/tests/ressources_for_tests/data_graph_consolidation/defaut_PSAOL31RONCI"
+
+    timestep = 1  # 1#36
+    line_defaut = "P.SAOL31RONCI"
+    ltc = [9]
+
+    with open(os.path.join(data_folder,'sim_topo_zone_dijon_defaut_PSAOL31RONCI_t1.json')) as json_file:
+        sim_topo_reduced = json.load(json_file)
+
+    df_of_g = pd.read_csv(os.path.join(data_folder,"df_of_g_defaut_PSAOL31RONCI_t1.csv"))
+
+    g_over = OverFlowGraph(sim_topo_reduced, ltc, df_of_g)
+
+    with open(os.path.join(data_folder,'node_name_mapping_defaut_PSAOL31RONCI_t1.json')) as json_file:
+        mapping = json.load(json_file)
+    mapping = {int(key): value for key, value in mapping.items()}
+    g_over.g = nx.relabel_nodes(g_over.g, mapping, copy=True)
+
+    #consolidate
+    g_distribution_graph = Structured_Overload_Distribution_Graph(g_over.g)
+
+    # consolider le chemin en contrainte avec la connaissance des hubs, en itérant une fois de plus
+    n_hubs_init = 0
+    hubs_paths = g_distribution_graph.find_loops()[["Source", "Target"]].drop_duplicates()
+    n_hub_paths = hubs_paths.shape[0]
+
+    while n_hubs_init != n_hub_paths:
+        n_hubs_init = n_hub_paths
+
+        g_over.consolidate_constrained_path(hubs_paths.Source, hubs_paths.Target)
+        g_distribution_graph = Structured_Overload_Distribution_Graph(g_over.g)
+
+        hubs_paths = g_distribution_graph.find_loops()[["Source", "Target"]].drop_duplicates()
+        n_hub_paths = hubs_paths.shape[0]
+
+    #le nombre de loop path est passe de 1 a 3
+    assert(n_hub_paths==3)
+
+
 def test_reverse_blue_edges_in_looppaths():
     config = configparser.ConfigParser()
     config.read("./alphaDeesp/tests/resources_for_tests_grid2op/config_for_tests.ini")
