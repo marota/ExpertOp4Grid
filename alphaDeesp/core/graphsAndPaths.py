@@ -150,6 +150,12 @@ class PowerFlowGraph:
 
         nx.set_node_attributes(self.g,voltage_levals_colors_dict,"color")
 
+    def set_electrical_node_number(self, nodal_number_dict):
+
+        peripheries_dict = {node:nodal_number_dict[node] for node in self.g}
+
+        nx.set_node_attributes(self.g, peripheries_dict, "peripheries")
+
     def plot(self,save_folder,name,state="before",sim=None):
         printer = Printer(save_folder)
 
