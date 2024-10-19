@@ -361,6 +361,40 @@ class OverFlowGraph(PowerFlowGraph):
             printer.display_geo(g, layout,rescale_factor=rescale_factor,fontsize=fontsize, name="g_overflow_print")
             return None
 
+    def consolidate_graph(self, structured_graph):
+        """
+        Consolidate overflow graph knwoing structural elements from SuscturedOverflowGraph
+
+        Parameters
+        ----------
+
+        structured_graph: ``SuscturedOverflowGraph``
+            a structured graph with identified constrained path, hubs, loop paths
+
+        """
+
+        # consolider le chemin en contrainte avec la connaissance des hubs, en itérant une fois de plus
+        n_hubs_init = 0
+        hubs_paths = structured_graph.find_loops()[["Source", "Target"]].drop_duplicates()
+        n_hub_paths = hubs_paths.shape[0]
+
+        while n_hubs_init != n_hub_paths:
+            n_hubs_init = n_hub_paths
+
+            self.consolidate_constrained_path(hubs_paths.Source, hubs_paths.Target)
+            structured_graph = Structured_Overload_Distribution_Graph(self.g)
+
+            hubs_paths = structured_graph.find_loops()[["Source", "Target"]].drop_duplicates()
+            n_hub_paths = hubs_paths.shape[0]
+
+        #recolor and reverse blue edges outside of constrained path
+        constrained_path = structured_graph.constrained_path.full_n_constrained_path()
+        self.reverse_blue_edges_in_looppaths(constrained_path)
+
+        # consolidate loop paths by recoloring gray edges that are significant enough and within a loop path
+        self.consolidate_loop_path(hubs_paths.Source, hubs_paths.Target)
+
+
 class ConstrainedPath:
 
     """

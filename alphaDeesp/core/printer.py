@@ -50,9 +50,10 @@ class Printer:
             # we update the graph with some specific position
             # see here "node_attributes" for more attributes you can update in the drawing https://github.com/pydot/pydot/blob/a892962a2db1a71f5e0aa83cfa734720ce2bb077/src/pydot/core.py#L61
             nx.set_node_attributes(g, dic_pos_attributes)
-            if fontsize is not None:
-                nx.set_node_attributes(g, fontsize,"fontsize")
-                nx.set_node_attributes(g, 0, "margin")
+
+        if fontsize is not None:
+            nx.set_node_attributes(g, fontsize,"fontsize")
+            nx.set_node_attributes(g, 0, "margin")
 
             #nx.set_edge_attributes(g,overlap_margin,"len")
 
@@ -101,9 +102,10 @@ class Printer:
             # we update the graph with some specific position
             # see here "node_attributes" for more attributes you can update in the drawing https://github.com/pydot/pydot/blob/a892962a2db1a71f5e0aa83cfa734720ce2bb077/src/pydot/core.py#L61
             nx.set_node_attributes(g, dic_pos_attributes)
-            if fontsize is not None:
-                nx.set_node_attributes(g, fontsize,"fontsize")
-                nx.set_node_attributes(g, 0, "margin")
+
+        if fontsize is not None:
+            nx.set_node_attributes(g, fontsize,"fontsize")
+            nx.set_node_attributes(g, 0, "margin")
 
             #nx.set_edge_attributes(g,overlap_margin,"len")
 
