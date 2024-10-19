@@ -82,7 +82,7 @@ def test_structured_overload_distribution_graph():
         elif u in nodes_c_path and v in nodes_c_path:
             g2[u][v][idx]["color"]="blue"
         else:
-            g2[u][v][idx]["color"] = "red"
+            g2[u][v][idx]["color"] = "coral"
 
     Overload_graph=Structured_Overload_Distribution_Graph(g2)
 
@@ -161,8 +161,8 @@ def test_reverse_blue_edges_in_looppaths():
     g_over.g = nx.relabel_nodes(g_over.g, mapping, copy=True)
 
     #compute initial blue edges
-    g_without_pos_edges = delete_color_edges(g_over.g, "red")
-    g_with_only_blue_edges=delete_color_edges(g_without_pos_edges, "red")
+    g_without_pos_edges = delete_color_edges(g_over.g, "coral")
+    g_with_only_blue_edges=delete_color_edges(g_without_pos_edges, "coral")
     n_blue_edges_init=len(g_with_only_blue_edges.edges)
 
     #consolidate
@@ -171,8 +171,8 @@ def test_reverse_blue_edges_in_looppaths():
     g_over.reverse_blue_edges_in_looppaths(constrained_path)
 
     #count number of changes
-    g_without_pos_edges = delete_color_edges(g_over.g, "red")
-    g_with_only_blue_edges=delete_color_edges(g_without_pos_edges, "red")
+    g_without_pos_edges = delete_color_edges(g_over.g, "coral")
+    g_with_only_blue_edges=delete_color_edges(g_without_pos_edges, "coral")
     n_blue_edges_final=len(g_with_only_blue_edges.edges)
 
     #7 edge on change de couleur
@@ -222,3 +222,41 @@ def test_consolidate_loop_path():
     #7 edge on change de couleur
     assert(n_red_edges_final-n_red_edges_init==22)
 
+def test_consolidate_graph():
+    config = configparser.ConfigParser()
+    config.read("./alphaDeesp/tests/resources_for_tests_grid2op/config_for_tests.ini")
+
+    data_folder="./alphaDeesp/tests/ressources_for_tests/data_graph_consolidation/defaut_FRON5L31LOUHA"
+
+    timestep = 36  # 1#36
+    line_defaut = "FRON5L31LOUHA"
+    ltc = [108]
+
+    with open(os.path.join(data_folder,'sim_topo_zone_dijon_defaut_FRON5L31LOUHA_t36.json')) as json_file:
+        sim_topo_reduced = json.load(json_file)
+
+    df_of_g = pd.read_csv(os.path.join(data_folder,"df_of_g_defaut_FRON5L31LOUHA_t36.csv"))
+
+    g_over = OverFlowGraph(sim_topo_reduced, ltc, df_of_g)
+
+    with open(os.path.join(data_folder,'node_name_mapping_defaut_FRON5L31LOUHA_t36.json')) as json_file:
+        mapping = json.load(json_file)
+    mapping = {int(key): value for key, value in mapping.items()}
+    g_over.g = nx.relabel_nodes(g_over.g, mapping, copy=True)
+
+    #compute initial red edges
+    g_without_blue_edges = delete_color_edges(g_over.g, "blue")
+    g_with_only_red_edges=delete_color_edges(g_without_blue_edges, "gray")
+    n_red_edges_init=len(g_with_only_red_edges.edges)
+
+    g_distribution_graph = Structured_Overload_Distribution_Graph(g_over.g)
+    g_over.consolidate_graph(g_distribution_graph)
+
+
+    #compute final red edges
+    g_without_blue_edges = delete_color_edges(g_over.g, "blue")
+    g_with_only_red_edges=delete_color_edges(g_without_blue_edges, "gray")
+    n_red_edges_final=len(g_with_only_red_edges.edges)
+
+    #7 edge on change de couleur
+    assert(n_red_edges_final-n_red_edges_init==29)
