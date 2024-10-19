@@ -4,6 +4,8 @@ import networkx as nx
 from math import fabs
 from alphaDeesp.core.printer import Printer
 
+voltage_colors={400:"coral",225:"darkgreen",90:"gold",63:"purple",20:"pink",24:"pink",10:"pink",33:"pink",}#[400., 225.,  63.,  24.,  20.,  33.,  10.]
+
 class PowerFlowGraph:
     """
     A coloured graph of current grid state with productions, consumptions and topology
@@ -89,10 +91,10 @@ class PowerFlowGraph:
                 print(f"Node n°[{i}] : Production value: [{prod}] - Load value: [{load}] ")
             if prod_minus_load > 0:  # PROD
                 g.add_node(i, pin=True, prod_or_load="prod", value=str(prod_minus_load), style="filled",
-                           fillcolor="#f30000")  # red color
+                           fillcolor="coral")#orange#ff8000 #f30000")  # red color
             elif prod_minus_load < 0:  # LOAD
                 g.add_node(i, pin=True, prod_or_load="load", value=str(prod_minus_load), style="filled",
-                           fillcolor="#478fd0")  # blue color
+                           fillcolor="lightblue")#"#478fd0")  # blue color
             else:  # WHITE COLOR
                 g.add_node(i, pin=True, prod_or_load="load", value=str(prod_minus_load), style="filled",
                            fillcolor="#ffffed")  # white color
@@ -141,6 +143,12 @@ class PowerFlowGraph:
 
     def get_graph(self):
         return self.g
+
+    def set_voltage_level_color(self,voltage_levals_dict):
+
+        voltage_levals_colors_dict={node:voltage_colors[voltage_levals_dict[node]] for node in self.g}
+
+        nx.set_node_attributes(self.g,voltage_levals_colors_dict,"color")
 
     def plot(self,save_folder,name,state="before",sim=None):
         printer = Printer(save_folder)
@@ -231,7 +239,8 @@ class OverFlowGraph(PowerFlowGraph):
                            color="blue", fontsize=10, penwidth="%.2f" % penwidth)
             else:  # > 0  # Red
                 g.add_edge(origin, extremity, capacity=float("%.2f" % reported_flow), xlabel="%.2f" % reported_flow,
-                           color="red", fontsize=10, penwidth="%.2f" % penwidth)
+                           color="coral",#orange"#ff8000"#"coral",
+                           fontsize=10, penwidth="%.2f" % penwidth)#"#ff8000")#orange
             i += 1
         #nx.set_edge_attributes(g, {e:self.df["line_name"][i] for i,e in enumerate(g.edges)}, name="name")
 
@@ -254,7 +263,7 @@ class OverFlowGraph(PowerFlowGraph):
 
         # we capture all edges with negative value that we find in between the two hubs (source and target)
         # this is important for graphs with double or triple edges for instance between nodes
-        g_without_pos_edges = delete_color_edges(self.g, "red")
+        g_without_pos_edges = delete_color_edges(self.g, "coral")
         for source, target in zip(hub_sources, hub_targets):
             paths = nx.all_simple_edge_paths(g_without_pos_edges, source, target)
             for path in paths:
@@ -278,7 +287,7 @@ class OverFlowGraph(PowerFlowGraph):
             list of nodes that areon the constrained path
 
         """
-        g_without_pos_edges = delete_color_edges(self.g, "red")
+        g_without_pos_edges = delete_color_edges(self.g, "coral")
         #g_only_blue_components = delete_color_edges(g_without_pos_edges, "gray")
         #g_only_blue_components.remove_nodes_from(constrained_path)
         g_without_pos_edges.remove_nodes_from(constrained_path)
@@ -292,7 +301,7 @@ class OverFlowGraph(PowerFlowGraph):
         #changing colors only for significative flows (non gray) here
         current_colors = nx.get_edge_attributes(g_without_pos_edges, 'color')
 
-        new_colors = {e: {"color": "red"} for e, color
+        new_colors = {e: {"color": "coral"} for e, color
                                in current_colors.items() if color!="gray"}
         nx.set_edge_attributes(g_without_pos_edges, new_colors)
 
@@ -335,7 +344,7 @@ class OverFlowGraph(PowerFlowGraph):
 
         current_colors = nx.get_edge_attributes(self.g, 'color')
         #all_edges_to_recolor=
-        edge_attribues_to_set = {edge: {"color": "red"} for i,edge in enumerate(g_without_blue_edges.edges) if edge in all_edges_to_recolor and current_colors[edge]=="gray"}
+        edge_attribues_to_set = {edge: {"color": "coral"} for i,edge in enumerate(g_without_blue_edges.edges) if edge in all_edges_to_recolor and current_colors[edge]=="gray"}
         nx.set_edge_attributes(self.g, edge_attribues_to_set)
 
 
@@ -475,7 +484,7 @@ class Structured_Overload_Distribution_Graph:
 
         """
         self.g_init=g
-        self.g_without_pos_edges = delete_color_edges(self.g_init, "red") #graph without loop path that have positive/red-coloured weight edges
+        self.g_without_pos_edges = delete_color_edges(self.g_init, "coral") #graph without loop path that have positive/red-coloured weight edges
         self.g_only_blue_components = delete_color_edges(self.g_without_pos_edges, "gray") #graph with only negative/blue-coloured weight edges
         self.g_without_constrained_edge = delete_color_edges(self.g_init, "black")
         self.g_without_gray_and_c_edge = delete_color_edges(self.g_without_constrained_edge, "gray")
@@ -565,7 +574,7 @@ class Structured_Overload_Distribution_Graph:
         for node in self.constrained_path.n_aval():
             in_edges = list(g.in_edges(node,keys=True))
             for e in in_edges:
-                if g.edges[e]["color"] == "red":
+                if g.edges[e]["color"] == "coral":
                     hubs.append(node)
                     break
 
@@ -573,7 +582,7 @@ class Structured_Overload_Distribution_Graph:
         for node in self.constrained_path.n_amont():
             out_edges = list(g.out_edges(node,keys=True))
             for e in out_edges:
-                if g.edges[e]["color"] == "red":
+                if g.edges[e]["color"] == "coral":
                     hubs.append(node)
                     break
 

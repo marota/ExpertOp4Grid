@@ -24,7 +24,7 @@ class Grid2opObservationLoader:
             custom_params.NO_OVERFLOW_DISCONNECTION = False
             custom_params.HARD_OVERFLOW_THRESHOLD = 9999999
             custom_params.NB_TIMESTEP_OVERFLOW_ALLOWED = 9999999
-            self.env = grid2op.make(self.parameter_folder, backend=backend, param=custom_params)
+            self.env = grid2op.make(self.parameter_folder, backend=backend, param=custom_params,test=True)#,_compat_glop_version="1.8.1")
         elif difficulty not in ["0","1","2","competition"]:
             raise ValueError("Difficulty in config.ini should be either None or 0,1,2 or competition")
         else:

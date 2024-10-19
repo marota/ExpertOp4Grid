@@ -504,7 +504,7 @@ class AlphaDeesp:  # AKA SOLVER
                     edge_bus_id = self.get_bus_id_from_edge(node, edge, topo_vect)
                     edge_color = all_edges_color_attributes[edge]
                     edge_value = float(all_edges_xlabel_attributes[edge])
-                    if (edge_color == "red"):
+                    if (edge_color == "coral"):
                         if edge_bus_id == 0: # MASK
                             InputRedDeltaFlow_1 += edge_value
                         elif edge_bus_id == 1: # MASK
@@ -523,7 +523,7 @@ class AlphaDeesp:  # AKA SOLVER
                     if edge_bus_id == Bus_BiggestInputDeltaFlow:
                         edge_color = all_edges_color_attributes[edge]
                         edge_value = float(all_edges_xlabel_attributes[edge])
-                        if (edge_color == "red"):
+                        if (edge_color == "coral"):
                             OutputRedDeltaFlow += edge_value
 
                 min_pos_in_or_out_flows = min(OutputRedDeltaFlow, InputRedDeltaFlow)
@@ -678,7 +678,7 @@ class AlphaDeesp:  # AKA SOLVER
                         for edge in self.g.in_edges(bus,keys=True):
                             edge_deltaflow_value = float(all_edges_xlabel_attributes[edge])
                             edge_color = all_edges_color_attributes[edge]
-                            if (edge_color == "red"):
+                            if (edge_color == "coral"):
                                 sumInRedDeltaFlows += edge_deltaflow_value
                             else:  # we need to retrieve the initial flow from df_initial_flows
                                 source, target,idx = edge
