@@ -4,7 +4,7 @@ import networkx as nx
 from math import fabs
 from alphaDeesp.core.printer import Printer
 
-voltage_colors={400:"coral",225:"darkgreen",90:"gold",63:"purple",20:"pink",24:"pink",10:"pink",33:"pink",}#[400., 225.,  63.,  24.,  20.,  33.,  10.]
+voltage_colors={400:"red",225:"darkgreen",90:"gold",63:"purple",20:"pink",24:"pink",10:"pink",33:"pink",}#[400., 225.,  63.,  24.,  20.,  33.,  10.]
 
 class PowerFlowGraph:
     """
@@ -155,6 +155,7 @@ class PowerFlowGraph:
         peripheries_dict = {node:nodal_number_dict[node] for node in self.g}
 
         nx.set_node_attributes(self.g, peripheries_dict, "peripheries")
+
 
     def plot(self,save_folder,name,state="before",sim=None):
         printer = Printer(save_folder)
@@ -353,7 +354,24 @@ class OverFlowGraph(PowerFlowGraph):
         edge_attribues_to_set = {edge: {"color": "coral"} for i,edge in enumerate(g_without_blue_edges.edges) if edge in all_edges_to_recolor and current_colors[edge]=="gray"}
         nx.set_edge_attributes(self.g, edge_attribues_to_set)
 
+    def set_hubs_shape(self, hubs,shape_hub="circle"):
+        """
+        Distinguish the shape of "hub" nodes to make them more visible
 
+        Parameters
+        ----------
+
+        hub: ``array``
+            list of nodes that are hubs in the structured graph
+
+        shape_hub: ``str``
+            shape type for drawing the hubs
+        """
+        dict_shapes = {node: "oval" for node in self.g.nodes}
+        for hub in hubs:
+            dict_shapes[hub] = shape_hub
+
+        nx.set_node_attributes(self.g, dict_shapes, "shape")
 
     def plot(self,layout,rescale_factor=None,allow_overlap=True,fontsize=None,node_thickness=3,save_folder="",without_gray_edges=False):
         printer=Printer(save_folder)
