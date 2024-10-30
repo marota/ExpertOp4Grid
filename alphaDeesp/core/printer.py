@@ -25,37 +25,55 @@ class Printer:
         os.makedirs(self.results_output_path, exist_ok=True)
         print("self.default output path = ", self.default_output_path)
 
-    def plot_graphviz(self, g, custom_layout=None, axial_symetry=False, save=False, name=None):
+    def plot_graphviz(self, g, custom_layout=None,rescale_factor=None,allow_overlap=True,fontsize=None,node_thickness=3, axial_symetry=False, save=False, name=None):
         "filenames are pathlib.Paths objects"
 
         dic_pos_attributes = {}
         if custom_layout is not None:
-
+            if rescale_factor is not None:
+                custom_layout=[(e[0]/rescale_factor,e[1]/rescale_factor) for e in custom_layout]
             assert isinstance(custom_layout, list) is True
             # we create a dictionary to add a position attribute to the nodes
             ii = 0
-            for i, value in enumerate(custom_layout):
+            n_layout=len(custom_layout)
+            for i, node in enumerate(g.nodes):#(custom_layout):
                 # i += 1
                 # print(f"i:{i} value:{value}")
+                value=custom_layout[i%n_layout]
                 if i < len(custom_layout):
-                    dic_pos_attributes[i] = {"pos": (str(value[0]) + ", " + str(value[1]) + "!")}
+                    dic_pos_attributes[node] = {"pos": (str(value[0]) + ", " + str(value[1]) + "!")}
                 else:
-                    i = int("666" + str(ii))
-                    dic_pos_attributes[i] = {"pos": (str(value[0]) + ", " + str(value[1]) + "!")}
+                    node = int("666" + str(ii))
+                    dic_pos_attributes[node] = {"pos": (str(value[0]) + ", " + str(value[1]) + "!")}
                     ii += 1
 
             # we update the graph with some specific position
+            # see here "node_attributes" for more attributes you can update in the drawing https://github.com/pydot/pydot/blob/a892962a2db1a71f5e0aa83cfa734720ce2bb077/src/pydot/core.py#L61
             nx.set_node_attributes(g, dic_pos_attributes)
+
+        if fontsize is not None:
+            nx.set_node_attributes(g, fontsize,"fontsize")
+            nx.set_node_attributes(g, 0, "margin")
+
+        nx.set_node_attributes(g, node_thickness, "penwidth")#size of nodes thickness
+
+            #nx.set_edge_attributes(g,overlap_margin,"len")
+
         graph = nx.drawing.nx_pydot.to_pydot(g)
+
         if custom_layout is not None:
-            output_graphviz_svg = graph.create_svg(prog="neato")
+            prog=["neato","-n","-x"] #-n to minimize overlap, -x to prune isolated components
+            if not allow_overlap:
+                graph.set_overlap(False)
+            output_graphviz_svg = graph.create_svg(prog=prog)
         else:
-            output_graphviz_svg = graph.create_svg(prog="dot")
+            output_graphviz_svg = graph.create_svg(prog="dot")#(prog="dot")
 
         return output_graphviz_svg
 
 
-    def display_geo(self, g, custom_layout=None, axial_symetry=False, save=False, name=None):
+
+    def display_geo(self, g, custom_layout=None,rescale_factor=None,fontsize=None, node_thickness=3, axial_symetry=False, save=False, name=None):
         """This function displays the graph g in a "geographical" way"""
 
         "filenames are pathlib.Paths objects"
@@ -66,25 +84,34 @@ class Printer:
 
         dic_pos_attributes = {}
         if custom_layout is not None:
-
+            if rescale_factor is not None:
+                custom_layout=[(e[0]/rescale_factor,e[1]/rescale_factor) for e in custom_layout]
             assert isinstance(custom_layout, list) is True
             # we create a dictionary to add a position attribute to the nodes
             ii = 0
-            for i, value in enumerate(custom_layout):
+            n_layout=len(custom_layout)
+            for i, node in enumerate(g.nodes):#(custom_layout):
                 # i += 1
                 # print(f"i:{i} value:{value}")
+                value=custom_layout[i%n_layout]
                 if i < len(custom_layout):
-                    dic_pos_attributes[i] = {"pos": (str(value[0]) + ", " + str(value[1]) + "!")}
+                    dic_pos_attributes[node] = {"pos": (str(value[0]) + ", " + str(value[1]) + "!")}
                 else:
-                    i = int("666" + str(ii))
-                    dic_pos_attributes[i] = {"pos": (str(value[0]) + ", " + str(value[1]) + "!")}
+                    node = int("666" + str(ii))
+                    dic_pos_attributes[node] = {"pos": (str(value[0]) + ", " + str(value[1]) + "!")}
                     ii += 1
 
             # we update the graph with some specific position
+            # see here "node_attributes" for more attributes you can update in the drawing https://github.com/pydot/pydot/blob/a892962a2db1a71f5e0aa83cfa734720ce2bb077/src/pydot/core.py#L61
             nx.set_node_attributes(g, dic_pos_attributes)
 
-        # print("############### debug in Printer ###############")
-        # pprint.pprint(dic_pos_attributes)
+        if fontsize is not None:
+            nx.set_node_attributes(g, fontsize,"fontsize")
+            nx.set_node_attributes(g, 0, "margin")
+
+        nx.set_node_attributes(g, node_thickness, "penwidth")#size of nodes thickness
+
+            #nx.set_edge_attributes(g,overlap_margin,"len")
 
         nx.drawing.nx_pydot.write_dot(g, filename_dot)
 

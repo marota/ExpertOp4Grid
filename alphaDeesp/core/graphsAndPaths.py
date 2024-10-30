@@ -4,6 +4,8 @@ import networkx as nx
 from math import fabs
 from alphaDeesp.core.printer import Printer
 
+voltage_colors={400:"red",225:"darkgreen",90:"gold",63:"purple",20:"pink",24:"pink",10:"pink",33:"pink",}#[400., 225.,  63.,  24.,  20.,  33.,  10.]
+
 class PowerFlowGraph:
     """
     A coloured graph of current grid state with productions, consumptions and topology
@@ -89,10 +91,10 @@ class PowerFlowGraph:
                 print(f"Node n°[{i}] : Production value: [{prod}] - Load value: [{load}] ")
             if prod_minus_load > 0:  # PROD
                 g.add_node(i, pin=True, prod_or_load="prod", value=str(prod_minus_load), style="filled",
-                           fillcolor="#f30000")  # red color
+                           fillcolor="coral")#orange#ff8000 #f30000")  # red color
             elif prod_minus_load < 0:  # LOAD
                 g.add_node(i, pin=True, prod_or_load="load", value=str(prod_minus_load), style="filled",
-                           fillcolor="#478fd0")  # blue color
+                           fillcolor="lightblue")#"#478fd0")  # blue color
             else:  # WHITE COLOR
                 g.add_node(i, pin=True, prod_or_load="load", value=str(prod_minus_load), style="filled",
                            fillcolor="#ffffed")  # white color
@@ -141,6 +143,19 @@ class PowerFlowGraph:
 
     def get_graph(self):
         return self.g
+
+    def set_voltage_level_color(self,voltage_levals_dict):
+
+        voltage_levals_colors_dict={node:voltage_colors[voltage_levals_dict[node]] for node in self.g}
+
+        nx.set_node_attributes(self.g,voltage_levals_colors_dict,"color")
+
+    def set_electrical_node_number(self, nodal_number_dict):
+
+        peripheries_dict = {node:nodal_number_dict[node] for node in self.g}
+
+        nx.set_node_attributes(self.g, peripheries_dict, "peripheries")
+
 
     def plot(self,save_folder,name,state="before",sim=None):
         printer = Printer(save_folder)
@@ -231,19 +246,187 @@ class OverFlowGraph(PowerFlowGraph):
                            color="blue", fontsize=10, penwidth="%.2f" % penwidth)
             else:  # > 0  # Red
                 g.add_edge(origin, extremity, capacity=float("%.2f" % reported_flow), xlabel="%.2f" % reported_flow,
-                           color="red", fontsize=10, penwidth="%.2f" % penwidth)
+                           color="coral",#orange"#ff8000"#"coral",
+                           fontsize=10, penwidth="%.2f" % penwidth)#"#ff8000")#orange
             i += 1
-    def plot(self,layout,save_folder="",without_gray_edges=False):
+        #nx.set_edge_attributes(g, {e:self.df["line_name"][i] for i,e in enumerate(g.edges)}, name="name")
+
+    def consolidate_constrained_path(self, hub_sources,hub_targets):
+        """
+        Consolidate constrained blue path for some edges that were discarded with lower values but are actually on the path
+        knowing the hubs in the SuscturedOverflowGraph
+
+        Parameters
+        ----------
+
+        hub_sources: ``array``
+            list of nodes that are hubs and sources of loop paths in the structured graph
+
+        hub_targets: ``array``
+            list of nodes that are hubs and targets of loop paths in the structured graph
+
+        """
+        all_edges_to_recolor = []
+
+        # we capture all edges with negative value that we find in between the two hubs (source and target)
+        # this is important for graphs with double or triple edges for instance between nodes
+        g_without_pos_edges = delete_color_edges(self.g, "coral")
+        for source, target in zip(hub_sources, hub_targets):
+            paths = nx.all_simple_edge_paths(g_without_pos_edges, source, target)
+            for path in paths:
+                all_edges_to_recolor += path
+
+        all_edges_to_recolor=set(all_edges_to_recolor)
+
+        current_colors = nx.get_edge_attributes(self.g, 'color')
+        edge_attribues_to_set = {edge: {"color": "blue"} for edge in all_edges_to_recolor if current_colors[edge]!="black"}
+        nx.set_edge_attributes(self.g, edge_attribues_to_set)
+
+    def reverse_blue_edges_in_looppaths(self, constrained_path):
+        """
+        Reverse blue edges that are not on the constrained paths, and that should be regarded as edges on which we are pushing
+        the flows
+
+        Parameters
+        ----------
+
+        constrained_path: ``list``
+            list of nodes that areon the constrained path
+
+        """
+        g_without_pos_edges = delete_color_edges(self.g, "coral")
+        #g_only_blue_components = delete_color_edges(g_without_pos_edges, "gray")
+        #g_only_blue_components.remove_nodes_from(constrained_path)
+        g_without_pos_edges.remove_nodes_from(constrained_path)
+
+        #edges that have positive capacities, and significant enough (more than 1MW delta_flow) among gray edges should not be touched
+        capacities_dict = nx.get_edge_attributes(g_without_pos_edges, "capacity")
+        g_without_pos_edges.remove_edges_from([edge for edge,capacity in capacities_dict.items() if capacity>-1])
+
+        #modifies blue edges (reverse them and color them red) that are not on constrained path
+        #on the graph
+        #changing colors only for significative flows (non gray) here
+        current_colors = nx.get_edge_attributes(g_without_pos_edges, 'color')
+
+        new_colors = {e: {"color": "coral"} for e, color
+                               in current_colors.items() if color!="gray"}
+        nx.set_edge_attributes(g_without_pos_edges, new_colors)
+
+        # reversing capacities (with negative values) and direction for all edges here
+        reduced_capacities_dict = nx.get_edge_attributes(g_without_pos_edges, "capacity")
+        new_attributes_dict = {e: {"capacity": -capacity, "xlabel": "%.2f" % -capacity} for e, capacity
+                               in reduced_capacities_dict.items()}
+        nx.set_edge_attributes(g_without_pos_edges, new_attributes_dict)
+
+        self.g.add_edges_from([(edge[1], edge[0], edge[2]) for edge in g_without_pos_edges.edges(data=True)])
+        self.g.remove_edges_from(g_without_pos_edges.edges)
+
+    def consolidate_loop_path(self, hub_sources,hub_targets):
+        """
+        Consolidate constrained red path for some edges that were discarded with lower values but are actually on the path
+        knowing the hubs in the SuscturedOverflowGraph
+        WARNING: prefer to reverse blue edges first with reverse_blue_edges_in_looppaths, to get a better result
+
+        Parameters
+        ----------
+
+        hub_sources: ``array``
+            list of nodes that are hubs and sources of loop paths in the structured graph
+
+        hub_targets: ``array``
+            list of nodes that are hubs and targets of loop paths in the structured graph
+
+        """
+        all_edges_to_recolor = []
+
+        # we capture all edges with negative value that we find in between the two hubs (source and target)
+        # this is important for graphs with double or triple edges for instance between nodes
+        g_without_blue_edges = delete_color_edges(self.g, "blue")
+        for source, target in zip(hub_sources, hub_targets):
+            paths = nx.all_simple_edge_paths(g_without_blue_edges, source, target)
+            for path in paths:
+                all_edges_to_recolor += path
+
+        all_edges_to_recolor=set(all_edges_to_recolor)
+
+        current_colors = nx.get_edge_attributes(self.g, 'color')
+        #all_edges_to_recolor=
+        edge_attribues_to_set = {edge: {"color": "coral"} for i,edge in enumerate(g_without_blue_edges.edges) if edge in all_edges_to_recolor and current_colors[edge]=="gray"}
+        nx.set_edge_attributes(self.g, edge_attribues_to_set)
+
+    def set_hubs_shape(self, hubs,shape_hub="circle"):
+        """
+        Distinguish the shape of "hub" nodes to make them more visible
+
+        Parameters
+        ----------
+
+        hub: ``array``
+            list of nodes that are hubs in the structured graph
+
+        shape_hub: ``str``
+            shape type for drawing the hubs
+        """
+        dict_shapes = {node: "oval" for node in self.g.nodes}
+        for hub in hubs:
+            dict_shapes[hub] = shape_hub
+
+        nx.set_node_attributes(self.g, dict_shapes, "shape")
+
+    def plot(self,layout,rescale_factor=None,allow_overlap=True,fontsize=None,node_thickness=3,save_folder="",without_gray_edges=False):
         printer=Printer(save_folder)
         g=self.g
+
+        if layout is not None:
+            layout_dict = {n: coord for n, coord in zip(g.nodes, layout)}
+
         if without_gray_edges:
             g=delete_color_edges(g, "gray")
+            kept_nodes=g.nodes
+
+            if layout is not None:
+                layout=[layout_dict[node] for node in kept_nodes]# for node, coord in layout_dict.items() if node in kept_nodes]
+
         if save_folder=="":
-            output_graphviz_svg=printer.plot_graphviz(g, layout, name="g_overflow_print")
+            output_graphviz_svg=printer.plot_graphviz(g, layout,rescale_factor=rescale_factor,allow_overlap=allow_overlap,fontsize=fontsize,node_thickness=node_thickness, name="g_overflow_print")
             return output_graphviz_svg
         else:
-            printer.display_geo(g, layout, name="g_overflow_print")
+            printer.display_geo(g, layout,rescale_factor=rescale_factor,fontsize=fontsize,node_thickness=node_thickness, name="g_overflow_print")
             return None
+
+    def consolidate_graph(self, structured_graph):
+        """
+        Consolidate overflow graph knwoing structural elements from SuscturedOverflowGraph
+
+        Parameters
+        ----------
+
+        structured_graph: ``SuscturedOverflowGraph``
+            a structured graph with identified constrained path, hubs, loop paths
+
+        """
+
+        # consolider le chemin en contrainte avec la connaissance des hubs, en itérant une fois de plus
+        n_hubs_init = 0
+        hubs_paths = structured_graph.find_loops()[["Source", "Target"]].drop_duplicates()
+        n_hub_paths = hubs_paths.shape[0]
+
+        while n_hubs_init != n_hub_paths:
+            n_hubs_init = n_hub_paths
+
+            self.consolidate_constrained_path(hubs_paths.Source, hubs_paths.Target)
+            structured_graph = Structured_Overload_Distribution_Graph(self.g)
+
+            hubs_paths = structured_graph.find_loops()[["Source", "Target"]].drop_duplicates()
+            n_hub_paths = hubs_paths.shape[0]
+
+        #recolor and reverse blue edges outside of constrained path
+        constrained_path = structured_graph.constrained_path.full_n_constrained_path()
+        self.reverse_blue_edges_in_looppaths(constrained_path)
+
+        # consolidate loop paths by recoloring gray edges that are significant enough and within a loop path
+        self.consolidate_loop_path(hubs_paths.Source, hubs_paths.Target)
+
 
 class ConstrainedPath:
 
@@ -325,7 +508,7 @@ class Structured_Overload_Distribution_Graph:
 
         """
         self.g_init=g
-        self.g_without_pos_edges = delete_color_edges(self.g_init, "red") #graph without loop path that have positive/red-coloured weight edges
+        self.g_without_pos_edges = delete_color_edges(self.g_init, "coral") #graph without loop path that have positive/red-coloured weight edges
         self.g_only_blue_components = delete_color_edges(self.g_without_pos_edges, "gray") #graph with only negative/blue-coloured weight edges
         self.g_without_constrained_edge = delete_color_edges(self.g_init, "black")
         self.g_without_gray_and_c_edge = delete_color_edges(self.g_without_constrained_edge, "gray")
@@ -415,7 +598,7 @@ class Structured_Overload_Distribution_Graph:
         for node in self.constrained_path.n_aval():
             in_edges = list(g.in_edges(node,keys=True))
             for e in in_edges:
-                if g.edges[e]["color"] == "red":
+                if g.edges[e]["color"] == "coral":
                     hubs.append(node)
                     break
 
@@ -423,7 +606,7 @@ class Structured_Overload_Distribution_Graph:
         for node in self.constrained_path.n_amont():
             out_edges = list(g.out_edges(node,keys=True))
             for e in out_edges:
-                if g.edges[e]["color"] == "red":
+                if g.edges[e]["color"] == "coral":
                     hubs.append(node)
                     break
 

@@ -39,7 +39,7 @@ class Grid2opSimulation(Simulation):
     def get_layout(self):
         return self.layout
 
-    def __init__(self, obs, action_space, observation_space, param_options=None, debug = False, ltc=[9],other_ltc=[], plot=False, plot_folder = None,reward_type=None):
+    def __init__(self, obs, action_space, observation_space, param_options=None, debug = False, ltc=[9],other_ltc=[], plot=False, plot_folder = None,reward_type=None,simu_step=0):
         super().__init__()
 
         # Get Grid2op objects
@@ -82,6 +82,7 @@ class Grid2opSimulation(Simulation):
         self.topo = None
         self.topo_linecut = None
         self.df = None
+        self.simu_step = simu_step
         self.load()
         self.save_bag = []
 
@@ -97,6 +98,9 @@ class Grid2opSimulation(Simulation):
         self.external_to_internal_mapping = {}
         self.substations_elements = {}
         self.create_and_fill_internal_structures(obs, self.df)
+
+    def set_simu_step(self,simu_step):
+        self.simu_step=simu_step
 
     def get_substation_elements(self):
         return self.substations_elements
@@ -178,6 +182,10 @@ class Grid2opSimulation(Simulation):
                 if ii == int(self.args_inner_number_of_simulated_topos_per_node):
                     break
                 obs = self.obs
+
+                # realign timestep if still inconsistent alignment in Grid2op when chaining simulations
+                time_step_simu = max(self.simu_step-obs.current_step,0)
+
                 # target_node = row["node"] + 1
                 internal_target_node = row["node"]
                 # target_node = row["node"]
@@ -207,8 +215,8 @@ class Grid2opSimulation(Simulation):
                 actions.append(action)
 
 
-                # virtual_obs, reward, done, info = self.obs.simulate(action)
-                virtual_obs, reward, done, info = self.obs.simulate(action, time_step = 0)
+                # simulation should be done on same timestep than observation, but with time alignment correction
+                virtual_obs, reward, done, info = self.obs.simulate(action, time_step = time_step_simu)
 
                 score_data=self.compute_one_network_change_score_data(obs,virtual_obs,done,info,new_conf,internal_target_node,alphaDeesp_Internal_topo,new_conf_grid2op,score_topo)
                 #print(score_data)
@@ -407,7 +415,12 @@ class Grid2opSimulation(Simulation):
 
         # Set action which disconects the specified lines (by ids)
         deconexion_action = self.action_space({"set_line_status": [(id_, -1) for id_ in ids]})
-        obs_linecut, reward, done, info = self.obs.simulate(deconexion_action, time_step = 0) #, time_step = 0)
+
+        #realign timestep if still inconsistent alignment in Grid2op when chaining simulations
+        time_step_simu = max(self.simu_step-self.obs.current_step,0)
+
+        #simulation should be done on same timestep than observation, but with time alignment correction
+        obs_linecut, reward, done, info = self.obs.simulate(deconexion_action, time_step = time_step_simu) #, time_step = 0)
         # Storage of new observation to access features in other function
         self.obs_linecut = obs_linecut
         self.topo_linecut = self.extract_topo_from_obs(self.obs_linecut)
@@ -653,7 +666,7 @@ def build_edges_v2(g, substation_id_busbar_id_node_id_mapping, substations_eleme
             # print(f"#################### Edge created : ({origin}, {extremity}), with flow = {reported_flow},"
             #       f" pen_width = {pen_width} >>>")
             if reported_flow[0] > 0:  # RED
-                g.add_edge(origin, extremity, capacity=float(reported_flow[0]), xlabel=reported_flow[0], color="red",
+                g.add_edge(origin, extremity, capacity=float(reported_flow[0]), xlabel=reported_flow[0], color="coral",
                            penwidth="%.2f" % pen_width)
             else:  # BLUE
                 g.add_edge(origin, extremity, capacity=float(reported_flow[0]), xlabel=reported_flow[0], color="blue",
