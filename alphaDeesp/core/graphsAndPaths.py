@@ -355,7 +355,7 @@ class OverFlowGraph(PowerFlowGraph):
 
 
 
-    def plot(self,layout,rescale_factor=None,allow_overlap=True,fontsize=None,save_folder="",without_gray_edges=False):
+    def plot(self,layout,rescale_factor=None,allow_overlap=True,fontsize=None,node_thickness=3,save_folder="",without_gray_edges=False):
         printer=Printer(save_folder)
         g=self.g
 
@@ -370,10 +370,10 @@ class OverFlowGraph(PowerFlowGraph):
                 layout=[layout_dict[node] for node in kept_nodes]# for node, coord in layout_dict.items() if node in kept_nodes]
 
         if save_folder=="":
-            output_graphviz_svg=printer.plot_graphviz(g, layout,rescale_factor=rescale_factor,allow_overlap=allow_overlap,fontsize=fontsize, name="g_overflow_print")
+            output_graphviz_svg=printer.plot_graphviz(g, layout,rescale_factor=rescale_factor,allow_overlap=allow_overlap,fontsize=fontsize,node_thickness=node_thickness, name="g_overflow_print")
             return output_graphviz_svg
         else:
-            printer.display_geo(g, layout,rescale_factor=rescale_factor,fontsize=fontsize, name="g_overflow_print")
+            printer.display_geo(g, layout,rescale_factor=rescale_factor,fontsize=fontsize,node_thickness=node_thickness, name="g_overflow_print")
             return None
 
     def consolidate_graph(self, structured_graph):

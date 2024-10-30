@@ -25,7 +25,7 @@ class Printer:
         os.makedirs(self.results_output_path, exist_ok=True)
         print("self.default output path = ", self.default_output_path)
 
-    def plot_graphviz(self, g, custom_layout=None,rescale_factor=None,allow_overlap=True,fontsize=None, axial_symetry=False, save=False, name=None):
+    def plot_graphviz(self, g, custom_layout=None,rescale_factor=None,allow_overlap=True,fontsize=None,node_thickness=3, axial_symetry=False, save=False, name=None):
         "filenames are pathlib.Paths objects"
 
         dic_pos_attributes = {}
@@ -55,6 +55,8 @@ class Printer:
             nx.set_node_attributes(g, fontsize,"fontsize")
             nx.set_node_attributes(g, 0, "margin")
 
+        nx.set_node_attributes(g, node_thickness, "penwidth")#size of nodes thickness
+
             #nx.set_edge_attributes(g,overlap_margin,"len")
 
         graph = nx.drawing.nx_pydot.to_pydot(g)
@@ -71,7 +73,7 @@ class Printer:
 
 
 
-    def display_geo(self, g, custom_layout=None,rescale_factor=None,fontsize=None, axial_symetry=False, save=False, name=None):
+    def display_geo(self, g, custom_layout=None,rescale_factor=None,fontsize=None, node_thickness=3, axial_symetry=False, save=False, name=None):
         """This function displays the graph g in a "geographical" way"""
 
         "filenames are pathlib.Paths objects"
@@ -106,6 +108,8 @@ class Printer:
         if fontsize is not None:
             nx.set_node_attributes(g, fontsize,"fontsize")
             nx.set_node_attributes(g, 0, "margin")
+
+        nx.set_node_attributes(g, node_thickness, "penwidth")#size of nodes thickness
 
             #nx.set_edge_attributes(g,overlap_margin,"len")
 
