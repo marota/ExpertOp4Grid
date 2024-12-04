@@ -11,7 +11,7 @@ class PowerFlowGraph:
     A coloured graph of current grid state with productions, consumptions and topology
     """
 
-    def __init__(self, topo,lines_cut,layout=None):
+    def __init__(self, topo,lines_cut,layout=None,float_precision="%.0f"):
         """
         Parameters
         ----------
@@ -24,10 +24,13 @@ class PowerFlowGraph:
         lines_cut: ``array``
             ids of lines disconnected
 
+        float_precision: "str"
+            Significant digits for dispalyed values at edges. In the form of "%.2f"
         """
         self.topo=topo
         self.lines_cut=lines_cut
         self.layout=layout
+        self.float_precision=float_precision
         self.build_graph()
         #self.g=self.build_powerflow_graph()
 
@@ -130,15 +133,16 @@ class PowerFlowGraph:
             # origin += 1
             # extremity += 1
             pen_width = fabs(weight_value) / 10
-            if pen_width == 0.0:
-                pen_width = 0.1
+            min_penwidth=0.1
+            if penwidth == 0.0:
+                penwidth = min_penwidth
 
             if weight_value >= 0:
-                g.add_edge(origin, extremity, xlabel="%.2f" % weight_value, color="gray", fontsize=10,
-                           penwidth="%.2f" % pen_width)
+                g.add_edge(origin, extremity, xlabel=self.float_precision% weight_value, color="gray", fontsize=10,
+                           penwidth=max(float(self.float_precision % penwidth),min_penwidth))
             else:
-                g.add_edge(extremity, origin, xlabel="%.2f" % fabs(weight_value), color="gray", fontsize=10,
-                           penwidth="%.2f" % pen_width)
+                g.add_edge(extremity, origin, xlabel=self.float_precision % fabs(weight_value), color="gray", fontsize=10,
+                           penwidth=max(float(self.float_precision % penwidth),min_penwidth))
 
 
     def get_graph(self):
@@ -178,7 +182,7 @@ class OverFlowGraph(PowerFlowGraph):
     A coloured graph of grid overflow redispatch, displaying the delta flows before and after disconnecting the overloaded lines
     """
 
-    def __init__(self, topo,lines_to_cut,df_overflow,layout=None):
+    def __init__(self, topo,lines_to_cut,df_overflow,layout=None,float_precision="%.0f"):
         """
         Parameters
         ----------
@@ -200,7 +204,7 @@ class OverFlowGraph(PowerFlowGraph):
             df_overflow["line_names"]=[str(idx_or)+"_"+str(idx_ex)+"_"+str(i) for i, (idx_or,idx_ex) in df_overflow[["idx_or","idx_ex"]].iterrows()]
 
         self.df = df_overflow
-        super().__init__(topo, lines_to_cut,layout)
+        super().__init__(topo, lines_to_cut,layout,float_precision)
 
     def build_graph(self):
         """This method creates the NetworkX Graph of the overflow redispatch """
@@ -235,22 +239,23 @@ class OverFlowGraph(PowerFlowGraph):
         for origin, extremity, reported_flow, gray_edge, line_name in zip(self.df["idx_or"], self.df["idx_ex"],
                                                                self.df["delta_flows"], self.df["gray_edges"],self.df["line_name"]):
             penwidth = fabs(reported_flow) / 10
+            min_penwidth=0.1
             if penwidth == 0.0:
-                penwidth = 0.1
+                penwidth = min_penwidth
             if i in lines_to_cut:
-                g.add_edge(origin, extremity, capacity=float("%.2f" % reported_flow), xlabel="%.2f" % reported_flow,
-                           color="black", style="dotted, setlinewidth(2)", fontsize=10, penwidth="%.2f" % penwidth,
+                g.add_edge(origin, extremity, capacity=float(self.float_precision % reported_flow), xlabel=self.float_precision % reported_flow,
+                           color="black", style="dotted, setlinewidth(2)", fontsize=10, penwidth=max(float(self.float_precision % penwidth),min_penwidth),
                            constrained=True, name=line_name)
             elif gray_edge:  # Gray
-                g.add_edge(origin, extremity, capacity=float("%.2f" % reported_flow), xlabel="%.2f" % reported_flow,
-                           color="gray", fontsize=10, penwidth="%.2f" % penwidth,name=line_name)
+                g.add_edge(origin, extremity, capacity=float(self.float_precision % reported_flow), xlabel=self.float_precision % reported_flow,
+                           color="gray", fontsize=10, penwidth=max(float(self.float_precision % penwidth),min_penwidth),name=line_name)
             elif reported_flow < 0:  # Blue
-                g.add_edge(origin, extremity, capacity=float("%.2f" % reported_flow), xlabel="%.2f" % reported_flow,
-                           color="blue", fontsize=10, penwidth="%.2f" % penwidth,name=line_name)
+                g.add_edge(origin, extremity, capacity=float(self.float_precision % reported_flow), xlabel=self.float_precision % reported_flow,
+                           color="blue", fontsize=10, penwidth=max(float(self.float_precision % penwidth),min_penwidth),name=line_name)
             else:  # > 0  # Red
-                g.add_edge(origin, extremity, capacity=float("%.2f" % reported_flow), xlabel="%.2f" % reported_flow,
+                g.add_edge(origin, extremity, capacity=float(self.float_precision % reported_flow), xlabel=self.float_precision % reported_flow,
                            color="coral",#orange"#ff8000"#"coral",
-                           fontsize=10, penwidth="%.2f" % penwidth,name=line_name)#"#ff8000")#orange
+                           fontsize=10, penwidth=max(float(self.float_precision % penwidth),min_penwidth),name=line_name)#"#ff8000")#orange
             i += 1
         #nx.set_edge_attributes(g, {e:self.df["line_name"][i] for i,e in enumerate(g.edges)}, name="name")
 
@@ -317,7 +322,7 @@ class OverFlowGraph(PowerFlowGraph):
 
         # reversing capacities (with negative values) and direction for all edges here
         reduced_capacities_dict = nx.get_edge_attributes(g_without_pos_edges, "capacity")
-        new_attributes_dict = {e: {"capacity": -capacity, "xlabel": "%.2f" % -capacity} for e, capacity
+        new_attributes_dict = {e: {"capacity": -capacity, "xlabel": self.float_precision % -capacity} for e, capacity
                                in reduced_capacities_dict.items()}
         nx.set_edge_attributes(g_without_pos_edges, new_attributes_dict)
 
