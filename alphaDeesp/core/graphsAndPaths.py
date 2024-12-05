@@ -132,7 +132,7 @@ class PowerFlowGraph:
         for origin, extremity, weight_value in zip(idx_or, idx_ex, edge_weights):
             # origin += 1
             # extremity += 1
-            pen_width = fabs(weight_value) / 10
+            penwidth = fabs(weight_value) / 10
             min_penwidth=0.1
             if penwidth == 0.0:
                 penwidth = min_penwidth
@@ -200,8 +200,8 @@ class OverFlowGraph(PowerFlowGraph):
             columns: idx_or, idx_ex, init_flows, new_flows, delta_flows, gray_edges (for unsignificant delta_flows below a threshold)
 
         """
-        if "line_names" not in df_overflow:
-            df_overflow["line_names"]=[str(idx_or)+"_"+str(idx_ex)+"_"+str(i) for i, (idx_or,idx_ex) in df_overflow[["idx_or","idx_ex"]].iterrows()]
+        if "line_name" not in df_overflow.columns:
+            df_overflow["line_name"]=[str(idx_or)+"_"+str(idx_ex)+"_"+str(i) for i, (idx_or,idx_ex) in df_overflow[["idx_or","idx_ex"]].iterrows()]
 
         self.df = df_overflow
         super().__init__(topo, lines_to_cut,layout,float_precision)
@@ -219,6 +219,7 @@ class OverFlowGraph(PowerFlowGraph):
         # print("all_edges_xlabel_attributes = ", all_edges_xlabel_attributes)
 
         self.g=g
+        #self.add_double_edges_null_redispatch()
 
     def build_edges_from_df(self, g, lines_to_cut):
         """
@@ -259,6 +260,7 @@ class OverFlowGraph(PowerFlowGraph):
             i += 1
         #nx.set_edge_attributes(g, {e:self.df["line_name"][i] for i,e in enumerate(g.edges)}, name="name")
 
+
     def consolidate_constrained_path(self, hub_sources,hub_targets):
         """
         Consolidate constrained blue path for some edges that were discarded with lower values but are actually on the path
@@ -289,6 +291,9 @@ class OverFlowGraph(PowerFlowGraph):
         current_colors = nx.get_edge_attributes(self.g, 'color')
         edge_attribues_to_set = {edge: {"color": "blue"} for edge in all_edges_to_recolor if current_colors[edge]!="black"}
         nx.set_edge_attributes(self.g, edge_attribues_to_set)
+
+        #correction: reverse edges with positive values
+
 
     def reverse_blue_edges_in_looppaths(self, constrained_path):
         """
@@ -323,7 +328,7 @@ class OverFlowGraph(PowerFlowGraph):
         # reversing capacities (with negative values) and direction for all edges here
         reduced_capacities_dict = nx.get_edge_attributes(g_without_pos_edges, "capacity")
         new_attributes_dict = {e: {"capacity": -capacity, "xlabel": self.float_precision % -capacity} for e, capacity
-                               in reduced_capacities_dict.items()}
+                               in reduced_capacities_dict.items() if capacity!=0}
         nx.set_edge_attributes(g_without_pos_edges, new_attributes_dict)
 
         self.g.add_edges_from([(edge[1], edge[0], edge[2]) for edge in g_without_pos_edges.edges(data=True)])
@@ -445,7 +450,7 @@ class OverFlowGraph(PowerFlowGraph):
         Make edges bi-directionnal when flow redispatch value is null
 
         """
-        edges_to_double=[ (edge_ex, edge_or, edge_properties) for edge_or,edge_ex,edge_properties in self.g.edges(data=True) if edge_properties["color"]=="gray" and edge_properties["capacity"]==0.]
+        edges_to_double=[ (edge_or, edge_ex, edge_properties) for edge_or,edge_ex,edge_properties in self.g.edges(data=True) if edge_properties["color"]=="gray" and edge_properties["capacity"]==0.]
         edges_to_add=[(edge_ex, edge_or, edge_properties) for edge_or,edge_ex,edge_properties in edges_to_double]
         self.g.add_edges_from(edges_to_add)
 
