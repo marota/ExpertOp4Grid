@@ -292,6 +292,7 @@ class OverFlowGraph(PowerFlowGraph):
         edge_attribues_to_set = {edge: {"color": "blue"} for edge in all_edges_to_recolor if current_colors[edge]!="black"}
         nx.set_edge_attributes(self.g, edge_attribues_to_set)
 
+        #########
         #correction: reverse edges with positive values
         current_capacities = nx.get_edge_attributes(self.g, 'capacity')
         edges_to_correct=[edge for edge in all_edges_to_recolor if current_capacities[edge]>0]
@@ -302,9 +303,30 @@ class OverFlowGraph(PowerFlowGraph):
         #correct capacity values with opposite value after reversing edge
         current_capacities = nx.get_edge_attributes(self.g, 'capacity')
         current_colors = nx.get_edge_attributes(self.g, 'color')
-        edge_attribues_to_set = {edge: {"capacity": -current_capacities[edge],"xlabel":str(-current_capacities[edge])} for edge in self.g.edges if
-                                 current_capacities[edge]>0 and current_colors[edge]=="blue"}
+        edge_attribues_to_set = {edge: {"capacity": -capacity,"xlabel":str(-capacity)}
+                                 for edge,color,capacity in zip(self.g.edges,current_colors.values(),current_capacities.values()) if
+                                 capacity>0 and color=="blue"}
         nx.set_edge_attributes(self.g, edge_attribues_to_set)
+
+        ############
+        #for null flow redispatch, if connected to nodes on blue path, reverse it and make it blue for it to belong there
+        blue_edges=[edge for edge in self.g.edges if current_colors[edge]=="blue"]
+        nodes_blue_path=self.g.edge_subgraph(blue_edges).nodes
+
+        overall_constrained_graph=self.g.subgraph(nodes_blue_path)
+
+        current_capacities = nx.get_edge_attributes(overall_constrained_graph, 'capacity')
+        current_colors = nx.get_edge_attributes(overall_constrained_graph, 'color')
+        edges_to_correct = [edge for edge,capacity,color in zip(overall_constrained_graph.edges,current_capacities.values(),current_colors.values()) if capacity==0 and color!="blue"]
+        reverse_edges = [(edge_ex, edge_or, edge_properties) for edge_or, edge_ex, edge_properties in
+                         overall_constrained_graph.edges(data=True) if
+                         edge_properties["color"] != "blue" and edge_properties["capacity"] == 0]
+
+        self.g.add_edges_from(reverse_edges)
+        self.g.remove_edges_from(edges_to_correct)
+
+
+        print("ok")
 
     def reverse_blue_edges_in_looppaths(self, constrained_path):
         """
