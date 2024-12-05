@@ -11,7 +11,7 @@ class PowerFlowGraph:
     A coloured graph of current grid state with productions, consumptions and topology
     """
 
-    def __init__(self, topo,lines_cut,layout=None,float_precision="%.0f"):
+    def __init__(self, topo,lines_cut,layout=None,float_precision="%.2f"):
         """
         Parameters
         ----------
@@ -182,7 +182,7 @@ class OverFlowGraph(PowerFlowGraph):
     A coloured graph of grid overflow redispatch, displaying the delta flows before and after disconnecting the overloaded lines
     """
 
-    def __init__(self, topo,lines_to_cut,df_overflow,layout=None,float_precision="%.0f"):
+    def __init__(self, topo,lines_to_cut,df_overflow,layout=None,float_precision="%.2f"):
         """
         Parameters
         ----------
@@ -244,8 +244,8 @@ class OverFlowGraph(PowerFlowGraph):
                 penwidth = min_penwidth
             if i in lines_to_cut:
                 g.add_edge(origin, extremity, capacity=float(self.float_precision % reported_flow), xlabel=self.float_precision % reported_flow,
-                           color="black", style="dotted, setlinewidth(2)", fontsize=10, penwidth=max(float(self.float_precision % penwidth),min_penwidth),
-                           constrained=True, name=line_name)
+                           color="black", fontsize=10, penwidth=max(float(self.float_precision % penwidth),min_penwidth),
+                           constrained=True, name=line_name)#style="dotted, setlinewidth(2)"
             elif gray_edge:  # Gray
                 g.add_edge(origin, extremity, capacity=float(self.float_precision % reported_flow), xlabel=self.float_precision % reported_flow,
                            color="gray", fontsize=10, penwidth=max(float(self.float_precision % penwidth),min_penwidth),name=line_name)
@@ -445,13 +445,18 @@ class OverFlowGraph(PowerFlowGraph):
         Make edges bi-directionnal when flow redispatch value is null
 
         """
-        self.g.add_edges_from([(edge_ex, edge_or, edge_properties) for edge_or,edge_ex,edge_properties in self.g.edges(data=True) if edge_properties["color"]=="gray" and edge_properties["capacity"]==0.])
+        edges_to_double=[ (edge_ex, edge_or, edge_properties) for edge_or,edge_ex,edge_properties in self.g.edges(data=True) if edge_properties["color"]=="gray" and edge_properties["capacity"]==0.]
+        edges_to_add=[(edge_ex, edge_or, edge_properties) for edge_or,edge_ex,edge_properties in edges_to_double]
+        self.g.add_edges_from(edges_to_add)
+
+        double_edges=edges_to_double+edges_to_add
 
         #TO DO: update df after any graph modification for better consistency. But not done for the previous modifications so far, so to do as a whole later...
         #null_edges=self.df[self.df["delta_flows"]==0.].reset_index(drop=True)
 
         #reverse edge directions
         #null_edges=null_edges.rename({"idx_or":"idx_ex","idx_ex":"idx_or"},axis=1)
+        return double_edges
 
     def add_relevant_null_flow_lines(self,structured_graph,non_connected_lines):
         """
@@ -467,7 +472,7 @@ class OverFlowGraph(PowerFlowGraph):
         non_connected_lines: ``array``
             list of lines that are non connected but that could be reconnected and that we want to highlight if relevant
         """
-        self.add_double_edges_null_redispatch()#making null flow redispatch lines bidirectionnal
+        double_edges=self.add_double_edges_null_redispatch()#making null flow redispatch lines bidirectionnal
 
         edge_names = nx.get_edge_attributes(self.g, 'name')
         edges_non_connected_lines = set(
@@ -515,6 +520,10 @@ class OverFlowGraph(PowerFlowGraph):
 
         #color those edges in red
         edge_attribues_to_set = {edge: {"color": "coral"} for edge in edges_to_keep}
+        nx.set_edge_attributes(self.g, edge_attribues_to_set)
+
+        edges_non_connected_lines_displayed=edges_to_keep.intersection(edges_non_connected_lines)
+        edge_attribues_to_set = {edge: {"style": "dashed"} for edge in edges_non_connected_lines_displayed}
         nx.set_edge_attributes(self.g, edge_attribues_to_set)
 
 class ConstrainedPath:
