@@ -110,6 +110,11 @@ def test_consolidate_constrained_path():
 
     df_of_g = pd.read_csv(os.path.join(data_folder,"df_of_g_defaut_PSAOL31RONCI_t1.csv"))
 
+    #inject modification to test for reversing properly a null flow redispatch edge on the constrained path
+    #df_of_g.loc[["idx_or","idx_ex"]]CPVANY632
+    idx_or,idx_ex=df_of_g[df_of_g.line_name == "CPVANY632"][["idx_ex", "idx_or"]].values[0]
+    df_of_g.loc[df_of_g.line_name == "CPVANY632",["idx_or", "idx_ex"]] = [idx_or, idx_ex]
+
     g_over = OverFlowGraph(sim_topo_reduced, ltc, df_of_g)
 
     with open(os.path.join(data_folder,'node_name_mapping_defaut_PSAOL31RONCI_t1.json')) as json_file:
@@ -137,6 +142,18 @@ def test_consolidate_constrained_path():
     #le nombre de loop path est passe de 1 a 3
     assert(n_hub_paths==3)
 
+    #test that some blue edges have been corrected regarding their capacity label and direction
+    edge=('COMMUP6', 'VIELMP6', 0)#: {'capacity': -3.01, 'xlabel': '-3.01'}
+    current_capacities = nx.get_edge_attributes(g_over.g, 'capacity')
+    assert(current_capacities[edge]==-3.01)
+
+    edge_0 = ('CPVANP6', 'CPVANP3', 0)
+    edge_1=('CPVANP6', 'CPVANP3', 1)
+    edge_2 = ('CPVANP6', 'CPVANP3', 2)
+    current_colors = nx.get_edge_attributes(g_over.g, 'color')
+    assert (current_colors[edge_0] == "blue")
+    assert (current_colors[edge_1] == "blue")
+    assert (current_colors[edge_2] == "blue")
 
 def test_reverse_blue_edges_in_looppaths():
     config = configparser.ConfigParser()
