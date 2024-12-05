@@ -293,7 +293,18 @@ class OverFlowGraph(PowerFlowGraph):
         nx.set_edge_attributes(self.g, edge_attribues_to_set)
 
         #correction: reverse edges with positive values
+        current_capacities = nx.get_edge_attributes(self.g, 'capacity')
+        edges_to_correct=[edge for edge in all_edges_to_recolor if current_capacities[edge]>0]
+        reverse_edges=[(edge_ex,edge_or,edge_properties) for edge_or,edge_ex,edge_properties in self.g.edges(data=True) if edge_properties["color"]=="blue" and edge_properties["capacity"]>0]
+        self.g.add_edges_from(reverse_edges)
+        self.g.remove_edges_from(edges_to_correct)
 
+        #correct capacity values with opposite value after reversing edge
+        current_capacities = nx.get_edge_attributes(self.g, 'capacity')
+        current_colors = nx.get_edge_attributes(self.g, 'color')
+        edge_attribues_to_set = {edge: {"capacity": -current_capacities[edge],"xlabel":str(-current_capacities[edge])} for edge in self.g.edges if
+                                 current_capacities[edge]>0 and current_colors[edge]=="blue"}
+        nx.set_edge_attributes(self.g, edge_attribues_to_set)
 
     def reverse_blue_edges_in_looppaths(self, constrained_path):
         """
