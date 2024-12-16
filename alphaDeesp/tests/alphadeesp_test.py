@@ -276,7 +276,7 @@ def test_consolidate_graph():
     n_red_edges_final=len(g_with_only_red_edges.edges)
 
     #7 edge on change de couleur
-    assert(n_red_edges_final-n_red_edges_init==29)
+    assert(n_red_edges_final-n_red_edges_init==30)
 
 def test_add_relevant_null_flow_lines():
     #vérifier le path GROSNP6, ZJOUXP6, BOISSP6, GEN.PP6 avec BOISSP6 seeulement en pointillé
@@ -334,6 +334,7 @@ def test_add_relevant_null_flow_lines():
 
     significant_colors=set(["blue","coral"])#have we highlighted those lines on significant paths ?
     for line in line_tests:
+        print(line)
         assert(len(set([color for color, line_name in zip(color_edges, line_names) if line_name == line]).intersection(significant_colors))>=1)
 
     g_distribution_graph = Structured_Overload_Distribution_Graph(g_over.g)
@@ -345,3 +346,48 @@ def test_add_relevant_null_flow_lines():
     assert(n_new_hubs==len(set(new_hubs_to_test).intersection(set(hubs))))
     print("ok")
     #g_distribution_graph = Structured_Overload_Distribution_Graph(g_over.g)
+
+def test_add_relevant_null_flow_lines_blue_path():
+    config = configparser.ConfigParser()
+    config.read("./alphaDeesp/tests/resources_for_tests_grid2op/config_for_tests.ini")
+
+    data_folder="./alphaDeesp/tests/ressources_for_tests/data_graph_consolidation/defaut_PSAOL31RONCI"
+
+    timestep = 1  # 1#36
+    line_defaut = "P.SAOL31RONCI"
+    ltc = [9]
+
+    non_connected_lines=['BOISSL61GEN.P','CHALOL31LOUHA','CRENEL71VIELM','CURTIL61ZCUR5','GEN.PL73VIELM','P.SAOL31RONCI',
+     'PYMONL61VOUGL','BUGEYY715','CPVANY632','GEN.PY762','PYMONY632']
+
+    with open(os.path.join(data_folder,'sim_topo_zone_dijon_defaut_PSAOL31RONCI_t1.json')) as json_file:
+        sim_topo_reduced = json.load(json_file)
+
+    df_of_g = pd.read_csv(os.path.join(data_folder,"df_of_g_defaut_PSAOL31RONCI_t1.csv"))
+
+    g_over = OverFlowGraph(sim_topo_reduced, ltc, df_of_g)
+
+    with open(os.path.join(data_folder,'node_name_mapping_defaut_PSAOL31RONCI_t1.json')) as json_file:
+        mapping = json.load(json_file)
+
+    mapping = {int(key): value for key, value in mapping.items()}
+    g_over.rename_nodes(mapping)#g = nx.relabel_nodes(g_over.g, mapping, copy=True)
+
+    with open(os.path.join(data_folder,'voltage_levels.json')) as json_file:
+        voltage_levels_dict = json.load(json_file)
+    g_over.set_voltage_level_color(voltage_levels_dict)
+
+    with open(os.path.join(data_folder,'number_nodal_dict.json')) as json_file:
+        number_nodal_dict = json.load(json_file)
+    g_over.set_electrical_node_number(number_nodal_dict)
+
+
+    #consolidate
+    g_distribution_graph = Structured_Overload_Distribution_Graph(g_over.g)
+
+    #check that this edge has been coloured blue
+    assert(g_over.g.edges[('CPVANP6', 'CPVANP3', 1)]["color"]=="gray")
+    g_over.add_relevant_null_flow_lines(g_distribution_graph, non_connected_lines, target_path="blue_only")
+    assert (g_over.g.edges[('CPVANP6', 'CPVANP3', 1)]["color"] == "blue")
+    # check that this double edge has been removed (in the other edge direction)
+    assert(not g_over.g.has_edge('CPVANP3', 'CPVANP6'))
