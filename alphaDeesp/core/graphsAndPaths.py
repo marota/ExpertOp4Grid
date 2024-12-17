@@ -482,6 +482,14 @@ class OverFlowGraph(PowerFlowGraph):
         """
         Make edges bi-directionnal when flow redispatch value is null
 
+        Returns
+        ----------
+        edges_to_double_name_dict: ``dict`` str: networkx edge
+            original set of edges that has been doubled, with line names as key and edge as value
+
+        edges_added_name_dict: ``dict`` str: networkx edge
+            new set of edges that doubles the original ones in the other direction, with line name as key and edge as value
+
         """
         init_edges_names=nx.get_edge_attributes(self.g, "name")
         init_colors=nx.get_edge_attributes(self.g, "color").values()
@@ -495,16 +503,6 @@ class OverFlowGraph(PowerFlowGraph):
         new_edges_names=nx.get_edge_attributes(self.g, "name")#.keys()
         only_new_edges=set(new_edges_names.keys()) - set(init_edges_names.keys())
         edges_added_name_dict={name:edge for edge,name in new_edges_names.items() if edge in only_new_edges}
-
-
-
-        #double_edges=edges_to_double+edges_to_double
-
-        #TO DO: update df after any graph modification for better consistency. But not done for the previous modifications so far, so to do as a whole later...
-        #null_edges=self.df[self.df["delta_flows"]==0.].reset_index(drop=True)
-
-        #reverse edge directions
-        #null_edges=null_edges.rename({"idx_or":"idx_ex","idx_ex":"idx_or"},axis=1)
 
         assert(set(edges_to_double_name_dict.keys())==set(edges_added_name_dict.keys()))
         return edges_to_double_name_dict,edges_added_name_dict
@@ -532,7 +530,8 @@ class OverFlowGraph(PowerFlowGraph):
 
     def add_relevant_null_flow_lines(self,structured_graph,non_connected_lines,target_path="blue_to_red"):
         """
-        Make edges bi-directionnal when flow redispatch value is null
+        Make edges bi-directionnal when flow redispatch value is null, recolor the relevant ones that could be of interest
+        for analyzing the problem or solving it, and get back to initial edges for the other
 
         Parameters
         ----------
@@ -569,39 +568,42 @@ class OverFlowGraph(PowerFlowGraph):
         node_aval_constrained_path = structured_graph.constrained_path.n_aval()
 
         for g_c in S:
+            #detect new edges with null-flow to highlight on constrained path
             if target_path=="blue_only":
                 nodes_interest=structured_graph.constrained_path.full_n_constrained_path()
                 intersect_constarined_path = set(g_c).intersection(set(nodes_interest))
                 edges_to_keep.update(self.detect_edges_to_keep(g_c, intersect_constarined_path, intersect_constarined_path, edges_non_connected_lines))
-                print("ok")
+
+            # detect new edges with null-flow to highlight on red paths
             elif target_path=="red_only":
                 intersect_red_path = set(g_c).intersection(set(node_red_paths))
                 edges_to_keep.update(self.detect_edges_to_keep(g_c, intersect_red_path, intersect_red_path, edges_non_connected_lines))
-                print("ok")
+
+            # detect new edges with null-flow to highlight in between constrained path and red paths
             elif target_path=="blue_to_red":
 
-                #now detect edges to keep on path of interest with at least one targeted non connected lines
-
-                print(g_c.nodes)
                 intersect_constrained_path_amont = set(g_c).intersection(set(node_amont_constrained_path))
                 intersect_constrained_path_aval = set(g_c).intersection(set(node_aval_constrained_path))
                 intersect_red_path = set(g_c).intersection(set(node_red_paths))
 
+                # look for edges from constrained path ("amont", before the constraint) to red_path
                 if len(intersect_constrained_path_amont) != 0:
                     edges_to_keep.update(self.detect_edges_to_keep(g_c, intersect_constrained_path_amont, intersect_red_path,
                                                               edges_non_connected_lines))
+                # look for edges from red_path to constrained path ("aval", after the constraint)
                 if len(intersect_constrained_path_aval) != 0:
                     edges_to_keep.update(
                         self.detect_edges_to_keep(g_c, intersect_red_path, intersect_constrained_path_aval,
                                              edges_non_connected_lines))
 
-        #color those edges in red
+        #color those edges in blue or red
         if target_path=="blue_only":
             edge_attribues_to_set = {edge: {"color": "blue"} for edge in edges_to_keep}
         else:
             edge_attribues_to_set = {edge: {"color": "coral"} for edge in edges_to_keep}
         nx.set_edge_attributes(self.g, edge_attribues_to_set)
 
+        # represent null-flow edges with new colors as dashed lines
         edges_non_connected_lines_displayed=edges_to_keep.intersection(edges_non_connected_lines)
         edge_attribues_to_set = {edge: {"style": "dashed"} for edge in edges_non_connected_lines_displayed}
         nx.set_edge_attributes(self.g, edge_attribues_to_set)
@@ -611,6 +613,27 @@ class OverFlowGraph(PowerFlowGraph):
 
 
     def detect_edges_to_keep(self,g_c, source_nodes, target_nodes, edges_of_interest):
+        """
+        detect edges in edges of interest that belongs to gthe subgraph and are on a path between source nodes and target nodes
+
+        Parameters
+        ----------
+
+        g_c: ``Networkx Graph``
+            a networkx subgraph of gray edges to possibly recolor
+
+
+        source_nodes: ``array`` str
+            list of nodes, that belong to either constrained path or red loops, from which to find a path
+
+        target_nodes: ``array`` str
+            list of nodes, that belong to either constrained path or red loops, to which to find a path
+
+        Returns
+        ----------
+        res: ``set`` str
+            set of edges of interest found on paths and to be recoloured
+        """
         edges_to_keep = []
         for source_node in source_nodes:
             for target_node in target_nodes:
@@ -623,10 +646,27 @@ class OverFlowGraph(PowerFlowGraph):
 
     def remove_unused_added_double_edge(self, edges_to_keep, edges_to_double, edges_double_added):
 
+        """
+        Make edges bi-directionnal when flow redispatch value is null
+
+        Parameters
+        ----------
+         edges_to_keep: ``set`` str
+            set of edges of interest found on paths and to be recoloured
+
+        edges_to_double: ``dict`` str: networkx edge
+            original set of edges that has been doubled, with line names as key and edge as value
+
+        edges_double_added: ``dict`` str: networkx edge
+            new set of edges that doubles the original ones in the other direction, with line name as key and edge as value
+
+        """
         name_edges_to_keep = nx.get_edge_attributes(self.g.edge_subgraph(edges_to_keep), "name").keys()
 
-        name_edges_g_dict=nx.get_edge_attributes(self.g, "name")
+        # for added double edges that has not been recoloured, remove them
         edges_to_remove=[edge for name,edge in edges_double_added.items() if self.g.edges[edge]["color"]=="gray"]
+
+        # for initial edges that has not been recoloured but for which the added double edge has been, remove those initial edges
         edges_to_remove+=[edge for name,edge in edges_to_double.items() if name in name_edges_to_keep and self.g.edges[edge]["color"]=="gray"]
         self.g.remove_edges_from(edges_to_remove)
 
