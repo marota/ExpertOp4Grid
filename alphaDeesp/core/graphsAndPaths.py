@@ -11,7 +11,7 @@ class PowerFlowGraph:
     A coloured graph of current grid state with productions, consumptions and topology
     """
 
-    def __init__(self, topo,lines_cut,layout=None):
+    def __init__(self, topo,lines_cut,layout=None,float_precision="%.2f"):
         """
         Parameters
         ----------
@@ -24,10 +24,13 @@ class PowerFlowGraph:
         lines_cut: ``array``
             ids of lines disconnected
 
+        float_precision: "str"
+            Significant digits for dispalyed values at edges. In the form of "%.2f"
         """
         self.topo=topo
         self.lines_cut=lines_cut
         self.layout=layout
+        self.float_precision=float_precision
         self.build_graph()
         #self.g=self.build_powerflow_graph()
 
@@ -129,16 +132,17 @@ class PowerFlowGraph:
         for origin, extremity, weight_value in zip(idx_or, idx_ex, edge_weights):
             # origin += 1
             # extremity += 1
-            pen_width = fabs(weight_value) / 10
-            if pen_width == 0.0:
-                pen_width = 0.1
+            penwidth = fabs(weight_value) / 10
+            min_penwidth=0.1
+            if penwidth == 0.0:
+                penwidth = min_penwidth
 
             if weight_value >= 0:
-                g.add_edge(origin, extremity, xlabel="%.2f" % weight_value, color="gray", fontsize=10,
-                           penwidth="%.2f" % pen_width)
+                g.add_edge(origin, extremity, xlabel=self.float_precision% weight_value, color="gray", fontsize=10,
+                           penwidth=max(float(self.float_precision % penwidth),min_penwidth))
             else:
-                g.add_edge(extremity, origin, xlabel="%.2f" % fabs(weight_value), color="gray", fontsize=10,
-                           penwidth="%.2f" % pen_width)
+                g.add_edge(extremity, origin, xlabel=self.float_precision % fabs(weight_value), color="gray", fontsize=10,
+                           penwidth=max(float(self.float_precision % penwidth),min_penwidth))
 
 
     def get_graph(self):
@@ -178,7 +182,7 @@ class OverFlowGraph(PowerFlowGraph):
     A coloured graph of grid overflow redispatch, displaying the delta flows before and after disconnecting the overloaded lines
     """
 
-    def __init__(self, topo,lines_to_cut,df_overflow,layout=None):
+    def __init__(self, topo,lines_to_cut,df_overflow,layout=None,float_precision="%.2f"):
         """
         Parameters
         ----------
@@ -196,8 +200,11 @@ class OverFlowGraph(PowerFlowGraph):
             columns: idx_or, idx_ex, init_flows, new_flows, delta_flows, gray_edges (for unsignificant delta_flows below a threshold)
 
         """
+        if "line_name" not in df_overflow.columns:
+            df_overflow["line_name"]=[str(idx_or)+"_"+str(idx_ex)+"_"+str(i) for i, (idx_or,idx_ex) in df_overflow[["idx_or","idx_ex"]].iterrows()]
+
         self.df = df_overflow
-        super().__init__(topo, lines_to_cut,layout)
+        super().__init__(topo, lines_to_cut,layout,float_precision)
 
     def build_graph(self):
         """This method creates the NetworkX Graph of the overflow redispatch """
@@ -212,6 +219,7 @@ class OverFlowGraph(PowerFlowGraph):
         # print("all_edges_xlabel_attributes = ", all_edges_xlabel_attributes)
 
         self.g=g
+        #self.add_double_edges_null_redispatch()
 
     def build_edges_from_df(self, g, lines_to_cut):
         """
@@ -229,27 +237,29 @@ class OverFlowGraph(PowerFlowGraph):
         """
 
         i = 0
-        for origin, extremity, reported_flow, gray_edge in zip(self.df["idx_or"], self.df["idx_ex"],
-                                                               self.df["delta_flows"], self.df["gray_edges"]):
+        for origin, extremity, reported_flow, gray_edge, line_name in zip(self.df["idx_or"], self.df["idx_ex"],
+                                                               self.df["delta_flows"], self.df["gray_edges"],self.df["line_name"]):
             penwidth = fabs(reported_flow) / 10
+            min_penwidth=0.1
             if penwidth == 0.0:
-                penwidth = 0.1
+                penwidth = min_penwidth
             if i in lines_to_cut:
-                g.add_edge(origin, extremity, capacity=float("%.2f" % reported_flow), xlabel="%.2f" % reported_flow,
-                           color="black", style="dotted, setlinewidth(2)", fontsize=10, penwidth="%.2f" % penwidth,
-                           constrained=True)
+                g.add_edge(origin, extremity, capacity=float(self.float_precision % reported_flow), xlabel=self.float_precision % reported_flow,
+                           color="black", fontsize=10, penwidth=max(float(self.float_precision % penwidth),min_penwidth),
+                           constrained=True, name=line_name)#style="dotted, setlinewidth(2)"
             elif gray_edge:  # Gray
-                g.add_edge(origin, extremity, capacity=float("%.2f" % reported_flow), xlabel="%.2f" % reported_flow,
-                           color="gray", fontsize=10, penwidth="%.2f" % penwidth)
+                g.add_edge(origin, extremity, capacity=float(self.float_precision % reported_flow), xlabel=self.float_precision % reported_flow,
+                           color="gray", fontsize=10, penwidth=max(float(self.float_precision % penwidth),min_penwidth),name=line_name)
             elif reported_flow < 0:  # Blue
-                g.add_edge(origin, extremity, capacity=float("%.2f" % reported_flow), xlabel="%.2f" % reported_flow,
-                           color="blue", fontsize=10, penwidth="%.2f" % penwidth)
+                g.add_edge(origin, extremity, capacity=float(self.float_precision % reported_flow), xlabel=self.float_precision % reported_flow,
+                           color="blue", fontsize=10, penwidth=max(float(self.float_precision % penwidth),min_penwidth),name=line_name)
             else:  # > 0  # Red
-                g.add_edge(origin, extremity, capacity=float("%.2f" % reported_flow), xlabel="%.2f" % reported_flow,
+                g.add_edge(origin, extremity, capacity=float(self.float_precision % reported_flow), xlabel=self.float_precision % reported_flow,
                            color="coral",#orange"#ff8000"#"coral",
-                           fontsize=10, penwidth="%.2f" % penwidth)#"#ff8000")#orange
+                           fontsize=10, penwidth=max(float(self.float_precision % penwidth),min_penwidth),name=line_name)#"#ff8000")#orange
             i += 1
         #nx.set_edge_attributes(g, {e:self.df["line_name"][i] for i,e in enumerate(g.edges)}, name="name")
+
 
     def consolidate_constrained_path(self, hub_sources,hub_targets):
         """
@@ -281,6 +291,42 @@ class OverFlowGraph(PowerFlowGraph):
         current_colors = nx.get_edge_attributes(self.g, 'color')
         edge_attribues_to_set = {edge: {"color": "blue"} for edge in all_edges_to_recolor if current_colors[edge]!="black"}
         nx.set_edge_attributes(self.g, edge_attribues_to_set)
+
+        #########
+        #correction: reverse edges with positive values
+        current_capacities = nx.get_edge_attributes(self.g, 'capacity')
+        edges_to_correct=[edge for edge in all_edges_to_recolor if current_capacities[edge]>0]
+        reverse_edges=[(edge_ex,edge_or,edge_properties) for edge_or,edge_ex,edge_properties in self.g.edges(data=True) if edge_properties["color"]=="blue" and edge_properties["capacity"]>0]
+        self.g.add_edges_from(reverse_edges)
+        self.g.remove_edges_from(edges_to_correct)
+
+        #correct capacity values with opposite value after reversing edge
+        current_capacities = nx.get_edge_attributes(self.g, 'capacity')
+        current_colors = nx.get_edge_attributes(self.g, 'color')
+        edge_attribues_to_set = {edge: {"capacity": -capacity,"xlabel":str(-capacity)}
+                                 for edge,color,capacity in zip(self.g.edges,current_colors.values(),current_capacities.values()) if
+                                 capacity>0 and color=="blue"}
+        nx.set_edge_attributes(self.g, edge_attribues_to_set)
+
+        ############
+        #for null flow redispatch, if connected to nodes on blue path, reverse it and make it blue for it to belong there
+        blue_edges=[edge for edge in self.g.edges if current_colors[edge]=="blue"]
+        nodes_blue_path=self.g.edge_subgraph(blue_edges).nodes
+
+        overall_constrained_graph=self.g.subgraph(nodes_blue_path)
+
+        current_capacities = nx.get_edge_attributes(overall_constrained_graph, 'capacity')
+        current_colors = nx.get_edge_attributes(overall_constrained_graph, 'color')
+        edges_to_correct = [edge for edge,capacity,color in zip(overall_constrained_graph.edges,current_capacities.values(),current_colors.values()) if capacity==0 and color!="blue"]
+        reverse_edges = [(edge_ex, edge_or, edge_properties) for edge_or, edge_ex, edge_properties in
+                         overall_constrained_graph.edges(data=True) if
+                         edge_properties["color"] != "blue" and edge_properties["capacity"] == 0]
+
+        self.g.add_edges_from(reverse_edges)
+        self.g.remove_edges_from(edges_to_correct)
+
+
+        print("ok")
 
     def reverse_blue_edges_in_looppaths(self, constrained_path):
         """
@@ -314,8 +360,8 @@ class OverFlowGraph(PowerFlowGraph):
 
         # reversing capacities (with negative values) and direction for all edges here
         reduced_capacities_dict = nx.get_edge_attributes(g_without_pos_edges, "capacity")
-        new_attributes_dict = {e: {"capacity": -capacity, "xlabel": "%.2f" % -capacity} for e, capacity
-                               in reduced_capacities_dict.items()}
+        new_attributes_dict = {e: {"capacity": -capacity, "xlabel": self.float_precision % -capacity} for e, capacity
+                               in reduced_capacities_dict.items() if capacity!=0}
         nx.set_edge_attributes(g_without_pos_edges, new_attributes_dict)
 
         self.g.add_edges_from([(edge[1], edge[0], edge[2]) for edge in g_without_pos_edges.edges(data=True)])
@@ -427,6 +473,202 @@ class OverFlowGraph(PowerFlowGraph):
         # consolidate loop paths by recoloring gray edges that are significant enough and within a loop path
         self.consolidate_loop_path(hubs_paths.Source, hubs_paths.Target)
 
+    def rename_nodes(self,mapping):
+        self.g = nx.relabel_nodes(self.g, mapping, copy=True)
+        self.df["idx_or"]=[mapping[idx_or] for idx_or in self.df["idx_or"]]
+        self.df["idx_ex"] = [mapping[idx_or] for idx_or in self.df["idx_ex"]]
+
+    def add_double_edges_null_redispatch(self):
+        """
+        Make edges bi-directionnal when flow redispatch value is null
+
+        Returns
+        ----------
+        edges_to_double_name_dict: ``dict`` str: networkx edge
+            original set of edges that has been doubled, with line names as key and edge as value
+
+        edges_added_name_dict: ``dict`` str: networkx edge
+            new set of edges that doubles the original ones in the other direction, with line name as key and edge as value
+
+        """
+        init_edges_names=nx.get_edge_attributes(self.g, "name")
+        init_colors=nx.get_edge_attributes(self.g, "color").values()
+        init_capacity = nx.get_edge_attributes(self.g, "capacity").values()
+        edges_to_double_name_dict={name:edge for edge,name,color,capacity in zip(init_edges_names.keys(),init_edges_names.values(),init_colors,init_capacity) if color=="gray" and capacity==0.}
+
+        edges_to_double_data=[ (edge_or, edge_ex, edge_properties) for edge_or,edge_ex,edge_properties in self.g.edges(data=True) if edge_properties["color"]=="gray" and edge_properties["capacity"]==0.]
+        edges_to_add_data=[(edge_ex, edge_or, edge_properties) for edge_or,edge_ex,edge_properties in edges_to_double_data]
+        self.g.add_edges_from(edges_to_add_data)
+
+        new_edges_names=nx.get_edge_attributes(self.g, "name")#.keys()
+        only_new_edges=set(new_edges_names.keys()) - set(init_edges_names.keys())
+        edges_added_name_dict={name:edge for edge,name in new_edges_names.items() if edge in only_new_edges}
+
+        assert(set(edges_to_double_name_dict.keys())==set(edges_added_name_dict.keys()))
+        return edges_to_double_name_dict,edges_added_name_dict
+
+    def add_relevant_null_flow_lines_all_paths(self, structured_graph, non_connected_lines):
+        """
+        Make edges bi-directionnal when flow redispatch value is null
+
+        Parameters
+        ----------
+
+        structured_graph: ``SuscturedOverflowGraph``
+            a structured graph with identified constrained path, hubs, loop paths
+
+
+        non_connected_lines: ``array``
+            list of lines that are non connected but that could be reconnected and that we want to highlight if relevant
+
+        """
+        self.add_relevant_null_flow_lines(structured_graph, non_connected_lines, target_path="blue_only")
+        self.add_relevant_null_flow_lines(structured_graph,non_connected_lines,target_path="blue_to_red")
+        self.add_relevant_null_flow_lines(structured_graph, non_connected_lines, target_path="red_only")
+
+
+
+    def add_relevant_null_flow_lines(self,structured_graph,non_connected_lines,target_path="blue_to_red"):
+        """
+        Make edges bi-directionnal when flow redispatch value is null, recolor the relevant ones that could be of interest
+        for analyzing the problem or solving it, and get back to initial edges for the other
+
+        Parameters
+        ----------
+
+        structured_graph: ``SuscturedOverflowGraph``
+            a structured graph with identified constrained path, hubs, loop paths
+
+
+        non_connected_lines: ``array``
+            list of lines that are non connected but that could be reconnected and that we want to highlight if relevant
+
+        target_path: ``str``
+            target path on which to highlight disconnected lines. either blue_only, red_only, blue_to_red
+        """
+        edges_to_double, edges_double_added=self.add_double_edges_null_redispatch()#making null flow redispatch lines bidirectionnal
+
+        edge_names = nx.get_edge_attributes(self.g, 'name')
+        edges_non_connected_lines = set(
+            [edge for edge, edge_name in edge_names.items() if edge_name in non_connected_lines])
+
+        # detect connected components for gray edges among which we will try to detect
+        # some non_connected_lines of interest, that link constrained path and loop paths
+        g_only_gray_components = delete_color_edges(structured_graph.g_without_pos_edges, "blue")
+        g_only_gray_components = delete_color_edges(g_only_gray_components, "black")
+
+        S = [g_only_gray_components.subgraph(c).copy() for c in nx.weakly_connected_components(g_only_gray_components)]
+
+        #between nodes on the constrained path and on the loop paths, detect edge paths that pass through our lines of interest
+
+        #recover possible target and source nodes on constrained paths and loop paths
+        edges_to_keep = set()
+        node_red_paths = set(structured_graph.red_loops.Path.sum())
+        node_amont_constrained_path = structured_graph.constrained_path.n_amont()
+        node_aval_constrained_path = structured_graph.constrained_path.n_aval()
+
+        for g_c in S:
+            #detect new edges with null-flow to highlight on constrained path
+            if target_path=="blue_only":
+                nodes_interest=structured_graph.constrained_path.full_n_constrained_path()
+                intersect_constarined_path = set(g_c).intersection(set(nodes_interest))
+                edges_to_keep.update(self.detect_edges_to_keep(g_c, intersect_constarined_path, intersect_constarined_path, edges_non_connected_lines))
+
+            # detect new edges with null-flow to highlight on red paths
+            elif target_path=="red_only":
+                intersect_red_path = set(g_c).intersection(set(node_red_paths))
+                edges_to_keep.update(self.detect_edges_to_keep(g_c, intersect_red_path, intersect_red_path, edges_non_connected_lines))
+
+            # detect new edges with null-flow to highlight in between constrained path and red paths
+            elif target_path=="blue_to_red":
+
+                intersect_constrained_path_amont = set(g_c).intersection(set(node_amont_constrained_path))
+                intersect_constrained_path_aval = set(g_c).intersection(set(node_aval_constrained_path))
+                intersect_red_path = set(g_c).intersection(set(node_red_paths))
+
+                # look for edges from constrained path ("amont", before the constraint) to red_path
+                if len(intersect_constrained_path_amont) != 0:
+                    edges_to_keep.update(self.detect_edges_to_keep(g_c, intersect_constrained_path_amont, intersect_red_path,
+                                                              edges_non_connected_lines))
+                # look for edges from red_path to constrained path ("aval", after the constraint)
+                if len(intersect_constrained_path_aval) != 0:
+                    edges_to_keep.update(
+                        self.detect_edges_to_keep(g_c, intersect_red_path, intersect_constrained_path_aval,
+                                             edges_non_connected_lines))
+
+        #color those edges in blue or red
+        if target_path=="blue_only":
+            edge_attribues_to_set = {edge: {"color": "blue"} for edge in edges_to_keep}
+        else:
+            edge_attribues_to_set = {edge: {"color": "coral"} for edge in edges_to_keep}
+        nx.set_edge_attributes(self.g, edge_attribues_to_set)
+
+        # represent null-flow edges with new colors as dashed lines
+        edges_non_connected_lines_displayed=edges_to_keep.intersection(edges_non_connected_lines)
+        edge_attribues_to_set = {edge: {"style": "dashed"} for edge in edges_non_connected_lines_displayed}
+        nx.set_edge_attributes(self.g, edge_attribues_to_set)
+
+        #remove added double edges not used
+        self.remove_unused_added_double_edge(edges_to_keep,edges_to_double, edges_double_added)
+
+
+    def detect_edges_to_keep(self,g_c, source_nodes, target_nodes, edges_of_interest):
+        """
+        detect edges in edges of interest that belongs to gthe subgraph and are on a path between source nodes and target nodes
+
+        Parameters
+        ----------
+
+        g_c: ``Networkx Graph``
+            a networkx subgraph of gray edges to possibly recolor
+
+
+        source_nodes: ``array`` str
+            list of nodes, that belong to either constrained path or red loops, from which to find a path
+
+        target_nodes: ``array`` str
+            list of nodes, that belong to either constrained path or red loops, to which to find a path
+
+        Returns
+        ----------
+        res: ``set`` str
+            set of edges of interest found on paths and to be recoloured
+        """
+        edges_to_keep = []
+        for source_node in source_nodes:
+            for target_node in target_nodes:
+
+                edge_paths = list(nx.all_simple_edge_paths(g_c, source=source_node, target=target_node))
+                for path in edge_paths:
+                    if len(set(path).intersection(set(edges_of_interest))) != 0:
+                        edges_to_keep += path
+        return set(edges_to_keep)
+
+    def remove_unused_added_double_edge(self, edges_to_keep, edges_to_double, edges_double_added):
+
+        """
+        Make edges bi-directionnal when flow redispatch value is null
+
+        Parameters
+        ----------
+         edges_to_keep: ``set`` str
+            set of edges of interest found on paths and to be recoloured
+
+        edges_to_double: ``dict`` str: networkx edge
+            original set of edges that has been doubled, with line names as key and edge as value
+
+        edges_double_added: ``dict`` str: networkx edge
+            new set of edges that doubles the original ones in the other direction, with line name as key and edge as value
+
+        """
+        name_edges_to_keep = nx.get_edge_attributes(self.g.edge_subgraph(edges_to_keep), "name").keys()
+
+        # for added double edges that has not been recoloured, remove them
+        edges_to_remove=[edge for name,edge in edges_double_added.items() if self.g.edges[edge]["color"]=="gray"]
+
+        # for initial edges that has not been recoloured but for which the added double edge has been, remove those initial edges
+        edges_to_remove+=[edge for name,edge in edges_to_double.items() if name in name_edges_to_keep and self.g.edges[edge]["color"]=="gray"]
+        self.g.remove_edges_from(edges_to_remove)
 
 class ConstrainedPath:
 
