@@ -138,10 +138,10 @@ class PowerFlowGraph:
                 penwidth = min_penwidth
 
             if weight_value >= 0:
-                g.add_edge(origin, extremity, xlabel=self.float_precision% weight_value, color="gray", fontsize=10,
+                g.add_edge(origin, extremity, label=self.float_precision% weight_value, color="gray", fontsize=10,
                            penwidth=max(float(self.float_precision % penwidth),min_penwidth))
             else:
-                g.add_edge(extremity, origin, xlabel=self.float_precision % fabs(weight_value), color="gray", fontsize=10,
+                g.add_edge(extremity, origin, label=self.float_precision % fabs(weight_value), color="gray", fontsize=10,
                            penwidth=max(float(self.float_precision % penwidth),min_penwidth))
 
 
@@ -159,7 +159,6 @@ class PowerFlowGraph:
         peripheries_dict = {node:nodal_number_dict[node] for node in self.g}
 
         nx.set_node_attributes(self.g, peripheries_dict, "peripheries")
-
 
     def plot(self,save_folder,name,state="before",sim=None):
         printer = Printer(save_folder)
@@ -215,8 +214,8 @@ class OverFlowGraph(PowerFlowGraph):
         self.build_edges_from_df(g, self.lines_cut)
 
         # print("WE ARE IN BUILD GRAPH FROM DATA FRAME ===========")
-        # all_edges_xlabel_attributes = nx.get_edge_attributes(g, "xlabel")  # dict[edge]
-        # print("all_edges_xlabel_attributes = ", all_edges_xlabel_attributes)
+        # all_edges_label_attributes = nx.get_edge_attributes(g, "label")  # dict[edge]
+        # print("all_edges_label_attributes = ", all_edges_label_attributes)
 
         self.g=g
         #self.add_double_edges_null_redispatch()
@@ -244,17 +243,17 @@ class OverFlowGraph(PowerFlowGraph):
             if penwidth == 0.0:
                 penwidth = min_penwidth
             if i in lines_to_cut:
-                g.add_edge(origin, extremity, capacity=float(self.float_precision % reported_flow), xlabel=self.float_precision % reported_flow,
+                g.add_edge(origin, extremity, capacity=float(self.float_precision % reported_flow), label=self.float_precision % reported_flow,
                            color="black", fontsize=10, penwidth=max(float(self.float_precision % penwidth),min_penwidth),
                            constrained=True, name=line_name)#style="dotted, setlinewidth(2)"
             elif gray_edge:  # Gray
-                g.add_edge(origin, extremity, capacity=float(self.float_precision % reported_flow), xlabel=self.float_precision % reported_flow,
+                g.add_edge(origin, extremity, capacity=float(self.float_precision % reported_flow), label=self.float_precision % reported_flow,
                            color="gray", fontsize=10, penwidth=max(float(self.float_precision % penwidth),min_penwidth),name=line_name)
             elif reported_flow < 0:  # Blue
-                g.add_edge(origin, extremity, capacity=float(self.float_precision % reported_flow), xlabel=self.float_precision % reported_flow,
+                g.add_edge(origin, extremity, capacity=float(self.float_precision % reported_flow), label=self.float_precision % reported_flow,
                            color="blue", fontsize=10, penwidth=max(float(self.float_precision % penwidth),min_penwidth),name=line_name)
             else:  # > 0  # Red
-                g.add_edge(origin, extremity, capacity=float(self.float_precision % reported_flow), xlabel=self.float_precision % reported_flow,
+                g.add_edge(origin, extremity, capacity=float(self.float_precision % reported_flow), label=self.float_precision % reported_flow,
                            color="coral",#orange"#ff8000"#"coral",
                            fontsize=10, penwidth=max(float(self.float_precision % penwidth),min_penwidth),name=line_name)#"#ff8000")#orange
             i += 1
@@ -303,7 +302,7 @@ class OverFlowGraph(PowerFlowGraph):
         #correct capacity values with opposite value after reversing edge
         current_capacities = nx.get_edge_attributes(self.g, 'capacity')
         current_colors = nx.get_edge_attributes(self.g, 'color')
-        edge_attribues_to_set = {edge: {"capacity": -capacity,"xlabel":str(-capacity)}
+        edge_attribues_to_set = {edge: {"capacity": -capacity,"label":str(-capacity)}
                                  for edge,color,capacity in zip(self.g.edges,current_colors.values(),current_capacities.values()) if
                                  capacity>0 and color=="blue"}
         nx.set_edge_attributes(self.g, edge_attribues_to_set)
@@ -360,7 +359,7 @@ class OverFlowGraph(PowerFlowGraph):
 
         # reversing capacities (with negative values) and direction for all edges here
         reduced_capacities_dict = nx.get_edge_attributes(g_without_pos_edges, "capacity")
-        new_attributes_dict = {e: {"capacity": -capacity, "xlabel": self.float_precision % -capacity} for e, capacity
+        new_attributes_dict = {e: {"capacity": -capacity, "label": self.float_precision % -capacity} for e, capacity
                                in reduced_capacities_dict.items() if capacity!=0}
         nx.set_edge_attributes(g_without_pos_edges, new_attributes_dict)
 
@@ -418,6 +417,49 @@ class OverFlowGraph(PowerFlowGraph):
             dict_shapes[hub] = shape_hub
 
         nx.set_node_attributes(self.g, dict_shapes, "shape")
+
+    def highlight_significant_line_loading(self, dict_line_loading):
+        """
+        Highlight lines that could get overloaded and should be monitored. Edge label is augmented with change in loading rate
+        before and after the constrained line cut
+
+        WARNING: apply this at the end of the process before ploting the graph, as it changes the edge colors for these target lines,
+        but colors are used in other part of the processing and if they are change before, this could create interferences
+
+        Parameters
+        ----------
+
+        dict_line_loading: ``dict``
+            dict of lines to monitor with "before" and "after" loading rate values
+
+        """
+        edge_names = nx.get_edge_attributes(self.g, "name")
+        edge_colors = nx.get_edge_attributes(self.g, "color")
+        edge_x_labels = nx.get_edge_attributes(self.g, "label")
+        label_font_color = {edge: "black" for edge in edge_names.keys()}
+        color_label_highlight = "darkred"  # "gold"
+
+        for edge, edge_name in edge_names.items():
+            if edge_name in dict_line_loading:
+                current_x_lable = edge_x_labels[edge]
+                current_edge_color = edge_colors[edge]
+
+                # update edge labels for loaded lines with loading change
+                if current_edge_color == "black":  # this is a constraint, highlight initial overloading rate
+                    edge_x_labels[
+                        edge] = f'< {current_x_lable} <BR/>  <B>{dict_line_loading[edge_name]["before"]}%</B>  → {dict_line_loading[edge_name]["after"]}%>'
+                else:
+                    edge_x_labels[
+                        edge] = f'< {current_x_lable} <BR/>  {dict_line_loading[edge_name]["before"]}% → <B>{dict_line_loading[edge_name]["after"]}%</B> >'
+
+                # update font color and edge color for highlighting
+                label_font_color[edge] = color_label_highlight
+                edge_colors[edge] = f'"{current_edge_color}:yellow:{current_edge_color}"'
+
+        # edge_x_label=[edge_x_label+"\n "+str(dict_line_loading[edge_name["before"]])+"% -> "+str(dict_line_loading[edge_name["after"]])+"%" else edge_x_label for edge_name,edge_x_label in zip(edge_names,edge_x_label) if edge_name in dict_line_loading]
+        nx.set_edge_attributes(self.g, edge_x_labels, "label")
+        nx.set_edge_attributes(self.g, label_font_color, "fontcolor")
+        nx.set_edge_attributes(self.g, edge_colors, "color")
 
     def plot(self,layout,rescale_factor=None,allow_overlap=True,fontsize=None,node_thickness=3,save_folder="",without_gray_edges=False):
         printer=Printer(save_folder)
