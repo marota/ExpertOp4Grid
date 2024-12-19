@@ -338,26 +338,26 @@ class AlphaDeesp:  # AKA SOLVER
             if element == 1:  # connect FROM or TO node: 666XX
                 if isinstance(element_type, OriginLine):
                     graph.add_edge(new_node_id, element_type.end_substation_id,
-                                   capacity=float("%.2f" % reported_flow), xlabel="%.2f" % reported_flow,
+                                   capacity=float("%.2f" % reported_flow), label="%.2f" % reported_flow,
                                    color=color_edges[(node_to_change, element_type.end_substation_id,0)],
                                    fontsize=10, penwidth="%.2f" % penwidth)#we have a multiGraph, so we need to give a third index to color_edges, should be revised if reused
 
                 elif isinstance(element_type, ExtremityLine):
                     graph.add_edge(element_type.start_substation_id, new_node_id,
-                                   capacity=float("%.2f" % reported_flow), xlabel="%.2f" % reported_flow,
+                                   capacity=float("%.2f" % reported_flow), label="%.2f" % reported_flow,
                                    color=color_edges[(element_type.start_substation_id, node_to_change,0)],
                                    fontsize=10, penwidth="%.2f" % penwidth)
 
             elif element == 0:  # connect from node node:_to_change
                 if isinstance(element_type, OriginLine):
                     graph.add_edge(node_to_change, element_type.end_substation_id,
-                                   capacity=float("%.2f" % reported_flow), xlabel="%.2f" % reported_flow,
+                                   capacity=float("%.2f" % reported_flow), label="%.2f" % reported_flow,
                                    color=color_edges[(node_to_change, element_type.end_substation_id,0)],
                                    fontsize=10, penwidth="%.2f" % penwidth)
 
                 elif isinstance(element_type, ExtremityLine):
                     graph.add_edge(element_type.start_substation_id, node_to_change,
-                                   capacity=float("%.2f" % reported_flow), xlabel="%.2f" % reported_flow,
+                                   capacity=float("%.2f" % reported_flow), label="%.2f" % reported_flow,
                                    color=color_edges[(element_type.start_substation_id, node_to_change,0)],
                                    fontsize=10, penwidth="%.2f" % penwidth)
 
@@ -376,7 +376,7 @@ class AlphaDeesp:  # AKA SOLVER
         final_score = 0.0
         all_nodes_value_attributes = nx.get_node_attributes(graph, "value")  # dict[node]
         all_edges_color_attributes = nx.get_edge_attributes(graph, "color")  # dict[edge]
-        all_edges_xlabel_attributes = nx.get_edge_attributes(graph, "xlabel")  # dict[edge]
+        all_edges_xlabel_attributes = nx.get_edge_attributes(graph, "label")  # dict[edge]
 
         # ======================================
         # print('\nnoeud '+str(node)+' topo '+str(topo_vect))
@@ -653,7 +653,7 @@ class AlphaDeesp:  # AKA SOLVER
         # self.g => overflow graph
         all_nodes_value_attributes = nx.get_node_attributes(graph, "value")
         all_edges_color_attributes = nx.get_edge_attributes(graph, "color")  # dict[edge]
-        all_edges_xlabel_attributes = nx.get_edge_attributes(graph, "xlabel")
+        all_edges_xlabel_attributes = nx.get_edge_attributes(graph, "label")
 
         Strength_Bus_dic = {}
         red_loops = self.g_distribution_graph.get_loops()

@@ -143,7 +143,7 @@ def test_consolidate_constrained_path():
     assert(n_hub_paths==3)
 
     #test that some blue edges have been corrected regarding their capacity label and direction
-    edge=('COMMUP6', 'VIELMP6', 0)#: {'capacity': -3.01, 'xlabel': '-3.01'}
+    edge=('COMMUP6', 'VIELMP6', 0)#: {'capacity': -3.01, 'label': '-3.01'}
     current_capacities = nx.get_edge_attributes(g_over.g, 'capacity')
     assert(current_capacities[edge]==-3.01)
 
@@ -391,3 +391,37 @@ def test_add_relevant_null_flow_lines_blue_path():
     assert (g_over.g.edges[('CPVANP6', 'CPVANP3', 1)]["color"] == "blue")
     # check that this double edge has been removed (in the other edge direction)
     assert(not g_over.g.has_edge('CPVANP3', 'CPVANP6'))
+
+
+def test_highlight_significant_line_loading():
+    config = configparser.ConfigParser()
+    config.read("./alphaDeesp/tests/resources_for_tests_grid2op/config_for_tests.ini")
+
+    data_folder = "./alphaDeesp/tests/ressources_for_tests/data_graph_consolidation/defaut_PSAOL31RONCI"
+
+    timestep = 1  # 1#36
+    line_defaut = "P.SAOL31RONCI"
+    ltc = [9]
+
+    with open(os.path.join(data_folder, 'sim_topo_zone_dijon_defaut_PSAOL31RONCI_t1.json')) as json_file:
+        sim_topo_reduced = json.load(json_file)
+
+    df_of_g = pd.read_csv(os.path.join(data_folder, "df_of_g_defaut_PSAOL31RONCI_t1.csv"))
+
+    g_over = OverFlowGraph(sim_topo_reduced, ltc, df_of_g, float_precision="%.0f")
+
+    with open(os.path.join(data_folder, 'node_name_mapping_defaut_PSAOL31RONCI_t1.json')) as json_file:
+        mapping = json.load(json_file)
+
+    mapping = {int(key): value for key, value in mapping.items()}
+    g_over.rename_nodes(mapping)  # g = nx.relabel_nodes(g_over.g, mapping, copy=True)
+
+    with open(os.path.join(data_folder, 'significant_line_loading_change.json')) as json_file:
+        dict_line_loading = json.load(json_file)
+    g_over.highlight_significant_line_loading(dict_line_loading)
+
+    test_edge=('CPVANP3', 'BEON P3', 0)
+    assert(g_over.g.edges[test_edge]["color"]=='"black:yellow:black"')
+    assert(g_over.g.edges[test_edge]["label"]=='< -30 <BR/>  <B>122%</B>  → 0%>')
+    assert(g_over.g.edges[test_edge]["fontcolor"]=='darkred')
+    #g_over.plot(layout=None, save_folder="./", fontsize=10, without_gray_edges=True)

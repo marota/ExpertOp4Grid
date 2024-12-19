@@ -37,7 +37,7 @@ def test_powerflow_graph():
     path_to_saved_graph = "./alphaDeesp/tests/ressources_for_tests/saved_graphs/gpow_geo_save_2019-08-05_18-26_0.dot"
     saved_g = nx.drawing.nx_pydot.read_dot(path_to_saved_graph)
 
-    for e1, e2 in zip(saved_g.edges(data="xlabel"), g_pow.edges(data="xlabel")):
+    for e1, e2 in zip(saved_g.edges(data="label"), g_pow.edges(data="label")):
         assert (float(e1[2]) == float(e2[2]))
 
     print("g_over and saved_g are isomorphic: ", nx.is_isomorphic(g_pow, saved_g))
@@ -67,8 +67,8 @@ def test_overflow_grid():
     saved_g = nx.drawing.nx_pydot.read_dot(path_to_saved_graph)
 
 
-    for e1 in saved_g.edges(data="xlabel"):
-        for e2 in g_over.edges(data="xlabel"):
+    for e1 in saved_g.edges(data="label"):
+        for e2 in g_over.edges(data="label"):
             if int(e1[0]) == int(e2[0]) and int(e1[1]) == int(e2[1]):
                 saved_flow = float(e1[2][1: -1])
                 current_flow = float(e2[2])

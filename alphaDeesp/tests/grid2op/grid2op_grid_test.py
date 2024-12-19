@@ -33,8 +33,8 @@ def test_powerflow_graph():
     path_to_saved_graph = "./alphaDeesp/tests/resources_for_tests_grid2op/saved_graphs/g_pow.dot"
     saved_g = nx.drawing.nx_pydot.read_dot(path_to_saved_graph)
     
-    for e1 in saved_g.edges(data="xlabel"):
-        for e2 in g_pow.edges(data="xlabel"):
+    for e1 in saved_g.edges(data="label"):
+        for e2 in g_pow.edges(data="label"):
             if int(e1[0]) == int(e2[0]) and int(e1[1]) == int(e2[1]):
                 saved_flow = float(e1[2])
                 current_flow = float(e2[2])
@@ -54,8 +54,8 @@ def test_overflow_grid():
 
     saved_g = nx.drawing.nx_pydot.read_dot(path_to_saved_graph)
 
-    for e1 in saved_g.edges(data="xlabel"):
-        for e2 in g_over.edges(data="xlabel"):
+    for e1 in saved_g.edges(data="label"):
+        for e2 in g_over.edges(data="label"):
             if int(e1[0]) == int(e2[0]) and int(e1[1]) == int(e2[1]):
                 saved_flow = float(e1[2])
                 current_flow = float(e2[2])
