@@ -666,12 +666,12 @@ def build_edges_v2(g, substation_id_busbar_id_node_id_mapping, substations_eleme
             # print(f"#################### Edge created : ({origin}, {extremity}), with flow = {reported_flow},"
             #       f" pen_width = {pen_width} >>>")
             if reported_flow[0] > 0:  # RED
-                g.add_edge(origin, extremity, capacity=float(reported_flow[0]), xlabel=reported_flow[0], color="coral",
+                g.add_edge(origin, extremity, capacity=float(reported_flow[0]), label=reported_flow[0], color="coral",
                            penwidth="%.2f" % pen_width)
             else:  # BLUE
-                g.add_edge(origin, extremity, capacity=float(reported_flow[0]), xlabel=reported_flow[0], color="blue",
+                g.add_edge(origin, extremity, capacity=float(reported_flow[0]), label=reported_flow[0], color="blue",
                            penwidth="%.2f" % pen_width)
-            g.add_edge(origin, extremity, capacity=float(reported_flow[0]), xlabel=reported_flow[0])
+            g.add_edge(origin, extremity, capacity=float(reported_flow[0]), label=reported_flow[0])
 
 #TO DO: check is line is disconnected in new_obs
 

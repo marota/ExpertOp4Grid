@@ -143,7 +143,7 @@ def test_consolidate_constrained_path():
     assert(n_hub_paths==3)
 
     #test that some blue edges have been corrected regarding their capacity label and direction
-    edge=('COMMUP6', 'VIELMP6', 0)#: {'capacity': -3.01, 'xlabel': '-3.01'}
+    edge=('COMMUP6', 'VIELMP6', 0)#: {'capacity': -3.01, 'label': '-3.01'}
     current_capacities = nx.get_edge_attributes(g_over.g, 'capacity')
     assert(current_capacities[edge]==-3.01)
 
