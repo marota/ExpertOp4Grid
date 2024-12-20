@@ -598,6 +598,7 @@ class OverFlowGraph(PowerFlowGraph):
         # some non_connected_lines of interest, that link constrained path and loop paths
         g_only_gray_components = delete_color_edges(structured_graph.g_without_pos_edges, "blue")
         g_only_gray_components = delete_color_edges(g_only_gray_components, "black")
+        g_only_blue_components = delete_color_edges(structured_graph.g_without_pos_edges, "gray")
 
         S = [g_only_gray_components.subgraph(c).copy() for c in nx.weakly_connected_components(g_only_gray_components)]
 
@@ -613,8 +614,18 @@ class OverFlowGraph(PowerFlowGraph):
             #detect new edges with null-flow to highlight on constrained path
             if target_path=="blue_only":
                 nodes_interest=structured_graph.constrained_path.full_n_constrained_path()
-                intersect_constarined_path = set(g_c).intersection(set(nodes_interest))
-                edges_to_keep.update(self.detect_edges_to_keep(g_c, intersect_constarined_path, intersect_constarined_path, edges_non_connected_lines))
+
+                intersect_constrained_path_amont = set(g_c).intersection(set(node_amont_constrained_path))
+                intersect_constrained_path_aval = set(g_c).intersection(set(node_aval_constrained_path))
+
+                #only look at edges that connect "amont" path on one side "aval" path on the other side.
+                #edges that would connect "amont" and "aval" path should be rather considered as a new loop path and tagged blue
+                edges_to_keep.update(
+                    self.detect_edges_to_keep(g_c, intersect_constrained_path_amont, intersect_constrained_path_amont, edges_non_connected_lines))
+
+                edges_to_keep.update(
+                    self.detect_edges_to_keep(g_c, intersect_constrained_path_aval, intersect_constrained_path_aval, edges_non_connected_lines))
+
 
             # detect new edges with null-flow to highlight on red paths
             elif target_path=="red_only":
@@ -637,6 +648,13 @@ class OverFlowGraph(PowerFlowGraph):
                     edges_to_keep.update(
                         self.detect_edges_to_keep(g_c, intersect_red_path, intersect_constrained_path_aval,
                                              edges_non_connected_lines))
+
+                #look for a new loop path that could exist with disconnected lines
+                if len(intersect_constrained_path_amont)!=0 and len(intersect_constrained_path_aval) != 0:
+                    edges_to_keep.update(
+                        self.detect_edges_to_keep(g_c, intersect_constrained_path_amont, intersect_constrained_path_aval,
+                                                  edges_non_connected_lines))
+
 
         #color those edges in blue or red
         if target_path=="blue_only":
