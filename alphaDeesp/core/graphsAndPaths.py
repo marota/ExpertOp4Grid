@@ -4,7 +4,7 @@ import networkx as nx
 from math import fabs
 from alphaDeesp.core.printer import Printer
 
-voltage_colors={400:"red",225:"darkgreen",90:"gold",63:"purple",20:"pink",24:"pink",10:"pink",33:"pink",}#[400., 225.,  63.,  24.,  20.,  33.,  10.]
+default_voltage_colors={400:"red",225:"darkgreen",90:"gold",63:"purple",20:"pink",24:"pink",15:"pink",10:"pink",33:"pink",}#[400., 225.,  63.,  24.,  20.,  33.,  10.]
 
 class PowerFlowGraph:
     """
@@ -146,35 +146,85 @@ class PowerFlowGraph:
 
 
     def get_graph(self):
+        """
+        Returns the NetworkX graph representing the current state of the power flow.
+
+        Returns
+        -------
+        :class:`nx:MultiDiGraph`
+            The NetworkX graph.
+        """
         return self.g
 
-    def set_voltage_level_color(self,voltage_levals_dict):
+    def set_voltage_level_color(self, voltage_levels_dict, voltage_colors=default_voltage_colors):
+        """
+        Sets the voltage level color for each node in the graph based on the provided voltage levels dictionary.
 
-        voltage_levals_colors_dict={node:voltage_colors[voltage_levals_dict[node]] for node in self.g}
+        Parameters
+        ----------
+        voltage_levels_dict : dict
+            A dictionary mapping node IDs to their respective voltage levels.
+        voltage_colors : dict, optional
+            A dictionary mapping voltage levels to their corresponding colors. Defaults to `default_voltage_colors`.
 
-        nx.set_node_attributes(self.g,voltage_levals_colors_dict,"color")
+        Notes
+        -----
+        This method updates the 'color' attribute of each node in the graph based on the voltage levels provided.
+        """
+        voltage_levels_colors_dict = {node: voltage_colors[voltage_levels_dict[node]] for node in self.g}
+
+        nx.set_node_attributes(self.g, voltage_levels_colors_dict, "color")
 
     def set_electrical_node_number(self, nodal_number_dict):
+        """
+        Sets the electrical node number for each node in the graph based on the provided nodal number dictionary.
 
-        peripheries_dict = {node:nodal_number_dict[node] for node in self.g}
+        Parameters
+        ----------
+        nodal_number_dict : dict
+            A dictionary mapping node IDs to their respective electrical node numbers.
+
+        Notes
+        -----
+        This method updates the 'peripheries' attribute of each node in the graph based on the nodal numbers provided.
+        """
+        peripheries_dict = {node: nodal_number_dict[node] for node in self.g}
 
         nx.set_node_attributes(self.g, peripheries_dict, "peripheries")
 
-    def plot(self,save_folder,name,state="before",sim=None):
+    def plot(self, save_folder, name, state="before", sim=None):
+        """
+        Plots the graph using the Printer class.
+
+        Parameters
+        ----------
+        save_folder : str
+            The folder where the plot will be saved.
+        name : str
+            The name of the plot.
+        state : str, optional
+            The state of the simulation to plot. Defaults to "before".
+        sim : object, optional
+            The simulator object, which may have a plot method. Defaults to None.
+
+        Notes
+        -----
+        If a simulator object is provided and it has a plot method, this method will use the simulator's plot method.
+        Otherwise, it will use the Printer class to display the graph.
+        """
         printer = Printer(save_folder)
 
-        #in case the simulator also provides a plot function, use it
+        # In case the simulator also provides a plot function, use it
         if sim is not None and hasattr(sim, 'plot'):
             output_name = printer.create_namefile("geo", name=name, type="base")
             if state == "before":
                 obs = sim.obs
             else:
                 obs = sim.obs_linecut
-            sim.plot(obs,save_file_path=output_name[1])
+            sim.plot(obs, save_file_path=output_name[1])
         else:
             if self.layout:
                 printer.display_geo(self.g, self.layout, name=name)
-
 
 class OverFlowGraph(PowerFlowGraph):
     """
