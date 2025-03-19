@@ -95,6 +95,26 @@ def test_structured_overload_distribution_graph():
     assert loops_df.loc[0]["Source"]==3
     assert loops_df.loc[0]["Target"] == 6
 
+def test_lines_swapped():
+    config = configparser.ConfigParser()
+    config.read("./alphaDeesp/tests/resources_for_tests_grid2op/config_for_tests.ini")
+
+    data_folder="./alphaDeesp/tests/ressources_for_tests/data_graph_consolidation/defaut_PSAOL31RONCI"
+
+    timestep = 1  # 1#36
+    line_defaut = "P.SAOL31RONCI"
+    ltc = [9]
+
+    expected_lines_swapped=['C.FOUL31MERVA','LOUHAL31SSUSU','MERVAL31SSUSU','TAVA5Y611']
+
+    with open(os.path.join(data_folder,'sim_topo_zone_dijon_defaut_PSAOL31RONCI_t1.json')) as json_file:
+        sim_topo_reduced = json.load(json_file)
+
+    df_of_g = pd.read_csv(os.path.join(data_folder,"df_of_g_defaut_PSAOL31RONCI_t1.csv"))
+
+    lines_swapped=list(df_of_g[df_of_g.new_flows_swapped].line_name)
+    assert(set(expected_lines_swapped)==set(lines_swapped))
+
 def test_consolidate_constrained_path():
     config = configparser.ConfigParser()
     config.read("./alphaDeesp/tests/resources_for_tests_grid2op/config_for_tests.ini")

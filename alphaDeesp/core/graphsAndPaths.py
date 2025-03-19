@@ -477,6 +477,26 @@ class OverFlowGraph(PowerFlowGraph):
 
         nx.set_node_attributes(self.g, dict_shapes, "shape")
 
+    def highlight_swapped_flows(self, lines_swapped):
+        """
+        Highlight lines with "tappered" style on edge that have seen their flows swapped in the overflow graph to be aware of that
+
+        Parameters
+        ----------
+
+        lines_swapped: ``list``
+            list of lines whose flow direction has swapped
+
+        """
+        edge_names = nx.get_edge_attributes(self.g, "name")
+        edge_styles={edge:"tapered" for edge, edge_name in edge_names.items() if edge_name in lines_swapped}
+        edge_dirs = {edge: "both" for edge, edge_name in edge_names.items() if edge_name in lines_swapped}
+        edge_tails = {edge: "none" for edge, edge_name in edge_names.items() if edge_name in lines_swapped}
+
+        nx.set_edge_attributes(self.g, edge_styles, "style")
+        nx.set_edge_attributes(self.g, edge_dirs, "dir")
+        nx.set_edge_attributes(self.g, edge_tails, "arrowtail")
+
     def highlight_significant_line_loading(self, dict_line_loading):
         """
         Highlight lines that could get overloaded and should be monitored. Edge label is augmented with change in loading rate
