@@ -345,8 +345,10 @@ class OverFlowGraph(PowerFlowGraph):
         all_edges_to_recolor=set(all_edges_to_recolor)
 
         current_colors = nx.get_edge_attributes(self.g, 'color')
-        edge_attribues_to_set = {edge: {"color": "blue"} for edge in all_edges_to_recolor if current_colors[edge]!="black"}
-        nx.set_edge_attributes(self.g, edge_attribues_to_set)
+        current_weights = nx.get_edge_attributes(self.g, 'capacity')  #############################
+        edge_attributes_to_set = {edge: {"color": "blue"} for edge in all_edges_to_recolor if
+                                 current_colors[edge] != "black" and float(current_weights[edge]) != 0}
+        nx.set_edge_attributes(self.g, edge_attributes_to_set)
 
         #########
         #correction: reverse edges with positive values
@@ -359,10 +361,10 @@ class OverFlowGraph(PowerFlowGraph):
         #correct capacity values with opposite value after reversing edge
         current_capacities = nx.get_edge_attributes(self.g, 'capacity')
         current_colors = nx.get_edge_attributes(self.g, 'color')
-        edge_attribues_to_set = {edge: {"capacity": -capacity,"label":str(-capacity)}
+        edge_attributes_to_set = {edge: {"capacity": -capacity,"label":str(-capacity)}
                                  for edge,color,capacity in zip(self.g.edges,current_colors.values(),current_capacities.values()) if
                                  capacity>0 and color=="blue"}
-        nx.set_edge_attributes(self.g, edge_attribues_to_set)
+        nx.set_edge_attributes(self.g, edge_attributes_to_set)
 
         ############
         #for null flow redispatch, if connected to nodes on blue path, reverse it and make it blue for it to belong there

@@ -147,13 +147,8 @@ def test_consolidate_constrained_path():
     current_capacities = nx.get_edge_attributes(g_over.g, 'capacity')
     assert(current_capacities[edge]==-3.01)
 
-    edge_0 = ('CPVANP6', 'CPVANP3', 0)
-    edge_1=('CPVANP6', 'CPVANP3', 1)
-    edge_2 = ('CPVANP6', 'CPVANP3', 2)
     current_colors = nx.get_edge_attributes(g_over.g, 'color')
-    assert (current_colors[edge_0] == "blue")
-    assert (current_colors[edge_1] == "blue")
-    assert (current_colors[edge_2] == "blue")
+    assert (current_colors[edge] == "blue")
 
 def test_reverse_blue_edges_in_looppaths():
     config = configparser.ConfigParser()
@@ -325,7 +320,7 @@ def test_add_relevant_null_flow_lines():
     # g_over.add_double_edges_null_redispatch()
     g_distribution_graph = Structured_Overload_Distribution_Graph(g_over.g)
 
-    g_over.add_relevant_null_flow_lines(g_distribution_graph, non_connected_lines)
+    g_over.add_relevant_null_flow_lines_all_paths(g_distribution_graph, non_connected_lines)
 
     color_edges = list(nx.get_edge_attributes(g_over.g, 'color').values())
     line_names = list(nx.get_edge_attributes(g_over.g, 'name').values())
