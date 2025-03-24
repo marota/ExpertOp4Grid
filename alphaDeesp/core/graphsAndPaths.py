@@ -1,15 +1,9 @@
-# Copyright (c) 2019-2020, RTE (https://www.rte-france.com)
-# See AUTHORS.txt
-# This Source Code Form is subject to the terms of the Mozilla Public License, version 2.0.
-# If a copy of the Mozilla Public License, version 2.0 was not distributed with this file,
-# you can obtain one at http://mozilla.org/MPL/2.0/.
-# SPDX-License-Identifier: MPL-2.0
-# This file is part of ExpertOp4Grid, an expert system approach to solve flow congestions in power grids
 
 import pandas as pd
 import networkx as nx
 from math import fabs
 from alphaDeesp.core.printer import Printer
+import numpy as np
 
 default_voltage_colors={400:"red",225:"darkgreen",90:"gold",63:"purple",20:"pink",24:"pink",15:"pink",10:"pink",33:"pink",}#[400., 225.,  63.,  24.,  20.,  33.,  10.]
 
@@ -345,10 +339,9 @@ class OverFlowGraph(PowerFlowGraph):
         all_edges_to_recolor=set(all_edges_to_recolor)
 
         current_colors = nx.get_edge_attributes(self.g, 'color')
-        current_weights = nx.get_edge_attributes(self.g, 'capacity')  #############################
-        edge_attributes_to_set = {edge: {"color": "blue"} for edge in all_edges_to_recolor if
-                                 current_colors[edge] != "black" and float(current_weights[edge]) != 0}
-        nx.set_edge_attributes(self.g, edge_attributes_to_set)
+        current_weights=nx.get_edge_attributes(self.g, 'capacity') #############################
+        edge_attribues_to_set = {edge: {"color": "blue"} for edge in all_edges_to_recolor if current_colors[edge]!="black" and float(current_weights[edge])!=0}
+        nx.set_edge_attributes(self.g, edge_attribues_to_set)
 
         #########
         #correction: reverse edges with positive values
@@ -361,10 +354,10 @@ class OverFlowGraph(PowerFlowGraph):
         #correct capacity values with opposite value after reversing edge
         current_capacities = nx.get_edge_attributes(self.g, 'capacity')
         current_colors = nx.get_edge_attributes(self.g, 'color')
-        edge_attributes_to_set = {edge: {"capacity": -capacity,"label":str(-capacity)}
+        edge_attribues_to_set = {edge: {"capacity": -capacity,"label":str(-capacity)}
                                  for edge,color,capacity in zip(self.g.edges,current_colors.values(),current_capacities.values()) if
                                  capacity>0 and color=="blue"}
-        nx.set_edge_attributes(self.g, edge_attributes_to_set)
+        nx.set_edge_attributes(self.g, edge_attribues_to_set)
 
         ############
         #for null flow redispatch, if connected to nodes on blue path, reverse it and make it blue for it to belong there
@@ -385,6 +378,32 @@ class OverFlowGraph(PowerFlowGraph):
 
 
         print("ok")
+
+    def reverse_edges(self, edge_path_names,target_color):
+
+        graph_adge_names = nx.get_edge_attributes(self.g, 'name')
+        edges_path=[edge for edge, name in graph_adge_names.items() if name in edge_path_names]
+
+        path_subgraph = self.g.edge_subgraph(edges_path)
+        current_colors = nx.get_edge_attributes(path_subgraph, 'color')
+
+        if target_color == "coral":
+            new_colors = {e: {"color": "coral"} for e, color
+                          in current_colors.items()}
+        else:
+            new_colors = {e: {"color": "blue"} for e, color
+                          in current_colors.items()}
+        nx.set_edge_attributes(self.g, new_colors)
+        # reversing capacities (with negative values) and direction for edges for which we changed color
+        reduced_capacities_dict = nx.get_edge_attributes(path_subgraph, "capacity")
+        new_attributes_dict = {e: {"capacity": -capacity, "label": self.float_precision % -capacity} for e, capacity
+                               in reduced_capacities_dict.items() if current_colors[e]!=target_color}
+        nx.set_edge_attributes(self.g, new_attributes_dict)
+
+        edges_to_reverse=list(new_attributes_dict.keys())
+        path_subgraph_to_reverse = path_subgraph.edge_subgraph(edges_to_reverse)
+        self.g.add_edges_from([(edge[1], edge[0], edge[2]) for edge in path_subgraph_to_reverse.edges(data=True)])
+        self.g.remove_edges_from(edges_to_reverse)
 
     def reverse_blue_edges_in_looppaths(self, constrained_path):
         """
@@ -587,12 +606,131 @@ class OverFlowGraph(PowerFlowGraph):
             hubs_paths = structured_graph.find_loops()[["Source", "Target"]].drop_duplicates()
             n_hub_paths = hubs_paths.shape[0]
 
-        #recolor and reverse blue edges outside of constrained path
-        constrained_path = structured_graph.constrained_path.full_n_constrained_path()
-        self.reverse_blue_edges_in_looppaths(constrained_path)
+        #recolor and reverse blue or red edges outside of constrained or loop paths
+        ambiguous_edge_paths, ambiguous_node_paths = self.identify_ambiguous_paths(structured_graph)
+        for ambiguous_edge_path, ambiguous_node_path in zip(ambiguous_edge_paths, ambiguous_node_paths):
+            path_type=self.desambiguation_type_path(ambiguous_node_path, structured_graph)
+            if path_type=="loop_path":
+                self.reverse_edges(ambiguous_edge_path,target_color="coral")
+            else:
+                self.reverse_edges(ambiguous_edge_path, target_color="blue")
+
+        #not needed anymore as more generic ambiguous path detection and correction above ?
+        #constrained_path = structured_graph.constrained_path.full_n_constrained_path()
+        #self.reverse_blue_edges_in_looppaths(constrained_path)
 
         # consolidate loop paths by recoloring gray edges that are significant enough and within a loop path
         self.consolidate_loop_path(hubs_paths.Source, hubs_paths.Target)
+
+    def identify_ambiguous_paths(self, structured_graph):
+        """
+        Identify ambiguous paths in the structured graph.
+
+        An ambiguous path is one that contains both red and blue edges. These paths need to be desambiguated
+        to determine which color (red or blue) should be kept for further analysis.
+
+        Parameters
+        ----------
+        structured_graph : Structured_Overload_Distribution_Graph
+            A structured graph with identified constrained path, hubs, loop paths.
+
+        Returns
+        -------
+        tuple
+            A tuple containing two lists:
+            - ambiguous_edge_paths: List of lists, where each inner list contains the names of edges in an ambiguous path.
+            - ambiguous_node_paths: List of sets, where each set contains the nodes in an ambiguous path.
+        """
+
+        # Get the graph without gray and constrained edges
+        g_red_blue_ambiguous = structured_graph.g_without_gray_and_c_edge
+
+        # Get the names of the edges in the graph
+        edge_names = nx.get_edge_attributes(structured_graph.g_without_gray_and_c_edge, 'name')
+
+        # Identify lines that are part of the constrained path and dispatch path
+        lines_constrained_path, nodes_constrained_path = structured_graph.get_constrained_edges_nodes()
+        lines_dispatch, nodes_dispatch_path = structured_graph.get_dispatch_edges_nodes()
+
+        # Remove edges that are part of the constrained path or dispatch path from the graph
+        edges_to_remove = [edge for edge, edge_name in edge_names.items() if
+                           edge_name in lines_constrained_path + lines_dispatch]
+        g_red_blue_ambiguous.remove_edges_from(edges_to_remove)
+
+        # Find weakly connected components in the graph
+        weak_comps = nx.weakly_connected_components(g_red_blue_ambiguous)
+
+        # Initialize lists to store ambiguous edge paths and node paths
+        ambiguous_edge_paths = []
+        ambiguous_node_paths = []
+
+        # Iterate over each weakly connected component
+        for c in weak_comps:
+            # If the component has at least two nodes, it is considered ambiguous
+            if len(c) >= 2:
+                #check if two colors
+                comp_colors=np.unique(list(nx.get_edge_attributes(g_red_blue_ambiguous.subgraph(c), "color").values()))
+                if "blue" in comp_colors and "coral" in comp_colors and len(comp_colors)==2:#blue and coral
+                    ambiguous_node_paths.append(c)
+                    # Get the names of the edges in the subgraph of the component
+                    ambiguous_edge_paths.append(list(nx.get_edge_attributes(g_red_blue_ambiguous.subgraph(c), "name").values()))
+
+        return ambiguous_edge_paths, ambiguous_node_paths
+
+    def desambiguation_type_path(self, ambiguous_node_path, structured_graph):
+        """
+        Desambiguates the type of path for ambiguous nodes based on the structured graph.
+
+        This method determines whether the ambiguous path is part of the constrained path or a loop path.
+        It uses the structured graph to identify the nodes and edges that are part of the constrained path
+        and loop paths. Based on this information, it classifies the ambiguous path as either a constrained
+        path or a loop path.
+
+        Parameters
+        ----------
+        ambiguous_node_path : list
+            A list of nodes that are part of an ambiguous path. These nodes need to be classified as either
+            part of the constrained path or a loop path.
+
+        structured_graph : Structured_Overload_Distribution_Graph
+            A structured graph with identified constrained path, hubs, and loop paths.
+
+        Returns
+        -------
+        str
+            A string indicating the type of path: "constrained_path" or "loop_path".
+        """
+        # Get the constrained path object from the structured graph
+        constrained_path_object = structured_graph.constrained_path
+
+        # Get the full list of nodes in the constrained path
+        nodes_constrained_path = constrained_path_object.full_n_constrained_path()
+
+        # Find nodes in the ambiguous path that are also in the constrained path
+        path_nodes_in_c_path = [node for node in ambiguous_node_path if node in nodes_constrained_path]
+
+        # If there are at least two nodes in the ambiguous path that are in the constrained path
+        if len(path_nodes_in_c_path) >= 2:
+            # Get the nodes upstream (amont) and downstream (aval) of the constrained path
+            nodes_amont = constrained_path_object.n_amont()
+            nodes_aval = constrained_path_object.n_aval()
+
+            # Check if the ambiguous path connects to nodes upstream of the constrained path
+            do_path_connect_amont = any([node in nodes_amont for node in path_nodes_in_c_path])
+
+            # Check if the ambiguous path connects to nodes downstream of the constrained path
+            do_path_connect_aval = any([node in nodes_aval for node in path_nodes_in_c_path])
+
+            # If the ambiguous path connects to both upstream and downstream nodes, it is a loop path
+            if do_path_connect_amont and do_path_connect_aval:
+                return "loop_path"
+            else:
+                # Otherwise, it is part of the constrained path
+                return "constrained_path"
+        else:
+            # If there are fewer than two nodes in the ambiguous path that are in the constrained path,
+            # it is classified as a loop path
+            return "loop_path"
 
     def rename_nodes(self,mapping):
         self.g = nx.relabel_nodes(self.g, mapping, copy=True)
@@ -643,10 +781,9 @@ class OverFlowGraph(PowerFlowGraph):
             list of lines that are non connected but that could be reconnected and that we want to highlight if relevant
 
         """
-        self.add_relevant_null_flow_lines(structured_graph, non_connected_lines, target_path="blue_only")
-        self.add_relevant_null_flow_lines(structured_graph,non_connected_lines,target_path="blue_to_red")
         self.add_relevant_null_flow_lines(structured_graph, non_connected_lines, target_path="red_only")
-
+        self.add_relevant_null_flow_lines(structured_graph,non_connected_lines,target_path="blue_to_red")
+        self.add_relevant_null_flow_lines(structured_graph, non_connected_lines, target_path="blue_only")
 
 
     def add_relevant_null_flow_lines(self,structured_graph,non_connected_lines,target_path="blue_to_red"):
@@ -738,6 +875,11 @@ class OverFlowGraph(PowerFlowGraph):
         #color those edges in blue or red
         if target_path=="blue_only":
             edge_attribues_to_set = {edge: {"color": "blue"} for edge in edges_to_keep}
+        elif target_path=="blue_to_red":
+            current_weights = nx.get_edge_attributes(self.g, 'capacity')
+            edge_attribues_to_set = {edge: {"color": "coral"} for edge in edges_to_keep}
+            #mark negative edges as blue
+            edge_attribues_to_set.update({edge: {"color": "blue"} for edge in edges_to_keep if current_weights[edge]<0})
         else:
             edge_attribues_to_set = {edge: {"color": "coral"} for edge in edges_to_keep}
         nx.set_edge_attributes(self.g, edge_attribues_to_set)
@@ -1070,6 +1212,59 @@ class Structured_Overload_Distribution_Graph:
 
     def get_constrained_path(self):
         return self.constrained_path
+
+    def get_constrained_edges_nodes(self):
+        """
+        This function identifies the constrained path within the distribution graph.
+
+        Parameters:
+        g_distribution_graph (Structured_Overload_Distribution_Graph): The structured overload distribution graph.
+
+        Returns:
+        tuple: A tuple containing two lists:
+               - edges_constrained_path: List of edges that are part of the constrained path.
+               - nodes_constrained_path: List of nodes that are part of the constrained path.
+        """
+        constrained_path_object = self.constrained_path#self.find_constrained_path()
+        nodes_constrained_path = constrained_path_object.full_n_constrained_path()
+        edges_constrained_path = []
+
+        edge_names = nx.get_edge_attributes(self.g_init, 'name')
+        edges_constrained_path += [edge_name for edge, edge_name in edge_names.items() if
+                                   edge in constrained_path_object.amont_edges]
+        edges_constrained_path += [edge_name for edge, edge_name in edge_names.items() if
+                                   edge in constrained_path_object.aval_edges]
+
+        if type(constrained_path_object.constrained_edge) is list:
+            edges_constrained_path += [edge_name for edge, edge_name in edge_names.items() if
+                                       edge in constrained_path_object.constrained_edge]
+        else:
+            edges_constrained_path.append([edge_name for edge, edge_name in edge_names.items() if
+                                           edge == constrained_path_object.constrained_edge][0])
+
+        return list(set(edges_constrained_path)), nodes_constrained_path
+
+    def get_dispatch_edges_nodes(self):
+        """
+        This function identifies the dispatch path within the distribution graph.
+
+        Parameters:
+        g_distribution_graph (Structured_Overload_Distribution_Graph): The structured overload distribution graph.
+
+        Returns:
+        tuple: A tuple containing two lists:
+               - lines_redispatch: List of lines that are part of the dispatch path.
+               - list_nodes_dispatch_path: List of nodes that are part of the dispatch path.
+        """
+        list_nodes_dispatch_path = list(set(self.find_loops()["Path"].sum()))
+
+        g_red = self.g_only_red_components
+        edge_names_red = nx.get_edge_attributes(g_red, 'name')
+
+        lines_redispatch = [edge_name for edge, edge_name in edge_names_red.items() if
+                            (edge[0] in list_nodes_dispatch_path) and (edge[1] in list_nodes_dispatch_path)]
+
+        return lines_redispatch, list_nodes_dispatch_path
 
 
 def from_edges_get_nodes(edges, amont_or_aval: str, constrained_edge):
