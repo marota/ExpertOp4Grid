@@ -427,21 +427,13 @@ def test_add_relevant_null_flow_lines():
 
     df_of_g = pd.read_csv(os.path.join(data_folder, "df_of_g_defaut_PSAOL31RONCI_t1.csv"))
 
-    g_over = OverFlowGraph(sim_topo_reduced, ltc, df_of_g)
+    g_over = OverFlowGraph(sim_topo_reduced, ltc, df_of_g,float_precision="%.0f")
 
     with open(os.path.join(data_folder, 'node_name_mapping_defaut_PSAOL31RONCI_t1.json')) as json_file:
         mapping = json.load(json_file)
 
     mapping = {int(key): value for key, value in mapping.items()}
     g_over.rename_nodes(mapping)  # g = nx.relabel_nodes(g_over.g, mapping, copy=True)
-
-    with open(os.path.join(data_folder, 'voltage_levels.json')) as json_file:
-        voltage_levels_dict = json.load(json_file)
-    g_over.set_voltage_level_color(voltage_levels_dict)
-
-    with open(os.path.join(data_folder, 'number_nodal_dict.json')) as json_file:
-        number_nodal_dict = json.load(json_file)
-    g_over.set_electrical_node_number(number_nodal_dict)
 
     # consolidate
     g_distribution_graph = Structured_Overload_Distribution_Graph(g_over.g)
@@ -451,7 +443,10 @@ def test_add_relevant_null_flow_lines():
     # g_over.add_double_edges_null_redispatch()
     g_distribution_graph = Structured_Overload_Distribution_Graph(g_over.g)
 
-    g_over.add_relevant_null_flow_lines_all_paths(g_distribution_graph, non_connected_lines)
+    for i in range(2):#need two iterations to identify CHALOL31LOUHA reconnectable path under contingency "BEON L31CPVAN" at timestep 1 on chronic 28th august
+        g_over.add_relevant_null_flow_lines_all_paths(g_distribution_graph, non_connected_lines)
+        g_distribution_graph = Structured_Overload_Distribution_Graph(g_over.g)
+    #g_over.add_relevant_null_flow_lines_all_paths(g_distribution_graph, non_connected_lines)
 
     color_edges = list(nx.get_edge_attributes(g_over.g, 'color').values())
     line_names = list(nx.get_edge_attributes(g_over.g, 'name').values())
@@ -463,15 +458,13 @@ def test_add_relevant_null_flow_lines():
         print(line)
         assert(len(set([color for color, line_name in zip(color_edges, line_names) if line_name == line]).intersection(significant_colors))>=1)
 
-    g_distribution_graph = Structured_Overload_Distribution_Graph(g_over.g)
-    hubs=g_distribution_graph.hubs
+    #g_distribution_graph = Structured_Overload_Distribution_Graph(g_over.g)
+    hubs=g_distribution_graph.get_hubs()
 
     new_hubs_to_test=["CPVANP6","CHALOP6","GROSNP6"]
     n_new_hubs=len(new_hubs_to_test)
 
     assert(n_new_hubs==len(set(new_hubs_to_test).intersection(set(hubs))))
-    print("ok")
-    #g_distribution_graph = Structured_Overload_Distribution_Graph(g_over.g)
 
 def test_add_relevant_null_flow_lines_blue_path():
     config = configparser.ConfigParser()
