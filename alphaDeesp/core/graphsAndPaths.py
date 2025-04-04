@@ -766,7 +766,7 @@ class OverFlowGraph(PowerFlowGraph):
         assert(set(edges_to_double_name_dict.keys())==set(edges_added_name_dict.keys()))
         return edges_to_double_name_dict,edges_added_name_dict
 
-    def add_relevant_null_flow_lines_all_paths(self, structured_graph, non_connected_lines):
+    def add_relevant_null_flow_lines_all_paths(self, structured_graph, non_connected_lines,non_reconnectable_lines=[]):
         """
         Make edges bi-directionnal when flow redispatch value is null
 
@@ -781,12 +781,12 @@ class OverFlowGraph(PowerFlowGraph):
             list of lines that are non connected but that could be reconnected and that we want to highlight if relevant
 
         """
-        self.add_relevant_null_flow_lines(structured_graph, non_connected_lines, target_path="red_only")
-        self.add_relevant_null_flow_lines(structured_graph,non_connected_lines,target_path="blue_to_red")
-        self.add_relevant_null_flow_lines(structured_graph, non_connected_lines, target_path="blue_only")
+        self.add_relevant_null_flow_lines(structured_graph, non_connected_lines,non_reconnectable_lines, target_path="red_only")
+        self.add_relevant_null_flow_lines(structured_graph,non_connected_lines,non_reconnectable_lines,target_path="blue_to_red")
+        self.add_relevant_null_flow_lines(structured_graph, non_connected_lines,non_reconnectable_lines, target_path="blue_only")
 
 
-    def add_relevant_null_flow_lines(self,structured_graph,non_connected_lines,target_path="blue_to_red"):
+    def add_relevant_null_flow_lines(self,structured_graph,non_connected_lines,non_reconnectable_lines=[],target_path="blue_to_red"):
         """
         Make edges bi-directionnal when flow redispatch value is null, recolor the relevant ones that could be of interest
         for analyzing the problem or solving it, and get back to initial edges for the other
@@ -803,12 +803,19 @@ class OverFlowGraph(PowerFlowGraph):
 
         target_path: ``str``
             target path on which to highlight disconnected lines. either blue_only, red_only, blue_to_red
+
+        non_connected_lines: ``array``
+            list of lines that are non connected and cannot be reconnected
         """
         edges_to_double, edges_double_added=self.add_double_edges_null_redispatch()#making null flow redispatch lines bidirectionnal
+
+        non_connected_lines=list(set(non_connected_lines+non_reconnectable_lines))#make sure we consider them all in the first place, and differentiate their case after
 
         edge_names = nx.get_edge_attributes(self.g, 'name')
         edges_non_connected_lines = set(
             [edge for edge, edge_name in edge_names.items() if edge_name in non_connected_lines])
+
+        edges_non_reconnectable_lines= set([edge for edge, edge_name in edge_names.items() if edge_name in non_reconnectable_lines])
 
         # detect connected components for gray edges among which we will try to detect
         # some non_connected_lines of interest, that link constrained path and loop paths
@@ -882,16 +889,27 @@ class OverFlowGraph(PowerFlowGraph):
             edge_attribues_to_set.update({edge: {"color": "blue"} for edge in edges_to_keep if current_weights[edge]<0})
         else:
             edge_attribues_to_set = {edge: {"color": "coral"} for edge in edges_to_keep}
+
+        #make special case for non reconnectable lines
+        edge_attribues_to_set.update({edge: {"color": "dimgray"} for edge in edges_non_reconnectable_lines if edge in edges_to_keep})
+
         nx.set_edge_attributes(self.g, edge_attribues_to_set)
 
         # represent null-flow edges with new colors as dashed lines
         edges_non_connected_lines_displayed=edges_to_keep.intersection(edges_non_connected_lines)
         edge_attribues_to_set = {edge: {"style": "dashed"} for edge in edges_non_connected_lines_displayed}
+        # make special case for non reconnectable lines
+        edge_attribues_to_set.update(
+            {edge: {"style": "dotted"} for edge in edges_non_reconnectable_lines if edge in edges_to_keep})
+
         nx.set_edge_attributes(self.g, edge_attribues_to_set)
+
+        #also make no direction for non reconnetable edges
+        edge_dirs = {edge: "none" for edge in edges_non_reconnectable_lines if edge in edges_to_keep}
+        nx.set_edge_attributes(self.g, edge_dirs, "dir")
 
         #remove added double edges not used
         self.remove_unused_added_double_edge(edges_to_keep,edges_to_double, edges_double_added)
-
 
     def detect_edges_to_keep(self,g_c, source_nodes, target_nodes, edges_of_interest):
         """
@@ -1032,7 +1050,8 @@ class Structured_Overload_Distribution_Graph:
         """
         self.g_init=g
         self.g_without_pos_edges = delete_color_edges(self.g_init, "coral") #graph without loop path that have positive/red-coloured weight edges
-        self.g_only_blue_components = delete_color_edges(self.g_without_pos_edges, "gray") #graph with only negative/blue-coloured weight edges
+        self.g_only_blue_components = delete_color_edges(self.g_without_pos_edges, "gray")
+        self.g_only_blue_components = delete_color_edges(self.g_only_blue_components, "dimgray")#also delete those edges of non reconnectable lines that we would want to visualize but is not an operational path in the structured path
         self.g_without_constrained_edge = delete_color_edges(self.g_init, "black")
         self.g_without_gray_and_c_edge = delete_color_edges(self.g_without_constrained_edge, "gray")
         self.g_only_red_components = delete_color_edges(self.g_without_gray_and_c_edge, "blue")#graph with only loop path that have positive/red-coloured weight edges
