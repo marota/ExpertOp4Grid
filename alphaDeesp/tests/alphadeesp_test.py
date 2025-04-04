@@ -404,7 +404,7 @@ def test_identify_ambiguous_paths_and_type_2():
     path_type=g_over.desambiguation_type_path(expected_ambiguous_node_path, g_distribution_graph)
     assert(path_type=="loop_path")
 
-def test_add_relevant_null_flow_lines():
+def test_add_relevant_null_flow_lines(non_reconnectable_lines=[]):
     #vérifier le path GROSNP6, ZJOUXP6, BOISSP6, GEN.PP6 avec BOISSP6 seeulement en pointillé
     #Path CHALOP3 -> LOUHAP3
     #Path CPVANP6 PYMONP6 VOUGLP6 PYMONP3
@@ -444,7 +444,7 @@ def test_add_relevant_null_flow_lines():
     g_distribution_graph = Structured_Overload_Distribution_Graph(g_over.g)
 
     for i in range(2):#need two iterations to identify CHALOL31LOUHA reconnectable path under contingency "BEON L31CPVAN" at timestep 1 on chronic 28th august
-        g_over.add_relevant_null_flow_lines_all_paths(g_distribution_graph, non_connected_lines)
+        g_over.add_relevant_null_flow_lines_all_paths(g_distribution_graph, non_connected_lines,non_reconnectable_lines)
         g_distribution_graph = Structured_Overload_Distribution_Graph(g_over.g)
     #g_over.add_relevant_null_flow_lines_all_paths(g_distribution_graph, non_connected_lines)
 
@@ -455,7 +455,6 @@ def test_add_relevant_null_flow_lines():
 
     significant_colors=set(["blue","coral"])#have we highlighted those lines on significant paths ?
     for line in line_tests:
-        print(line)
         assert(len(set([color for color, line_name in zip(color_edges, line_names) if line_name == line]).intersection(significant_colors))>=1)
 
     #g_distribution_graph = Structured_Overload_Distribution_Graph(g_over.g)
@@ -465,6 +464,71 @@ def test_add_relevant_null_flow_lines():
     n_new_hubs=len(new_hubs_to_test)
 
     assert(n_new_hubs==len(set(new_hubs_to_test).intersection(set(hubs))))
+
+def test_add_relevant_null_flow_lines_non_reconnectables_lines():
+    #vérifier le path GROSNP6, ZJOUXP6, BOISSP6, GEN.PP6 avec BOISSP6 seeulement en pointillé
+    #Path CHALOP3 -> LOUHAP3
+    #Path CPVANP6 PYMONP6 VOUGLP6 PYMONP3
+
+    config = configparser.ConfigParser()
+    config.read("./alphaDeesp/tests/resources_for_tests_grid2op/config_for_tests.ini")
+
+    data_folder = "./alphaDeesp/tests/ressources_for_tests/data_graph_consolidation/defaut_PSAOL31RONCI"
+
+    timestep = 1  # 1#36
+    line_defaut = "P.SAOL31RONCI"
+    ltc = [9]
+
+    non_connected_lines = ['BOISSL61GEN.P', 'CHALOL31LOUHA', 'CRENEL71VIELM', 'CURTIL61ZCUR5', 'GEN.PL73VIELM',
+                           'P.SAOL31RONCI',
+                           'PYMONL61VOUGL', 'BUGEYY715', 'CPVANY632', 'GEN.PY762', 'PYMONY632']
+    non_reconnectable_lines =  ['CRENEL71VIELM', 'GEN.PL73VIELM', 'PYMONL61VOUGL', 'CPVANY632', 'PYMONY632']
+
+    with open(os.path.join(data_folder, 'sim_topo_zone_dijon_defaut_PSAOL31RONCI_t1.json')) as json_file:
+        sim_topo_reduced = json.load(json_file)
+
+    df_of_g = pd.read_csv(os.path.join(data_folder, "df_of_g_defaut_PSAOL31RONCI_t1.csv"))
+
+    g_over = OverFlowGraph(sim_topo_reduced, ltc, df_of_g,float_precision="%.0f")
+
+    with open(os.path.join(data_folder, 'node_name_mapping_defaut_PSAOL31RONCI_t1.json')) as json_file:
+        mapping = json.load(json_file)
+
+    mapping = {int(key): value for key, value in mapping.items()}
+    g_over.rename_nodes(mapping)  # g = nx.relabel_nodes(g_over.g, mapping, copy=True)
+
+    # consolidate
+    g_distribution_graph = Structured_Overload_Distribution_Graph(g_over.g)
+
+    g_over.consolidate_graph(g_distribution_graph)
+
+    # g_over.add_double_edges_null_redispatch()
+    g_distribution_graph = Structured_Overload_Distribution_Graph(g_over.g)
+
+    for i in range(2):#need two iterations to identify CHALOL31LOUHA reconnectable path under contingency "BEON L31CPVAN" at timestep 1 on chronic 28th august
+        g_over.add_relevant_null_flow_lines_all_paths(g_distribution_graph, non_connected_lines,non_reconnectable_lines)
+        g_distribution_graph = Structured_Overload_Distribution_Graph(g_over.g)
+    #g_over.add_relevant_null_flow_lines_all_paths(g_distribution_graph, non_connected_lines)
+
+    color_edges = nx.get_edge_attributes(g_over.g, 'color')
+    style_edges = nx.get_edge_attributes(g_over.g, 'style')
+    dir_edges = nx.get_edge_attributes(g_over.g, 'dir')
+    line_names = nx.get_edge_attributes(g_over.g, 'name')
+
+    line_tests=['GEN.PL73VIELM', 'PYMONL61VOUGL', 'CPVANY632', 'PYMONY632']#'CRENEL71VIELM',
+
+    #color dimgray and style dotted
+    for line in line_tests:
+        line_edge=[edge for edge, line_name in line_names.items() if line_name == line][0]
+        assert(color_edges[line_edge]=="dimgray")
+        assert (style_edges[line_edge] == "dotted")
+        assert (dir_edges[line_edge] == "none")
+
+    line_on_non_reconnectable_path='CPVANL61PYMON'
+    line_edge = [edge for edge, line_name in line_names.items() if line_name == line_on_non_reconnectable_path][0]
+    assert(color_edges[line_edge] == "dimgray")
+    assert ((line_edge not in style_edges ) or (style_edges[line_edge] == "solid"))
+
 
 def test_add_relevant_null_flow_lines_blue_path():
     config = configparser.ConfigParser()
