@@ -829,6 +829,7 @@ class OverFlowGraph(PowerFlowGraph):
 
         #recover possible target and source nodes on constrained paths and loop paths
         edges_to_keep = set()
+        edges_non_reconnectable=set()
         node_red_paths = set(structured_graph.red_loops.Path.sum())
         node_amont_constrained_path = structured_graph.constrained_path.n_amont()
         node_aval_constrained_path = structured_graph.constrained_path.n_aval()
@@ -843,17 +844,20 @@ class OverFlowGraph(PowerFlowGraph):
 
                 #only look at edges that connect "amont" path on one side "aval" path on the other side.
                 #edges that would connect "amont" and "aval" path should be rather considered as a new loop path and tagged blue
-                edges_to_keep.update(
-                    self.detect_edges_to_keep(g_c, intersect_constrained_path_amont, intersect_constrained_path_amont, edges_non_connected_lines))
+                edges_to_keep_path, edges_non_reconnectable_path=self.detect_edges_to_keep(g_c, intersect_constrained_path_amont, intersect_constrained_path_amont, edges_non_connected_lines,edges_non_reconnectable_lines)
+                edges_to_keep.update(edges_to_keep_path)
+                edges_non_reconnectable.update(edges_non_reconnectable_path)
 
-                edges_to_keep.update(
-                    self.detect_edges_to_keep(g_c, intersect_constrained_path_aval, intersect_constrained_path_aval, edges_non_connected_lines))
-
+                edges_to_keep_path, edges_non_reconnectable_path=self.detect_edges_to_keep(g_c, intersect_constrained_path_aval, intersect_constrained_path_aval, edges_non_connected_lines,edges_non_reconnectable_lines)
+                edges_to_keep.update(edges_to_keep_path)
+                edges_non_reconnectable.update(edges_non_reconnectable_path)
 
             # detect new edges with null-flow to highlight on red paths
             elif target_path=="red_only":
                 intersect_red_path = set(g_c).intersection(set(node_red_paths))
-                edges_to_keep.update(self.detect_edges_to_keep(g_c, intersect_red_path, intersect_red_path, edges_non_connected_lines))
+                edges_to_keep_path, edges_non_reconnectable_path=self.detect_edges_to_keep(g_c, intersect_red_path, intersect_red_path, edges_non_connected_lines,edges_non_reconnectable_lines)
+                edges_to_keep.update(edges_to_keep_path)
+                edges_non_reconnectable.update(edges_non_reconnectable_path)
 
             # detect new edges with null-flow to highlight in between constrained path and red paths
             elif target_path=="blue_to_red":
@@ -864,19 +868,24 @@ class OverFlowGraph(PowerFlowGraph):
 
                 # look for edges from constrained path ("amont", before the constraint) to red_path
                 if len(intersect_constrained_path_amont) != 0:
-                    edges_to_keep.update(self.detect_edges_to_keep(g_c, intersect_constrained_path_amont, intersect_red_path,
-                                                              edges_non_connected_lines))
+                    edges_to_keep_path, edges_non_reconnectable_path=self.detect_edges_to_keep(g_c, intersect_constrained_path_amont, intersect_red_path,
+                                                              edges_non_connected_lines,edges_non_reconnectable_lines)
+                    edges_to_keep.update(edges_to_keep_path)
+                    edges_non_reconnectable.update(edges_non_reconnectable_path)
                 # look for edges from red_path to constrained path ("aval", after the constraint)
                 if len(intersect_constrained_path_aval) != 0:
-                    edges_to_keep.update(
-                        self.detect_edges_to_keep(g_c, intersect_red_path, intersect_constrained_path_aval,
-                                             edges_non_connected_lines))
+                    edges_to_keep_path, edges_non_reconnectable_path =self.detect_edges_to_keep(g_c, intersect_red_path, intersect_constrained_path_aval,
+                                             edges_non_connected_lines,edges_non_reconnectable_lines)
+                    edges_to_keep.update(edges_to_keep_path)
+                    edges_non_reconnectable.update(edges_non_reconnectable_path)
+
 
                 #look for a new loop path that could exist with disconnected lines
                 if len(intersect_constrained_path_amont)!=0 and len(intersect_constrained_path_aval) != 0:
-                    edges_to_keep.update(
-                        self.detect_edges_to_keep(g_c, intersect_constrained_path_amont, intersect_constrained_path_aval,
-                                                  edges_non_connected_lines))
+                    edges_to_keep_path, edges_non_reconnectable_path=self.detect_edges_to_keep(g_c, intersect_constrained_path_amont, intersect_constrained_path_aval,
+                                                  edges_non_connected_lines,edges_non_reconnectable_lines)
+                    edges_to_keep.update(edges_to_keep_path)
+                    edges_non_reconnectable.update(edges_non_reconnectable_path)
 
 
         #color those edges in blue or red
@@ -891,7 +900,7 @@ class OverFlowGraph(PowerFlowGraph):
             edge_attribues_to_set = {edge: {"color": "coral"} for edge in edges_to_keep}
 
         #make special case for non reconnectable lines
-        edge_attribues_to_set.update({edge: {"color": "dimgray"} for edge in edges_non_reconnectable_lines if edge in edges_to_keep})
+        edge_attribues_to_set.update({edge: {"color": "dimgray"} for edge in edges_non_reconnectable})
 
         nx.set_edge_attributes(self.g, edge_attribues_to_set)
 
@@ -899,19 +908,20 @@ class OverFlowGraph(PowerFlowGraph):
         edges_non_connected_lines_displayed=edges_to_keep.intersection(edges_non_connected_lines)
         edge_attribues_to_set = {edge: {"style": "dashed"} for edge in edges_non_connected_lines_displayed}
         # make special case for non reconnectable lines
+        edges_non_reconnectable_lines_displayed = edges_non_reconnectable.intersection(edges_non_reconnectable_lines)
         edge_attribues_to_set.update(
-            {edge: {"style": "dotted"} for edge in edges_non_reconnectable_lines if edge in edges_to_keep})
+            {edge: {"style": "dotted"} for edge in edges_non_reconnectable_lines_displayed})#only for actually disconnected lines
 
         nx.set_edge_attributes(self.g, edge_attribues_to_set)
 
         #also make no direction for non reconnetable edges
-        edge_dirs = {edge: "none" for edge in edges_non_reconnectable_lines if edge in edges_to_keep}
+        edge_dirs = {edge: "none" for edge in edges_non_reconnectable}
         nx.set_edge_attributes(self.g, edge_dirs, "dir")
 
         #remove added double edges not used
         self.remove_unused_added_double_edge(edges_to_keep,edges_to_double, edges_double_added)
 
-    def detect_edges_to_keep(self,g_c, source_nodes, target_nodes, edges_of_interest):
+    def detect_edges_to_keep(self,g_c, source_nodes, target_nodes, edges_of_interest,non_reconnectable_edges=[]):
         """
         detect edges in edges of interest that belongs to gthe subgraph and are on a path between source nodes and target nodes
 
@@ -933,15 +943,19 @@ class OverFlowGraph(PowerFlowGraph):
         res: ``set`` str
             set of edges of interest found on paths and to be recoloured
         """
-        edges_to_keep = []
+        edges_to_keep_reconnectable = []
+        edges_to_keep_non_reconnectable=[]
         for source_node in source_nodes:
             for target_node in target_nodes:
 
                 edge_paths = list(nx.all_simple_edge_paths(g_c, source=source_node, target=target_node))
                 for path in edge_paths:
                     if len(set(path).intersection(set(edges_of_interest))) != 0:
-                        edges_to_keep += path
-        return set(edges_to_keep)
+                        if len(set(path).intersection(set(non_reconnectable_edges))) != 0:
+                            edges_to_keep_non_reconnectable += path
+                        else:
+                            edges_to_keep_reconnectable += path
+        return set(edges_to_keep_reconnectable),set(edges_to_keep_non_reconnectable)
 
     def remove_unused_added_double_edge(self, edges_to_keep, edges_to_double, edges_double_added):
 
@@ -1052,8 +1066,10 @@ class Structured_Overload_Distribution_Graph:
         self.g_without_pos_edges = delete_color_edges(self.g_init, "coral") #graph without loop path that have positive/red-coloured weight edges
         self.g_only_blue_components = delete_color_edges(self.g_without_pos_edges, "gray")
         self.g_only_blue_components = delete_color_edges(self.g_only_blue_components, "dimgray")#also delete those edges of non reconnectable lines that we would want to visualize but is not an operational path in the structured path
+
         self.g_without_constrained_edge = delete_color_edges(self.g_init, "black")
         self.g_without_gray_and_c_edge = delete_color_edges(self.g_without_constrained_edge, "gray")
+        self.g_without_gray_and_c_edge = delete_color_edges(self.g_without_gray_and_c_edge, "dimgray")
         self.g_only_red_components = delete_color_edges(self.g_without_gray_and_c_edge, "blue")#graph with only loop path that have positive/red-coloured weight edges
 
         self.constrained_path= self.find_constrained_path() #constrained path that contains the constrained edges and their connected component of blue edges
