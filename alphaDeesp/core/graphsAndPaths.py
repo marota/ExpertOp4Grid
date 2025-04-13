@@ -830,7 +830,9 @@ class OverFlowGraph(PowerFlowGraph):
         #recover possible target and source nodes on constrained paths and loop paths
         edges_to_keep = set()
         edges_non_reconnectable=set()
-        node_red_paths = set(structured_graph.red_loops.Path.sum())
+        node_red_paths=[]
+        if structured_graph.red_loops.Path.shape[0]!=0:
+            node_red_paths = set(structured_graph.red_loops.Path.sum())
         node_amont_constrained_path = structured_graph.constrained_path.n_amont()
         node_aval_constrained_path = structured_graph.constrained_path.n_aval()
 
@@ -1291,13 +1293,17 @@ class Structured_Overload_Distribution_Graph:
                - lines_redispatch: List of lines that are part of the dispatch path.
                - list_nodes_dispatch_path: List of nodes that are part of the dispatch path.
         """
-        list_nodes_dispatch_path = list(set(self.find_loops()["Path"].sum()))
-
+        lines_redispatch=[]
+        list_nodes_dispatch_path=[]
         g_red = self.g_only_red_components
-        edge_names_red = nx.get_edge_attributes(g_red, 'name')
+        if len(g_red.nodes)!=0 and self.find_loops()["Path"].shape[0]!=0:
+            list_nodes_dispatch_path = list(set(self.find_loops()["Path"].sum()))
 
-        lines_redispatch = [edge_name for edge, edge_name in edge_names_red.items() if
-                            (edge[0] in list_nodes_dispatch_path) and (edge[1] in list_nodes_dispatch_path)]
+            edge_names_red = nx.get_edge_attributes(g_red, 'name')
+
+            lines_redispatch = [edge_name for edge, edge_name in edge_names_red.items() if
+                                (edge[0] in list_nodes_dispatch_path) and (edge[1] in list_nodes_dispatch_path)]
+
 
         return lines_redispatch, list_nodes_dispatch_path
 
