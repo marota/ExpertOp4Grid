@@ -727,6 +727,8 @@ class OverFlowGraph(PowerFlowGraph):
             else:
                 # Otherwise, it is part of the constrained path
                 return "constrained_path"
+        elif len(path_nodes_in_c_path)==1:#if the edge connected to the constrained path is red, hence other further are blue, we can consider it to belong to the constrained path rather
+            return "constrained_path"
         else:
             # If there are fewer than two nodes in the ambiguous path that are in the constrained path,
             # it is classified as a loop path
