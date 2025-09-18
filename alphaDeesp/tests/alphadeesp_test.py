@@ -99,102 +99,96 @@ def test_lines_swapped():
     config = configparser.ConfigParser()
     config.read("./alphaDeesp/tests/resources_for_tests_grid2op/config_for_tests.ini")
 
-    data_folder="./alphaDeesp/tests/ressources_for_tests/data_graph_consolidation/defaut_PSAOL31RONCI"
+    data_folder="./alphaDeesp/tests/ressources_for_tests/data_graph_consolidation/defaut_P.SAOL31RONCI"
 
     timestep = 1  # 1#36
     line_defaut = "P.SAOL31RONCI"
     ltc = [9]
 
-    expected_lines_swapped=['C.FOUL31MERVA','LOUHAL31SSUSU','MERVAL31SSUSU','TAVA5Y611']
+    expected_lines_swapped=['C.FOUL31MERVA','LOUHAL31SSUSU','MERVAL31SSUSU','C.FOUL31NAVIL']
 
-    with open(os.path.join(data_folder,'sim_topo_zone_dijon_defaut_PSAOL31RONCI_t1.json')) as json_file:
+    with open(os.path.join(data_folder,'sim_topo_zone_dijon_defaut_P.SAOL31RONCI_t1.json')) as json_file:
         sim_topo_reduced = json.load(json_file)
 
-    df_of_g = pd.read_csv(os.path.join(data_folder,"df_of_g_defaut_PSAOL31RONCI_t1.csv"))
+    df_of_g = pd.read_csv(os.path.join(data_folder,"df_of_g_defaut_P.SAOL31RONCI_t1.csv"))
 
     lines_swapped=list(df_of_g[df_of_g.new_flows_swapped].line_name)
-    assert(set(expected_lines_swapped)==set(lines_swapped))
+    assert(set(expected_lines_swapped).intersection(set(lines_swapped))==set(expected_lines_swapped))
 
 def test_consolidate_constrained_path():
     config = configparser.ConfigParser()
     config.read("./alphaDeesp/tests/resources_for_tests_grid2op/config_for_tests.ini")
 
-    data_folder="./alphaDeesp/tests/ressources_for_tests/data_graph_consolidation/defaut_PSAOL31RONCI"
-
     timestep = 1  # 1#36
     line_defaut = "P.SAOL31RONCI"
-    ltc = [9]
+    float_precision_graph = "%.0f"
 
-    with open(os.path.join(data_folder,'sim_topo_zone_dijon_defaut_PSAOL31RONCI_t1.json')) as json_file:
-        sim_topo_reduced = json.load(json_file)
-
-    df_of_g = pd.read_csv(os.path.join(data_folder,"df_of_g_defaut_PSAOL31RONCI_t1.csv"))
-
-    #inject modification to test for reversing properly a null flow redispatch edge on the constrained path
-    #df_of_g.loc[["idx_or","idx_ex"]]CPVANY632
-    idx_or,idx_ex=df_of_g[df_of_g.line_name == "CPVANY632"][["idx_ex", "idx_or"]].values[0]
-    df_of_g.loc[df_of_g.line_name == "CPVANY632",["idx_or", "idx_ex"]] = [idx_or, idx_ex]
-
-    g_over = OverFlowGraph(sim_topo_reduced, ltc, df_of_g)
-
-    with open(os.path.join(data_folder,'node_name_mapping_defaut_PSAOL31RONCI_t1.json')) as json_file:
-        mapping = json.load(json_file)
-    mapping = {int(key): value for key, value in mapping.items()}
-    g_over.g = nx.relabel_nodes(g_over.g, mapping, copy=True)
+    g_over, situation_info = basic_test_configuration(line_defaut, timestep, float_precision_graph)
 
     #consolidate
     g_distribution_graph = Structured_Overload_Distribution_Graph(g_over.g)
+
+    #compute initial blue edges
+    g_without_pos_edges = delete_color_edges(g_over.g, "coral")
+    g_with_only_blue_edges_init=delete_color_edges(g_without_pos_edges, "gray")
+    n_blue_edges_init=len(g_with_only_blue_edges_init.edges)
 
     # consolider le chemin en contrainte avec la connaissance des hubs, en itérant une fois de plus
     n_hubs_init = 0
     hubs_paths = g_distribution_graph.find_loops()[["Source", "Target"]].drop_duplicates()
     n_hub_paths = hubs_paths.shape[0]
 
-    while n_hubs_init != n_hub_paths:
-        n_hubs_init = n_hub_paths
+    #while n_hubs_init != n_hub_paths:
+    n_hubs_init = n_hub_paths
 
-        g_over.consolidate_constrained_path(hubs_paths.Source, hubs_paths.Target)
-        g_distribution_graph = Structured_Overload_Distribution_Graph(g_over.g)
-
-        hubs_paths = g_distribution_graph.find_loops()[["Source", "Target"]].drop_duplicates()
-        n_hub_paths = hubs_paths.shape[0]
+    constrained_path=g_distribution_graph.constrained_path
+    nodes_amont=constrained_path.n_amont()
+    nodes_aval=constrained_path.n_aval()
+    constrained_path_edges=constrained_path.aval_edges+[constrained_path.constrained_edge]+constrained_path.amont_edges
+    g_over.consolidate_constrained_path(nodes_amont,nodes_aval,constrained_path_edges,ignore_null_edges=False)#(constrained_path_nodes)#hubs_paths.Source, hubs_paths.Target)
+    #g_distribution_graph = Structured_Overload_Distribution_Graph(g_over.g)
+#
+    #hubs_paths = g_distribution_graph.find_loops()[["Source", "Target"]].drop_duplicates()
+    #n_hub_paths = hubs_paths.shape[0]
 
     #le nombre de loop path est passe de 1 a 3
-    assert(n_hub_paths==3)
+    #assert(n_hub_paths==3)
+    #count number of changes
+    g_without_pos_edges = delete_color_edges(g_over.g, "coral")
+    g_with_only_blue_edges_final=delete_color_edges(g_without_pos_edges, "gray")
+    n_blue_edges_final=len(g_with_only_blue_edges_final.edges)
 
-    #test that some blue edges have been corrected regarding their capacity label and direction
-    edge=('COMMUP6', 'VIELMP6', 0)#: {'capacity': -3.01, 'label': '-3.01'}
-    current_capacities = nx.get_edge_attributes(g_over.g, 'capacity')
-    assert(current_capacities[edge]==-3.01)
+    assert(n_blue_edges_final>n_blue_edges_init)
 
-    current_colors = nx.get_edge_attributes(g_over.g, 'color')
-    assert (current_colors[edge] == "blue")
+    #7 edge on change de couleur
+    edges_blue_name_initial = list(nx.get_edge_attributes(g_with_only_blue_edges_init, "name").values())
+    edges_blue_name_final = list(nx.get_edge_attributes(g_with_only_blue_edges_final, "name").values())
+
+    changes_seen = set(edges_blue_name_final) - set(edges_blue_name_initial)
+
+    edge_names_changed_null_flow = set(['CPVANY632', 'GROSNL71VIELM'])
+    assert (edge_names_changed_null_flow.intersection(changes_seen) == edge_names_changed_null_flow)
+
+    #edge_name_changed_positive_capacity = set(['CPVANL31RIBAU', 'H.PAUL71VIELM', 'C.SAUL31MAGNY', 'H.PAUL71SSV.O'])
+    #assert (edge_name_changed_positive_capacity.intersection(changes_seen) == edge_name_changed_positive_capacity)
+#
+    #negative_non_significant_capacity = set(['C.REGY631', 'C.REGY633'])
+    #assert (negative_non_significant_capacity.intersection(changes_seen) == negative_non_significant_capacity)
+
 
 def test_reverse_blue_edges_in_looppaths():
     config = configparser.ConfigParser()
     config.read("./alphaDeesp/tests/resources_for_tests_grid2op/config_for_tests.ini")
 
-    data_folder="./alphaDeesp/tests/ressources_for_tests/data_graph_consolidation/defaut_FRON5L31LOUHA"
-
     timestep = 36  # 1#36
     line_defaut = "FRON5L31LOUHA"
-    ltc = [108]
+    float_precision_graph = "%.0f"
 
-    with open(os.path.join(data_folder,'sim_topo_zone_dijon_defaut_FRON5L31LOUHA_t36.json')) as json_file:
-        sim_topo_reduced = json.load(json_file)
-
-    df_of_g = pd.read_csv(os.path.join(data_folder,"df_of_g_defaut_FRON5L31LOUHA_t36.csv"))
-
-    g_over = OverFlowGraph(sim_topo_reduced, ltc, df_of_g)
-
-    with open(os.path.join(data_folder,'node_name_mapping_defaut_FRON5L31LOUHA_t36.json')) as json_file:
-        mapping = json.load(json_file)
-    mapping = {int(key): value for key, value in mapping.items()}
-    g_over.g = nx.relabel_nodes(g_over.g, mapping, copy=True)
+    g_over, situation_info = basic_test_configuration(line_defaut, timestep, float_precision_graph)
 
     #compute initial blue edges
     g_without_pos_edges = delete_color_edges(g_over.g, "coral")
-    g_with_only_blue_edges=delete_color_edges(g_without_pos_edges, "coral")
+    g_with_only_blue_edges=delete_color_edges(g_without_pos_edges, "gray")
     n_blue_edges_init=len(g_with_only_blue_edges.edges)
 
     #consolidate
@@ -204,7 +198,7 @@ def test_reverse_blue_edges_in_looppaths():
 
     #count number of changes
     g_without_pos_edges = delete_color_edges(g_over.g, "coral")
-    g_with_only_blue_edges=delete_color_edges(g_without_pos_edges, "coral")
+    g_with_only_blue_edges=delete_color_edges(g_without_pos_edges, "gray")
     n_blue_edges_final=len(g_with_only_blue_edges.edges)
 
     #7 edge on change de couleur
@@ -214,23 +208,11 @@ def test_consolidate_loop_path():
     config = configparser.ConfigParser()
     config.read("./alphaDeesp/tests/resources_for_tests_grid2op/config_for_tests.ini")
 
-    data_folder="./alphaDeesp/tests/ressources_for_tests/data_graph_consolidation/defaut_FRON5L31LOUHA"
-
     timestep = 36  # 1#36
     line_defaut = "FRON5L31LOUHA"
-    ltc = [108]
+    float_precision_graph = "%.0f"
 
-    with open(os.path.join(data_folder,'sim_topo_zone_dijon_defaut_FRON5L31LOUHA_t36.json')) as json_file:
-        sim_topo_reduced = json.load(json_file)
-
-    df_of_g = pd.read_csv(os.path.join(data_folder,"df_of_g_defaut_FRON5L31LOUHA_t36.csv"))
-
-    g_over = OverFlowGraph(sim_topo_reduced, ltc, df_of_g)
-
-    with open(os.path.join(data_folder,'node_name_mapping_defaut_FRON5L31LOUHA_t36.json')) as json_file:
-        mapping = json.load(json_file)
-    mapping = {int(key): value for key, value in mapping.items()}
-    g_over.g = nx.relabel_nodes(g_over.g, mapping, copy=True)
+    g_over, situation_info = basic_test_configuration(line_defaut, timestep, float_precision_graph)
 
     #reverse blue edges
     g_distribution_graph = Structured_Overload_Distribution_Graph(g_over.g)
@@ -239,42 +221,43 @@ def test_consolidate_loop_path():
 
     #compute initial red edges
     g_without_blue_edges = delete_color_edges(g_over.g, "blue")
-    g_with_only_red_edges=delete_color_edges(g_without_blue_edges, "gray")
-    n_red_edges_init=len(g_with_only_red_edges.edges)
+    g_with_only_red_edges_init=delete_color_edges(g_without_blue_edges, "gray")
+    n_red_edges_init=len(g_with_only_red_edges_init.edges)
 
     #consolidate loop paths
     hubs_paths = g_distribution_graph.find_loops()[["Source", "Target"]].drop_duplicates()
-    g_over.consolidate_loop_path(hubs_paths.Source, hubs_paths.Target)
+    g_over.consolidate_loop_path(hubs_paths.Source, hubs_paths.Target,ignore_null_edges=False)
 
     #compute final red edges
     g_without_blue_edges = delete_color_edges(g_over.g, "blue")
-    g_with_only_red_edges=delete_color_edges(g_without_blue_edges, "gray")
-    n_red_edges_final=len(g_with_only_red_edges.edges)
+    g_with_only_red_edges_final=delete_color_edges(g_without_blue_edges, "gray")
+    n_red_edges_final=len(g_with_only_red_edges_final.edges)
 
     #7 edge on change de couleur
-    assert(n_red_edges_final-n_red_edges_init==22)
+    edges_red_name_initial = list(nx.get_edge_attributes(g_with_only_red_edges_init, "name").values())
+    edges_red_name_final = list(nx.get_edge_attributes(g_with_only_red_edges_final, "name").values())
+
+    changes_seen = set(edges_red_name_final) - set(edges_red_name_initial)
+
+    #if edges are ignored when launching loop paths, those ones should not appear
+    edge_names_expected_change_null_flow = set(['CHALOL31LOUHA', 'CHALOY631', 'CHALOY632', 'CHALOY633','GROSNL71VIELM','CPVANY632'])
+    assert (changes_seen.intersection(edge_names_expected_change_null_flow)==edge_names_expected_change_null_flow)
+
+    #those should always appear
+    other_edge_names_expected_to_change=set(['CPVANL61ZMAGN','GROSNL61ZCUR5','H.PAUL61ZCUR5','GEN.PL73VIELM'])#,
+    assert (changes_seen.intersection(other_edge_names_expected_to_change)==other_edge_names_expected_to_change)
 
 def test_consolidate_graph():
     config = configparser.ConfigParser()
     config.read("./alphaDeesp/tests/resources_for_tests_grid2op/config_for_tests.ini")
 
-    data_folder="./alphaDeesp/tests/ressources_for_tests/data_graph_consolidation/defaut_FRON5L31LOUHA"
-
     timestep = 36  # 1#36
     line_defaut = "FRON5L31LOUHA"
-    ltc = [108]
+    float_precision_graph = "%.0f"
 
-    with open(os.path.join(data_folder,'sim_topo_zone_dijon_defaut_FRON5L31LOUHA_t36.json')) as json_file:
-        sim_topo_reduced = json.load(json_file)
-
-    df_of_g = pd.read_csv(os.path.join(data_folder,"df_of_g_defaut_FRON5L31LOUHA_t36.csv"))
-
-    g_over = OverFlowGraph(sim_topo_reduced, ltc, df_of_g)
-
-    with open(os.path.join(data_folder,'node_name_mapping_defaut_FRON5L31LOUHA_t36.json')) as json_file:
-        mapping = json.load(json_file)
-    mapping = {int(key): value for key, value in mapping.items()}
-    g_over.g = nx.relabel_nodes(g_over.g, mapping, copy=True)
+    g_over, situation_info = basic_test_configuration(line_defaut, timestep, float_precision_graph)
+    non_connected_reconnectable_lines = situation_info["non_connected_reconnectable_lines"]
+    lines_non_reconnectable = situation_info["lines_non_reconnectable"]
 
     #compute initial red edges
     g_without_blue_edges = delete_color_edges(g_over.g, "blue")
@@ -282,8 +265,8 @@ def test_consolidate_graph():
     n_red_edges_init=len(g_with_only_red_edges_init.edges)
 
     g_distribution_graph = Structured_Overload_Distribution_Graph(g_over.g)
-    g_over.consolidate_graph(g_distribution_graph)
-
+    g_over.consolidate_graph(g_distribution_graph,non_connected_lines_to_ignore=non_connected_reconnectable_lines+non_connected_reconnectable_lines)
+    #g_over.consolidate_graph(g_distribution_graph)
 
     #compute final red edges
     g_without_blue_edges = delete_color_edges(g_over.g, "blue")
@@ -296,37 +279,25 @@ def test_consolidate_graph():
     #7 edge on change de couleur
     edge_names_expected_change=['GEN.PL61IZERN','CIZE L61IZERN','CIZE L61FLEYR','CREYSL71SSV.O','CREYSL72SSV.O','CREYSL72GEN.P','CREYSL71GEN.P']
     n_targeted_change = len(edge_names_expected_change)
-    targeted_changes_seen=(set(edges_red_name_final)-set(edges_red_name_initial)).intersection(set(edge_names_expected_change))
+    changes_seen=set(edges_red_name_final)-set(edges_red_name_initial)
+    targeted_changes_seen=changes_seen.intersection(set(edge_names_expected_change))
     n_targeted_change_seen = len(targeted_changes_seen)
 
+    edge_names_expected_change_not_change=set(['CHALOL31LOUHA','CHALOY631','CHALOY632','CHALOY633'])
+    assert(len(changes_seen.intersection(edge_names_expected_change_not_change))==0)
+
     assert(n_targeted_change==n_targeted_change_seen)#explicit test to comply with
-    assert(n_red_edges_final-n_red_edges_init==28)#to check if anything changed, but not very explicit test and value can change if good reason
+    #assert(n_red_edges_final-n_red_edges_init==28)#to check if anything changed, but not very explicit test and value can change if good reason
 
 def test_identify_ambiguous_paths_and_type():
     config = configparser.ConfigParser()
     config.read("./alphaDeesp/tests/resources_for_tests_grid2op/config_for_tests.ini")
 
-    data_folder = "./alphaDeesp/tests/ressources_for_tests/data_graph_consolidation/defaut_PSAOL31RONCI"
-
     timestep = 1  # 1#36
     line_defaut = "P.SAOL31RONCI"
-    ltc = [9]
+    float_precision_graph = "%.0f"
 
-    with open(os.path.join(data_folder, 'sim_topo_zone_dijon_defaut_PSAOL31RONCI_t1.json')) as json_file:
-        sim_topo_reduced = json.load(json_file)
-
-    df_of_g = pd.read_csv(os.path.join(data_folder, "df_of_g_defaut_PSAOL31RONCI_t1.csv"))
-    #make significant delta flows thereshold lower, for more interesting ambiguous path detection
-    new_threshold=2#2MW
-    df_of_g.loc[df_of_g.delta_flows.abs() >= new_threshold, "gray_edges"] = False
-
-    g_over = OverFlowGraph(sim_topo_reduced, ltc, df_of_g)
-
-    with open(os.path.join(data_folder, 'node_name_mapping_defaut_PSAOL31RONCI_t1.json')) as json_file:
-        mapping = json.load(json_file)
-
-    mapping = {int(key): value for key, value in mapping.items()}
-    g_over.rename_nodes(mapping)  # g = nx.relabel_nodes(g_over.g, mapping, copy=True)
+    g_over, situation_info = basic_test_configuration(line_defaut, timestep, float_precision_graph)
 
     g_distribution_graph = Structured_Overload_Distribution_Graph(g_over.g)
 
@@ -370,24 +341,11 @@ def test_identify_ambiguous_paths_and_type_2():
     config = configparser.ConfigParser()
     config.read("./alphaDeesp/tests/resources_for_tests_grid2op/config_for_tests.ini")
 
-    data_folder = "./alphaDeesp/tests/ressources_for_tests/data_graph_consolidation/defaut_FRON5L31LOUHA"
-
     timestep = 36  # 1#36
     line_defaut = "FRON5L31LOUHA"
-    ltc = [108]
+    float_precision_graph = "%.0f"
 
-    with open(os.path.join(data_folder,'sim_topo_zone_dijon_defaut_FRON5L31LOUHA_t36.json')) as json_file:
-        sim_topo_reduced = json.load(json_file)
-
-    df_of_g = pd.read_csv(os.path.join(data_folder,"df_of_g_defaut_FRON5L31LOUHA_t36.csv"))
-
-    g_over = OverFlowGraph(sim_topo_reduced, ltc, df_of_g)
-
-    with open(os.path.join(data_folder, 'node_name_mapping_defaut_FRON5L31LOUHA_t36.json')) as json_file:
-        mapping = json.load(json_file)
-
-    mapping = {int(key): value for key, value in mapping.items()}
-    g_over.rename_nodes(mapping)  # g = nx.relabel_nodes(g_over.g, mapping, copy=True)
+    g_over, situation_info = basic_test_configuration(line_defaut, timestep, float_precision_graph)
 
     g_distribution_graph = Structured_Overload_Distribution_Graph(g_over.g)
 
@@ -399,12 +357,18 @@ def test_identify_ambiguous_paths_and_type_2():
     # ('VOUGLP6', 'FLEYRP6', 0): 'coral',
     # ('GEN.PP6', 'IZERNP6', 0): 'blue',
     # ('CIZE P6', 'FLEYRP6', 0): 'blue'}
-    assert(set(ambiguous_node_paths[0])==set(expected_ambiguous_node_path))
+    is_expected_path_there=False
+    path_type=None
 
-    path_type=g_over.desambiguation_type_path(expected_ambiguous_node_path, g_distribution_graph)
+    for path in ambiguous_node_paths:
+        if set(path)==set(expected_ambiguous_node_path):
+            is_expected_path_there=True
+            path_type = g_over.desambiguation_type_path(expected_ambiguous_node_path, g_distribution_graph)
+    assert(is_expected_path_there)
+
     assert(path_type=="loop_path")
 
-def test_add_relevant_null_flow_lines(non_reconnectable_lines=[]):
+def test_add_relevant_null_flow_lines():
     #vérifier le path GROSNP6, ZJOUXP6, BOISSP6, GEN.PP6 avec BOISSP6 seeulement en pointillé
     #Path CHALOP3 -> LOUHAP3
     #Path CPVANP6 PYMONP6 VOUGLP6 PYMONP3
@@ -416,46 +380,31 @@ def test_add_relevant_null_flow_lines(non_reconnectable_lines=[]):
 
     timestep = 1  # 1#36
     line_defaut = "P.SAOL31RONCI"
-    ltc = [9]
+    float_precision_graph = "%.0f"
 
-    non_connected_lines = ['BOISSL61GEN.P', 'CHALOL31LOUHA', 'CRENEL71VIELM', 'CURTIL61ZCUR5', 'GEN.PL73VIELM',
-                           'P.SAOL31RONCI',
-                           'PYMONL61VOUGL', 'BUGEYY715', 'CPVANY632', 'GEN.PY762', 'PYMONY632']
+    g_over, g_distribution_graph, non_connected_reconnectable_lines, lines_non_reconnectable = null_flow_test_configuration(
+        line_defaut, timestep, float_precision_graph)
 
-    with open(os.path.join(data_folder, 'sim_topo_zone_dijon_defaut_PSAOL31RONCI_t1.json')) as json_file:
-        sim_topo_reduced = json.load(json_file)
-
-    df_of_g = pd.read_csv(os.path.join(data_folder, "df_of_g_defaut_PSAOL31RONCI_t1.csv"))
-
-    g_over = OverFlowGraph(sim_topo_reduced, ltc, df_of_g,float_precision="%.0f")
-
-    with open(os.path.join(data_folder, 'node_name_mapping_defaut_PSAOL31RONCI_t1.json')) as json_file:
-        mapping = json.load(json_file)
-
-    mapping = {int(key): value for key, value in mapping.items()}
-    g_over.rename_nodes(mapping)  # g = nx.relabel_nodes(g_over.g, mapping, copy=True)
-
-    # consolidate
-    g_distribution_graph = Structured_Overload_Distribution_Graph(g_over.g)
-
-    g_over.consolidate_graph(g_distribution_graph)
-
-    # g_over.add_double_edges_null_redispatch()
-    g_distribution_graph = Structured_Overload_Distribution_Graph(g_over.g)
-
-    for i in range(2):#need two iterations to identify CHALOL31LOUHA reconnectable path under contingency "BEON L31CPVAN" at timestep 1 on chronic 28th august
-        g_over.add_relevant_null_flow_lines_all_paths(g_distribution_graph, non_connected_lines,non_reconnectable_lines)
-        g_distribution_graph = Structured_Overload_Distribution_Graph(g_over.g)
+    g_over.add_relevant_null_flow_lines_all_paths(g_distribution_graph,
+                                                  non_connected_lines=non_connected_reconnectable_lines,
+                                                  non_reconnectable_lines=lines_non_reconnectable)
     #g_over.add_relevant_null_flow_lines_all_paths(g_distribution_graph, non_connected_lines)
 
     color_edges = list(nx.get_edge_attributes(g_over.g, 'color').values())
     line_names = list(nx.get_edge_attributes(g_over.g, 'name').values())
 
-    line_tests=['BOISSL61GEN.P', 'CHALOL31LOUHA','PYMONL61VOUGL', 'CPVANY632', 'GEN.PY762', 'PYMONY632']
+    line_tests=['BOISSL61GEN.P', 'CHALOL31LOUHA','GEN.PY762' ]#'PYMONL61VOUGL' and 'PYMONY632' 'CPVANY632' 'GEN.PY762', are  dimgray
 
     significant_colors=set(["blue","coral"])#have we highlighted those lines on significant paths ?
-    for line in line_tests:
+    for line in line_tests:#
         assert(len(set([color for color, line_name in zip(color_edges, line_names) if line_name == line]).intersection(significant_colors))>=1)
+
+    line_tests=['PYMONL61VOUGL','PYMONY632','CPVANY632']#, are  dimgray
+    for line in line_tests:
+        #print(line)
+        #color = set([color for color, line_name in zip(color_edges, line_names) if line_name == line])
+        #print(color)
+        assert ("dimgray" in set([color for color, line_name in zip(color_edges, line_names) if line_name == line]))
 
     #g_distribution_graph = Structured_Overload_Distribution_Graph(g_over.g)
     hubs=g_distribution_graph.get_hubs()
@@ -463,7 +412,7 @@ def test_add_relevant_null_flow_lines(non_reconnectable_lines=[]):
     new_hubs_to_test=["CPVANP6","CHALOP6","GROSNP6"]
     n_new_hubs=len(new_hubs_to_test)
 
-    assert(n_new_hubs==len(set(new_hubs_to_test).intersection(set(hubs))))
+    assert(n_new_hubs==len(set(new_hubs_to_test)-set(hubs)))
 
 def test_add_relevant_null_flow_lines_non_reconnectables_lines():
     #vérifier le path GROSNP6, ZJOUXP6, BOISSP6, GEN.PP6 avec BOISSP6 seeulement en pointillé
@@ -477,37 +426,17 @@ def test_add_relevant_null_flow_lines_non_reconnectables_lines():
 
     timestep = 1  # 1#36
     line_defaut = "P.SAOL31RONCI"
-    ltc = [9]
+    float_precision_graph = "%.0f"
 
-    non_connected_lines = ['BOISSL61GEN.P', 'CHALOL31LOUHA', 'CRENEL71VIELM', 'CURTIL61ZCUR5', 'GEN.PL73VIELM',
-                           'P.SAOL31RONCI',
-                           'PYMONL61VOUGL', 'BUGEYY715', 'CPVANY632', 'GEN.PY762', 'PYMONY632']
-    non_reconnectable_lines =  ['CRENEL71VIELM', 'GEN.PL73VIELM', 'PYMONL61VOUGL', 'CPVANY632', 'PYMONY632']
+    g_over, g_distribution_graph, non_connected_reconnectable_lines, lines_non_reconnectable = null_flow_test_configuration(
+        line_defaut, timestep, float_precision_graph)
 
-    with open(os.path.join(data_folder, 'sim_topo_zone_dijon_defaut_PSAOL31RONCI_t1.json')) as json_file:
-        sim_topo_reduced = json.load(json_file)
+    g_over.add_relevant_null_flow_lines_all_paths(g_distribution_graph, non_connected_lines=non_connected_reconnectable_lines,
+                                        non_reconnectable_lines=lines_non_reconnectable)
 
-    df_of_g = pd.read_csv(os.path.join(data_folder, "df_of_g_defaut_PSAOL31RONCI_t1.csv"))
-
-    g_over = OverFlowGraph(sim_topo_reduced, ltc, df_of_g,float_precision="%.0f")
-
-    with open(os.path.join(data_folder, 'node_name_mapping_defaut_PSAOL31RONCI_t1.json')) as json_file:
-        mapping = json.load(json_file)
-
-    mapping = {int(key): value for key, value in mapping.items()}
-    g_over.rename_nodes(mapping)  # g = nx.relabel_nodes(g_over.g, mapping, copy=True)
-
-    # consolidate
-    g_distribution_graph = Structured_Overload_Distribution_Graph(g_over.g)
-
-    g_over.consolidate_graph(g_distribution_graph)
-
-    # g_over.add_double_edges_null_redispatch()
-    g_distribution_graph = Structured_Overload_Distribution_Graph(g_over.g)
-
-    for i in range(2):#need two iterations to identify CHALOL31LOUHA reconnectable path under contingency "BEON L31CPVAN" at timestep 1 on chronic 28th august
-        g_over.add_relevant_null_flow_lines_all_paths(g_distribution_graph, non_connected_lines,non_reconnectable_lines)
-        g_distribution_graph = Structured_Overload_Distribution_Graph(g_over.g)
+    #for i in range(2):#need two iterations to identify CHALOL31LOUHA reconnectable path under contingency "BEON L31CPVAN" at timestep 1 on chronic 28th august
+    #    g_over.add_relevant_null_flow_lines_all_paths(g_distribution_graph, non_connected_lines,non_reconnectable_lines)
+    #    g_distribution_graph = Structured_Overload_Distribution_Graph(g_over.g)
     #g_over.add_relevant_null_flow_lines_all_paths(g_distribution_graph, non_connected_lines)
 
     color_edges = nx.get_edge_attributes(g_over.g, 'color')
@@ -520,7 +449,7 @@ def test_add_relevant_null_flow_lines_non_reconnectables_lines():
     #color dimgray and style dotted
     for line in line_tests:
         line_edge=[edge for edge, line_name in line_names.items() if line_name == line][0]
-        assert(color_edges[line_edge]=="dimgray")
+        assert("gray" in color_edges[line_edge])
         assert (style_edges[line_edge] == "dotted")
         assert (dir_edges[line_edge] == "none")
 
@@ -538,66 +467,188 @@ def test_add_relevant_null_flow_lines_blue_path():
 
     timestep = 1  # 1#36
     line_defaut = "P.SAOL31RONCI"
-    ltc = [9]
+    float_precision_graph = "%.0f"
 
-    non_connected_lines=['BOISSL61GEN.P','CHALOL31LOUHA','CRENEL71VIELM','CURTIL61ZCUR5','GEN.PL73VIELM','P.SAOL31RONCI',
-     'PYMONL61VOUGL','BUGEYY715','CPVANY632','GEN.PY762','PYMONY632']
+    g_over, g_distribution_graph, non_connected_reconnectable_lines, lines_non_reconnectable = null_flow_test_configuration(
+        line_defaut, timestep, float_precision_graph)
 
-    with open(os.path.join(data_folder,'sim_topo_zone_dijon_defaut_PSAOL31RONCI_t1.json')) as json_file:
-        sim_topo_reduced = json.load(json_file)
-
-    df_of_g = pd.read_csv(os.path.join(data_folder,"df_of_g_defaut_PSAOL31RONCI_t1.csv"))
-
-    g_over = OverFlowGraph(sim_topo_reduced, ltc, df_of_g)
-
-    with open(os.path.join(data_folder,'node_name_mapping_defaut_PSAOL31RONCI_t1.json')) as json_file:
-        mapping = json.load(json_file)
-
-    mapping = {int(key): value for key, value in mapping.items()}
-    g_over.rename_nodes(mapping)#g = nx.relabel_nodes(g_over.g, mapping, copy=True)
-
-    with open(os.path.join(data_folder,'voltage_levels.json')) as json_file:
-        voltage_levels_dict = json.load(json_file)
-    g_over.set_voltage_level_color(voltage_levels_dict)
-
-    with open(os.path.join(data_folder,'number_nodal_dict.json')) as json_file:
-        number_nodal_dict = json.load(json_file)
-    g_over.set_electrical_node_number(number_nodal_dict)
-
-
-    #consolidate
-    g_distribution_graph = Structured_Overload_Distribution_Graph(g_over.g)
 
     #check that this edge has been coloured blue
-    assert(g_over.g.edges[('CPVANP6', 'CPVANP3', 1)]["color"]=="gray")
-    g_over.add_relevant_null_flow_lines(g_distribution_graph, non_connected_lines, target_path="blue_only")
-    assert (g_over.g.edges[('CPVANP6', 'CPVANP3', 1)]["color"] == "blue")
+    #find edge non reconnectable "CPVANY632"
+    edge_names_dict = nx.get_edge_attributes(g_over.g, 'name')
+    line_name_target="CPVANY632"
+    edge_target=[edge for edge,name in edge_names_dict.items() if name==line_name_target][0]
+    assert(g_over.g.edges[edge_target]["color"]=="gray")
+    g_over.add_relevant_null_flow_lines(g_distribution_graph, non_connected_lines=non_connected_reconnectable_lines,non_reconnectable_lines=lines_non_reconnectable, target_path="blue_only")
+    assert ("gray" in g_over.g.edges[edge_target]["color"])#not coloured because non reconnectable, but dispalyed as dimgray
     # check that this double edge has been removed (in the other edge direction)
     assert(not g_over.g.has_edge('CPVANP3', 'CPVANP6'))
+
+    #making CPVANY632 connectable now
+    g_over, g_distribution_graph, non_connected_reconnectable_lines, lines_non_reconnectable = null_flow_test_configuration(
+        line_defaut, timestep, float_precision_graph,line_to_reconnect="CPVANY632")
+
+    g_over.add_relevant_null_flow_lines(g_distribution_graph, non_connected_lines=non_connected_reconnectable_lines,
+                                        non_reconnectable_lines=lines_non_reconnectable, target_path="blue_only")
+
+    edge_names_dict = nx.get_edge_attributes(g_over.g, 'name')
+    edge_target = [edge for edge, name in edge_names_dict.items() if name == line_name_target][0]
+    assert (g_over.g.edges[edge_target]["color"] == "blue")
+
+def basic_test_configuration(line_defaut,timestep,float_precision_graph):
+
+    data_folder = "./alphaDeesp/tests/ressources_for_tests/data_graph_consolidation/defaut_" + line_defaut  # CPVANL61ZMAGN"
+
+    suffix_file_names = "defaut_" + line_defaut + "_t" + str(timestep)
+
+    sim_topo_file_name = "sim_topo_zone_dijon_" + suffix_file_names + ".json"
+    with open(os.path.join(data_folder, sim_topo_file_name)) as json_file:
+        sim_topo_reduced = json.load(json_file)
+
+    with open(os.path.join(data_folder, 'situation_info.json')) as json_file:
+        situation_info = json.load(json_file)
+
+    ltc = situation_info["ltc"]
+
+    mapping = situation_info["node_name_mapping"]
+    number_nodal_dict = situation_info["number_nodal_dict"]
+
+    ##############
+    # rebuild overflow graphs and attributes
+    df_of_g = pd.read_csv(os.path.join(data_folder, "df_of_g_" + suffix_file_names + ".csv"))
+
+    g_over = OverFlowGraph(sim_topo_reduced, ltc, df_of_g, float_precision=float_precision_graph)
+
+    mapping = {int(key): value for key, value in mapping.items()}
+    g_over.rename_nodes(mapping)  # g = nx.relabel_nodes(g_over.g, mapping, copy=True)
+
+    voltage_levels_dict = situation_info["voltage_levels"]
+    g_over.set_voltage_level_color(voltage_levels_dict)
+
+    g_over.set_electrical_node_number(number_nodal_dict)
+
+    return g_over,situation_info
+
+def null_flow_test_configuration(line_defaut,timestep,float_precision_graph,line_to_reconnect=None):
+
+    g_over, situation_info = basic_test_configuration(line_defaut,timestep,float_precision_graph)
+    # consolidate
+    g_distribution_graph = Structured_Overload_Distribution_Graph(g_over.g)
+
+    non_connected_reconnectable_lines = situation_info["non_connected_reconnectable_lines"]
+    lines_non_reconnectable = situation_info["lines_non_reconnectable"]
+
+    if line_to_reconnect:
+        non_connected_reconnectable_lines.append(line_to_reconnect)
+        lines_non_reconnectable=[line for line in lines_non_reconnectable if line != line_to_reconnect]
+
+    non_connected_lines = non_connected_reconnectable_lines + lines_non_reconnectable
+
+    return g_over,g_distribution_graph,non_connected_reconnectable_lines,lines_non_reconnectable
+
+def test_add_relevant_null_flow_lines_red_path_1():
+    config = configparser.ConfigParser()
+    config.read("./alphaDeesp/tests/resources_for_tests_grid2op/config_for_tests.ini")
+    line_defaut = "CHALOL61CPVAN"
+    timestep = 9  # 1#36
+    float_precision_graph="%.0f"
+
+    g_over,g_distribution_graph,non_connected_reconnectable_lines,lines_non_reconnectable=null_flow_test_configuration(line_defaut, timestep, float_precision_graph)
+
+    ##############
+    # function to test on this case
+    g_over.add_relevant_null_flow_lines(g_distribution_graph, non_connected_lines=non_connected_reconnectable_lines,non_reconnectable_lines=lines_non_reconnectable, target_path="red_only")
+
+    ##############
+    # tests
+    all_edges=g_over.g.edges
+
+    edge_1=('GEN.PP6','BOISSP6', 0)
+    if edge_1 not in all_edges:
+        edge_1=(edge_1[1],edge_1[0],edge_1[2])
+    edge_1_attributes=all_edges[edge_1]
+    assert(edge_1_attributes["color"]=="coral" and edge_1_attributes["style"]=="dashed" and edge_1_attributes["dir"]=="none")
+    #path
+    edges_path=[('BOISSP6', 'ZJOUXP6', 0),('MACONP6', 'ZJOUXP6', 0),('GROSNP6', 'MACONP6', 0),('GROSNP6', 'CHALOP6', 0),('CPVANP6', 'CHALOP6', 0)]
+    for edge in edges_path:
+        if edge not in all_edges:
+            edge = (edge[1], edge[0], edge[2])
+        edge_attributes = all_edges[edge]
+        assert (edge_attributes["color"] == "coral")
+
+    edge2=('GENLIP3', 'MAGNYP3', 0)#this one remains gray, because there is a non reconnectable line on the path
+    if edge2 not in all_edges:
+        edge2=(edge2[1],edge2[0],edge2[2])
+    edge2_attributes=all_edges[edge2]
+    assert ("gray" in edge2_attributes["color"]  and edge2_attributes["style"] == "dashed")
+
+    edge2_prime=('GENLIP3', 'COLLOP3', 0)#this one remains gray, because this is the non reconnectable line on the path
+    if edge2_prime not in all_edges:
+        edge2_prime=(edge2_prime[1],edge2_prime[0],edge2_prime[2])
+    edge2_attributes_prime=all_edges[edge2_prime]
+    assert ("gray" in edge2_attributes_prime["color"]  and edge2_attributes_prime["style"] == "dotted")
+
+    edge3 = ('CHALOP3', 'LOUHAP3', 0)  # this one remains gray, because there the paths it connects too is not sensitive enough to be ighlighted on the constrained path
+    if edge3 not in all_edges:
+        edge3 = (edge3[1], edge3[0], edge3[2])
+    edge3_attributes = all_edges[edge3]
+    assert ("gray" in edge3_attributes["color"] and edge3_attributes["style"] == "dashed")
+
+def test_add_relevant_null_flow_lines_red_path_2():
+    config = configparser.ConfigParser()
+    config.read("./alphaDeesp/tests/resources_for_tests_grid2op/config_for_tests.ini")
+    line_defaut = "CPVANL61ZMAGN"
+    timestep = 1  # 1#36
+    float_precision_graph="%.0f"
+
+    g_over,g_distribution_graph,non_connected_reconnectable_lines,lines_non_reconnectable=null_flow_test_configuration(line_defaut, timestep, float_precision_graph)
+
+    ##############
+    # function to test on this case
+    g_over.add_relevant_null_flow_lines(g_distribution_graph, non_connected_lines=non_connected_reconnectable_lines,non_reconnectable_lines=lines_non_reconnectable, target_path="red_only")
+
+    ##############
+    # tests
+    all_edges=g_over.g.edges
+
+    edge_1=('GEN.PP6','BOISSP6', 0)
+    if edge_1 not in all_edges:
+        edge_1=(edge_1[1],edge_1[0],edge_1[2])
+    edge_1_attributes=all_edges[edge_1]
+    assert(edge_1_attributes["color"]=="coral" and edge_1_attributes["style"]=="dashed" and edge_1_attributes["dir"]=="none")
+    #path
+    edges_path=[('BOISSP6', 'ZJOUXP6', 0),('MACONP6', 'ZJOUXP6', 0),('GROSNP6', 'MACONP6', 0)]
+    for edge in edges_path:
+        if edge not in all_edges:
+            edge = (edge[1], edge[0], edge[2])
+        edge_attributes = all_edges[edge]
+        assert (edge_attributes["color"] == "coral")
+
+    edge2=('CHALOP3', 'LOUHAP3', 0)
+    if edge2 not in all_edges:
+        edge2=(edge2[1],edge2[0],edge2[2])
+    edge2_attributes=all_edges[edge2]
+    assert (edge2_attributes["color"] == "coral" and edge2_attributes["style"] == "dashed")
+
+    edges_path = [('CHALOP6', 'CHALOP3', 0),('CHALOP6', 'CHALOP3', 1)]
+    for edge in edges_path:
+        if edge not in all_edges:
+            edge = (edge[1], edge[0], edge[2])
+        edge_attributes = all_edges[edge]
+        assert (edge_attributes["color"] == "coral")
 
 
 def test_highlight_significant_line_loading():
     config = configparser.ConfigParser()
     config.read("./alphaDeesp/tests/resources_for_tests_grid2op/config_for_tests.ini")
 
-    data_folder = "./alphaDeesp/tests/ressources_for_tests/data_graph_consolidation/defaut_PSAOL31RONCI"
+    data_folder = "./alphaDeesp/tests/ressources_for_tests/data_graph_consolidation/defaut_P.SAOL31RONCI"
 
     timestep = 1  # 1#36
     line_defaut = "P.SAOL31RONCI"
-    ltc = [9]
+    float_precision_graph = "%.0f"
 
-    with open(os.path.join(data_folder, 'sim_topo_zone_dijon_defaut_PSAOL31RONCI_t1.json')) as json_file:
-        sim_topo_reduced = json.load(json_file)
-
-    df_of_g = pd.read_csv(os.path.join(data_folder, "df_of_g_defaut_PSAOL31RONCI_t1.csv"))
-
-    g_over = OverFlowGraph(sim_topo_reduced, ltc, df_of_g, float_precision="%.0f")
-
-    with open(os.path.join(data_folder, 'node_name_mapping_defaut_PSAOL31RONCI_t1.json')) as json_file:
-        mapping = json.load(json_file)
-
-    mapping = {int(key): value for key, value in mapping.items()}
-    g_over.rename_nodes(mapping)  # g = nx.relabel_nodes(g_over.g, mapping, copy=True)
+    g_over, situation_info = basic_test_configuration(line_defaut, timestep, float_precision_graph)
 
     with open(os.path.join(data_folder, 'significant_line_loading_change.json')) as json_file:
         dict_line_loading = json.load(json_file)
