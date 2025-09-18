@@ -743,7 +743,7 @@ class OverFlowGraph(PowerFlowGraph):
         edge_names = nx.get_edge_attributes(structured_graph.g_without_gray_and_c_edge, 'name')
 
         # Identify lines that are part of the constrained path and dispatch path
-        lines_constrained_path, nodes_constrained_path = structured_graph.get_constrained_edges_nodes()
+        lines_constrained_path, nodes_constrained_path,other_blue_edges, other_blue_nodes  = structured_graph.get_constrained_edges_nodes()
         lines_dispatch, nodes_dispatch_path = structured_graph.get_dispatch_edges_nodes()
 
         # Remove edges that are part of the constrained path or dispatch path from the graph
@@ -1536,7 +1536,13 @@ class Structured_Overload_Distribution_Graph:
             edges_constrained_path.append([edge_name for edge, edge_name in edge_names.items() if
                                            edge == constrained_path_object.constrained_edge][0])
 
-        return list(set(edges_constrained_path)), nodes_constrained_path
+        g_blue=self.g_only_blue_components.copy()
+        g_blue.remove_edges_from(edges_constrained_path)
+
+        other_blue_edges=list(g_blue.edges())
+        other_blue_nodes=[node for node in g_blue.nodes() if node not in nodes_constrained_path]
+
+        return list(set(edges_constrained_path)), nodes_constrained_path, other_blue_edges, other_blue_nodes
 
     def get_dispatch_edges_nodes(self,only_loop_paths=True):
         """
