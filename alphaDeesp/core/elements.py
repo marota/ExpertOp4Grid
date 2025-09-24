@@ -15,10 +15,10 @@ class Production:
 
     def __init__(self, busbar_id, value=None):
         # print("Production created...")
-        Production.ID += 1
         self.ID = Production.ID
         self.busbar_id = busbar_id
         self.value = value
+        Production.ID += 1
 
     def __repr__(self):
         return "<< PRODUCTION Object ID: {}, busbar_id: {}, value: {} >>".format(self.ID, self.busbar_id, self.value)
@@ -37,10 +37,10 @@ class Consumption:
 
     def __init__(self, busbar_id, value=None):
         # print("Consumption created...")
-        Consumption.ID += 1
         self.ID = Consumption.ID
         self.busbar_id = busbar_id
         self.value = value
+        Consumption.ID += 1
 
     def __repr__(self):
         return "<< CONSUMPTION Object ID: {}, busbar_id: {}, value: {} >>".format(self.ID, self.busbar_id, self.value)
@@ -60,11 +60,11 @@ class OriginLine:
 
     def __init__(self, busbar_id, end_substation_id=None, flow_value=None):
         # print("OriginLine created...")
-        OriginLine.ID += 1
         self.ID = OriginLine.ID
         self.busbar_id = busbar_id
         self.end_substation_id = end_substation_id
         self.flow_value = flow_value
+        OriginLine.ID += 1
 
     def __repr__(self):
         return "<< ORIGINLINE Object ID: {}, busbar_id: {}," \
@@ -85,11 +85,11 @@ class ExtremityLine:
 
     def __init__(self, busbar_id, start_substation_id=None, flow_value=None):
         # print("ExtremityLine created...")
-        ExtremityLine.ID += 1
         self.ID = ExtremityLine.ID
         self.busbar_id = busbar_id
         self.start_substation_id = start_substation_id
         self.flow_value = flow_value
+        ExtremityLine.ID += 1
 
     def __repr__(self):
         return "<< EXTREMITYLINE Object ID: {}, busbar_id: {}," \
