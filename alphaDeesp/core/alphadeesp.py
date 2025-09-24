@@ -379,7 +379,7 @@ class AlphaDeesp:  # AKA SOLVER
         self.bag_of_graphs[name] = graph
         return graph, internal_repr_dict
 
-    def rank_current_topo_at_node_x(self, graph, node: int, isSingleNode=False, topo_vect=[0, 0, 1, 1, 1]):
+    def rank_current_topo_at_node_x(self, graph, node: int, isSingleNode=False, topo_vect=[0, 0, 1, 1, 1],is_score_specific_substation=True):
         """This function ranks current topology at node X"""
         final_score = 0.0
         all_nodes_value_attributes = nx.get_node_attributes(graph, "value")  # dict[node]
@@ -392,21 +392,40 @@ class AlphaDeesp:  # AKA SOLVER
         #  ########## IS IN AMONT ##########
         constrained_path=self.g_distribution_graph.get_constrained_path()
         red_loops = self.g_distribution_graph.get_loops()
+
+        in_negative_flows = []
+        out_negative_flows = []
+        out_positive_flows = []
+        in_positive_flows = []
+
         if node in constrained_path.n_amont():
             # ======================================
             #print("AMONT")
             if self.debug:
                 print("||||||||||||||||||||||||||| node [{}] is in_Amont of constrained_edge".format(node))
-            in_negative_flows = []
-            in_positive_flows = []
-            out_positive_flows = []
 
             interesting_bus_id = 0
-            for edge in graph.out_edges(node,keys=True):
-                if self.is_connected_to_cpath(all_edges_color_attributes, all_edges_xlabel_attributes, node, edge, isSingleNode):
-                    # take the other bus id
-                    interesting_bus_id = abs(self.get_bus_id_from_edge(node, edge, topo_vect) - 1)
-                    break
+            if is_score_specific_substation:#when comparing all combinations at a substation, you don't need to figure out for which of the two splitted nodes you compute the score, as the two symetrical combinations on the 2 nodes exist
+                for edge in graph.out_edges(node,keys=True):
+                    if self.is_connected_to_cpath(all_edges_color_attributes, all_edges_xlabel_attributes, node, edge, isSingleNode):
+                        # take the other bus id
+                        interesting_bus_id = abs(self.get_bus_id_from_edge(node, edge, topo_vect) - 1)
+                        break
+            else:#when comparing all combinations at a substation, you don't need to figure out for which of the two splitted nodes you compute the score, as the two symetrical combinations on the 2 nodes exist
+                #find most interesting node with largest ingoing negative flow
+                in_edge_capacities_bus0 = [float(all_edges_xlabel_attributes[edge]) for edge in graph.in_edges(node, keys=True)
+                                      if self.get_bus_id_from_edge(node, edge, topo_vect) == 0]
+                in_edge_negative_capacities_bus0 = fabs(sum(x for x in in_edge_capacities_bus0 if x < 0))
+
+                in_edge_capacities_bus1 = [float(all_edges_xlabel_attributes[edge]) for edge in
+                                           graph.in_edges(node, keys=True)
+                                           if self.get_bus_id_from_edge(node, edge, topo_vect) == 1]
+                in_edge_negative_capacities_bus1 = fabs(sum(x for x in in_edge_capacities_bus1 if x < 0))
+
+                if in_edge_negative_capacities_bus1>in_edge_negative_capacities_bus0:
+                    interesting_bus_id=1
+
+            not_interesting_bus_id=fabs(interesting_bus_id-1)
 
             # somme des reports négatifs entrants + sommes des reports positifs entrants
             for edge in graph.in_edges(node,keys=True):
@@ -425,17 +444,29 @@ class AlphaDeesp:  # AKA SOLVER
                     edge_flow_value = float(all_edges_xlabel_attributes[edge])
                     if edge_flow_value > 0:
                         out_positive_flows.append(edge_flow_value)
+                    else:
+                        out_negative_flows.append(fabs(edge_flow_value))
 
-            diff_sums = self.get_prod_conso_sum(node, interesting_bus_id, topo_vect)
-            max_pos_in_or_out_flows = max(sum(out_positive_flows), sum(in_positive_flows))
-            final_score = np.around(sum(in_negative_flows) + max_pos_in_or_out_flows + diff_sums, decimals=2)
+            diff_sums = self.get_prod_conso_sum(node, interesting_bus_id, topo_vect)#-self.get_prod_conso_sum(node, not_interesting_bus_id, topo_vect) #it is better to make the balance between the two nodes, did we put more generation on this one than the other one
+            max_pos_in_or_out_flows = max(sum(out_positive_flows), sum(in_positive_flows))#min(sum(out_positive_flows), sum(in_positive_flows))#
+            #we want to push ingoing negative  and production towards red path,
+            #final_score = np.around(sum(in_negative_flows) - np.around(sum(out_negative_flows)) + max_pos_in_or_out_flows + diff_sums, decimals=2)#+ diff_sums, it is not very clear its impact
+            if (is_score_specific_substation):
+                final_score = np.around(
+                    sum(in_negative_flows) + max_pos_in_or_out_flows + diff_sums,
+                    decimals=2)
+            else:
+                final_score = np.around(
+                    sum(in_negative_flows) - np.around(sum(out_negative_flows)) + sum(out_positive_flows),# + diff_sums,
+                    decimals=2)  # + diff_sums, it is not very clear its impact
             if self.debug:
                 print("AMONT")
                 print("diff_sums = ", diff_sums)
                 print(type(diff_sums))
                 print("max_pos_in_or_out_flows = ", max_pos_in_or_out_flows)
                 print("in negative flows = ", in_negative_flows)
-                print("max_pos_in_or_out_flows = ", max_pos_in_or_out_flows)
+                print("out negative flows = ", out_negative_flows)
+                print("out positive flow = ", out_positive_flows)
                 print("Final score = ", final_score)
 
         #  ########## IS IN AVAL ##########
@@ -445,16 +476,28 @@ class AlphaDeesp:  # AKA SOLVER
             if self.debug:
                 print("||||||||||||||||||||||||||| node [{}] is in_Aval of constrained_edge".format(node))
 
-            out_negative_flows = []
-            out_positive_flows = []
-            in_positive_flows = []
-
             interesting_bus_id = 0
-            for edge in graph.in_edges(node,keys=True):
-                if self.is_connected_to_cpath(all_edges_color_attributes, all_edges_xlabel_attributes, node, edge, isSingleNode):
-                    # take the other bus id
-                    interesting_bus_id = abs(self.get_bus_id_from_edge(node, edge, topo_vect) - 1)
-                    break
+
+            if is_score_specific_substation:#when comparing all combinations at a substation, you don't need to figure out for which of the two splitted nodes you compute the score, as the two symetrical combinations on the 2 nodes exist
+                for edge in graph.in_edges(node,keys=True):
+                    if self.is_connected_to_cpath(all_edges_color_attributes, all_edges_xlabel_attributes, node, edge, isSingleNode):
+                        # take the other bus id
+                        interesting_bus_id = abs(self.get_bus_id_from_edge(node, edge, topo_vect) - 1)
+                        break
+            else: #when you are considering only specific configurations (without its symetric one) and want to compare this among substations, not only within this substation
+                # find most interesting node with largest ougoing negative flow
+                out_edge_capacities_bus0 = [float(all_edges_xlabel_attributes[edge]) for edge in
+                                            graph.out_edges(node, keys=True)
+                                            if self.get_bus_id_from_edge(node, edge, topo_vect) == 0]
+                out_edge_negative_capacities_bus0 = fabs(sum(x for x in out_edge_capacities_bus0 if x < 0))
+
+                out_edge_capacities_bus1 = [float(all_edges_xlabel_attributes[edge]) for edge in
+                                            graph.out_edges(node, keys=True)
+                                            if self.get_bus_id_from_edge(node, edge, topo_vect) == 1]
+                out_edge_negative_capacities_bus1 = fabs(sum(x for x in out_edge_capacities_bus1 if x < 0))
+
+                if out_edge_negative_capacities_bus1 > out_edge_negative_capacities_bus0:
+                    interesting_bus_id = 1
 
             # somme des reports negatifs et positifs SORTANT
             for edge in graph.out_edges(node,keys=True):
@@ -472,22 +515,31 @@ class AlphaDeesp:  # AKA SOLVER
                     edge_flow_value = float(all_edges_xlabel_attributes[edge])
                     if edge_flow_value > 0:
                         in_positive_flows.append(edge_flow_value)
+                    else:
+                        in_negative_flows.append(fabs(edge_flow_value))
 
             # MAX (somme des reports positifs ENTRANT ET SORTANT)
             max_pos_in_or_out_flows = max(sum(out_positive_flows), sum(in_positive_flows))
 
             if self.debug:
                 print("out_negative_flows = ", out_negative_flows)
+                print("in_negative_flows = ", in_negative_flows)
                 print("out_positive_flows = ", out_positive_flows)
                 print("in_positive_flows = ", in_positive_flows)
                 print("sum out neg = ", sum(out_negative_flows))
+                print("sum out neg = ", sum(in_negative_flows))
                 print("sum out pos = ", sum(out_positive_flows))
                 print("sum in  pos = ", sum(in_positive_flows))
                 print("max_pos_in_or_out_flows = ", max_pos_in_or_out_flows)
             # sur le noeud choisi (non connecté au cpath) on souhaite y connecter des consommations et pas des
             # productions pour l'aval.
-            diff_sums = -self.get_prod_conso_sum(node, interesting_bus_id, topo_vect)
-            final_score = np.around(sum(out_negative_flows) + max_pos_in_or_out_flows + diff_sums, decimals=2)
+            diff_sums = -(self.get_prod_conso_sum(node, interesting_bus_id, topo_vect)) #- self.get_prod_conso_sum(node,not_interesting_bus_id,topo_vect))
+            if (is_score_specific_substation):
+                final_score = np.around(sum(out_negative_flows)+ max_pos_in_or_out_flows + diff_sums, decimals=2)
+            else:
+                final_score = np.around(
+                sum(out_negative_flows) - np.around(sum(in_negative_flows)) + sum(in_positive_flows),# + diff_sums,
+                decimals=2)
 
             if self.debug:
                 print("AVAL")
@@ -539,6 +591,41 @@ class AlphaDeesp:  # AKA SOLVER
                 final_score = np.around(min_pos_in_or_out_flows + injection, decimals=2)
         else:
             print("||||||||||||||||||||||||||| node [{}] is not connected to a path to the constrained_edge.".format(node))
+            in_negative_flows_node_1 = []
+            out_negative_flows_node_1 = []
+            in_negative_flows_node_2 = []
+            out_negative_flows_node_2 = []
+
+            # somme des reports négatifs entrants
+            for edge in graph.in_edges(node,keys=True):
+                edge_bus_id = self.get_bus_id_from_edge(node, edge, topo_vect)
+                edge_flow_value = float(all_edges_xlabel_attributes[edge])
+                if edge_flow_value < 0:
+                    if edge_bus_id == 0: # MASK
+                        in_negative_flows_node_1.append(fabs(edge_flow_value))
+                    elif edge_bus_id==1:
+                        in_negative_flows_node_2.append(fabs(edge_flow_value))
+
+            # somme des reports négatifs sortants
+            for edge in graph.out_edges(node,keys=True):
+                edge_bus_id = self.get_bus_id_from_edge(node, edge, topo_vect)
+                edge_flow_value = float(all_edges_xlabel_attributes[edge])
+                if edge_flow_value < 0:
+                    if edge_bus_id == 0: # MASK
+                        out_negative_flows_node_1.append(fabs(edge_flow_value))
+                    elif edge_bus_id==1:
+                        out_negative_flows_node_2.append(fabs(edge_flow_value))
+
+            score_1=fabs(sum(in_negative_flows_node_1)-sum(out_negative_flows_node_1))
+            score_2=fabs(sum(in_negative_flows_node_2)-sum(out_negative_flows_node_2))
+            final_score = np.around(min(score_1,score_2),
+                decimals=2)  # + diff_sums, it is not very clear its impact
+            if self.debug:
+                print("in negative flows node 1 = ", in_negative_flows_node_1)
+                print("out negative flows node 1 = ", out_negative_flows_node_1)
+                print("in negative flows node 2 = ", in_negative_flows_node_2)
+                print("out negative flows node 2 = ", out_negative_flows_node_2)
+                print("Final score = ", final_score)
 
         #=====================================================================
         # print("SCORE   ---  "+str(final_score))
@@ -573,13 +660,22 @@ class AlphaDeesp:  # AKA SOLVER
 
         # Get elements connected to the substation (given by "node") - iterate to find whic one corresponds to edge - return corresponding bus_id
         elements = self.simulator_data["substations_elements"][node]
+        paralel_edge_count_id = edge[2]
+        paralel_edge_counter = 0
+
         for element, bus_id in zip(elements, topo_vect):
             if isinstance(element, OriginLine):
                 if element.end_substation_id == target_extremity:
-                    return bus_id
+                    if paralel_edge_counter == paralel_edge_count_id:
+                        return bus_id
+                    else:  # in that case there are parallel edges between the two nodes, so deal with that
+                        paralel_edge_counter += 1
             elif isinstance(element, ExtremityLine):
                 if element.start_substation_id == target_extremity:
-                    return bus_id
+                    if paralel_edge_counter == paralel_edge_count_id:
+                        return bus_id
+                    else:  # in that case there are parallel edges between the two nodes, so deal with that
+                        paralel_edge_counter += 1
 
     def is_connected_to_cpath(self, all_edges_color_attributes, all_edges_xlabel_attributes, node, edge, isSingleNode):
         edge_color = all_edges_color_attributes[edge]
@@ -799,3 +895,15 @@ class AlphaDeesp:  # AKA SOLVER
         pass
 
 
+class AlphaDeesp_warmStart(AlphaDeesp):
+    def __init__(self, g, g_distribution_graph,simulator_data=None, debug=False):
+        # used for postprocessing
+        self.bag_of_graphs = {}
+        self.debug = debug
+        self.boolean_dump_data_to_file = False
+
+        # data from Simulator Class
+        self.g=g
+        #Compute the overload distribution graph (constrained path, loops, hubs)
+        self.g_distribution_graph=g_distribution_graph
+        self.simulator_data=simulator_data
