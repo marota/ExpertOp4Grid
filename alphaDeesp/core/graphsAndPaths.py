@@ -1497,7 +1497,7 @@ class Structured_Overload_Distribution_Graph:
         tmp_constrained_path = []
         edge_list = nx.get_edge_attributes(self.g_only_blue_components, "color")
         for edge, color in edge_list.items():
-            if color == "black":
+            if "black" in color:
                 constrained_edge = edge
         amont_edges = self.get_amont_blue_edges(self.g_only_blue_components, constrained_edge[0])
         aval_edges = self.get_aval_blue_edges(self.g_only_blue_components, constrained_edge[1])
