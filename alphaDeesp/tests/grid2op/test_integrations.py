@@ -55,6 +55,9 @@ def test_round_random_tests():
     print(new_arr)
     assert (new_arr == [12.31, 11.09])
 
+#def are_dataframes_equivalent(df1, df2,columns_equivalence):
+
+
 
 def are_dataframes_equal(df1, df2):
     """Function that compares row by row, then field after field, 2 dataframes.
@@ -84,6 +87,9 @@ def are_dataframes_equal(df1, df2):
             # print("type = ", type(elem))
             if isinstance(elem, float):
                 elem = round(elem, 2)
+            elif isinstance(elem, str):
+                # string evaluation are used for arrays in string form, they get transformed into arrays
+                elem = ast.literal_eval(elem)
 
             if type(elem).__module__ == np.__name__:  # Has been identified as numpy array : has to be converted in list
                 elem = elem.tolist()
@@ -122,6 +128,20 @@ def are_dataframes_equal(df1, df2):
 
     return generated_bag_rounded == saved_bag_rounded
 
+def align_dataframes(expert_system_results,saved_df):
+    expert_system_results["Topology applied"] = expert_system_results["Topology applied"].apply(
+        lambda x: "[" + ", ".join(str(int(i)) for i in x) + "]")
+    expert_system_results["Substation ID"] = expert_system_results["Substation ID"].astype(float)
+    expert_system_results = expert_system_results.set_index(["Substation ID", "Topology applied"])
+    saved_df = saved_df.set_index(["Substation ID", "Topology applied"])
+    #
+    assert (set(expert_system_results.index) == set(saved_df.index))
+    expert_system_results = expert_system_results.loc[saved_df.index].reset_index()
+    saved_df = saved_df.reset_index()
+
+    return expert_system_results,saved_df
+
+
 
 def test_integration_dataframe_results_with_line_9_cut():
     """
@@ -158,6 +178,11 @@ def test_integration_dataframe_results_with_line_9_cut():
     saved_df["Internal Topology applied "] = saved_df["Internal Topology applied "].str.replace(" ", ",")
 
     #print("The two dataframes are equal: ", are_dataframes_equal(expert_system_results, saved_df))
+    # Convert lists to string representation
+    expert_system_results, saved_df=align_dataframes(expert_system_results, saved_df)
+    #########
+
+    assert(set(expert_system_results.index)==set(saved_df.index))
     assert are_dataframes_equal(expert_system_results[["Substation ID","Topology applied","Worsened line","Topology simulated score"]],
                                 saved_df[["Substation ID","Topology applied","Worsened line","Topology simulated score"]])
 
@@ -197,6 +222,8 @@ def test_integration_dataframe_results_with_line_8_cut():
     saved_df["Internal Topology applied "] = saved_df["Internal Topology applied "].str.replace(" ", ",")
 
     #print("The two dataframes are equal: ", are_dataframes_equal(expert_system_results, saved_df))
+    expert_system_results, saved_df=align_dataframes(expert_system_results, saved_df)
+
     df1=expert_system_results[["Substation ID","Topology applied","Worsened line","Topology simulated score"]]
     df2=saved_df[["Substation ID","Topology applied","Worsened line","Topology simulated score"]]
     assert are_dataframes_equal(df1,df2)
@@ -252,6 +279,7 @@ def test_integration_dataframe_results_with_modified_substation4():
     # List understandable format
     saved_df["Internal Topology applied "] = saved_df["Internal Topology applied "].str.replace(" ", ",")
     #print("The two dataframes are equal: ", are_dataframes_equal(expert_system_results, saved_df))
+    expert_system_results, saved_df=align_dataframes(expert_system_results, saved_df)
     assert are_dataframes_equal(expert_system_results[["Substation ID","Topology applied","Worsened line","Topology simulated score"]],
                                 saved_df[["Substation ID","Topology applied","Worsened line","Topology simulated score"]])
 
@@ -294,6 +322,7 @@ def test_integration_dataframe_results_with_case_14_realistic():
     saved_df["Internal Topology applied "] = saved_df["Internal Topology applied "].str.replace(" ", ",")
 
     #print("The two dataframes are equal: ", are_dataframes_equal(expert_system_results, saved_df))
+    expert_system_results, saved_df=align_dataframes(expert_system_results, saved_df)
     assert are_dataframes_equal(expert_system_results[["Substation ID","Topology applied","Worsened line","Topology simulated score"]],
                                 saved_df[["Substation ID","Topology applied","Worsened line","Topology simulated score"]])
 
