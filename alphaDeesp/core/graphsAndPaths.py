@@ -833,35 +833,6 @@ class OverFlowGraph(PowerFlowGraph):
         self.df["idx_or"]=[mapping[idx_or] for idx_or in self.df["idx_or"]]
         self.df["idx_ex"] = [mapping[idx_or] for idx_or in self.df["idx_ex"]]
 
-    def add_double_edges_null_redispatch(self):
-        """
-        Make edges bi-directionnal when flow redispatch value is null
-
-        Returns
-        ----------
-        edges_to_double_name_dict: ``dict`` str: networkx edge
-            original set of edges that has been doubled, with line names as key and edge as value
-
-        edges_added_name_dict: ``dict`` str: networkx edge
-            new set of edges that doubles the original ones in the other direction, with line name as key and edge as value
-
-        """
-        init_edges_names=nx.get_edge_attributes(self.g, "name")
-        init_colors=nx.get_edge_attributes(self.g, "color").values()
-        init_capacity = nx.get_edge_attributes(self.g, "capacity").values()
-        edges_to_double_name_dict={name:edge for edge,name,color,capacity in zip(init_edges_names.keys(),init_edges_names.values(),init_colors,init_capacity) if color=="gray" and capacity==0.}
-
-        edges_to_double_data=[ (edge_or, edge_ex, edge_properties) for edge_or,edge_ex,edge_properties in self.g.edges(data=True) if edge_properties["color"]=="gray" and edge_properties["capacity"]==0.]
-        edges_to_add_data=[(edge_ex, edge_or, edge_properties) for edge_or,edge_ex,edge_properties in edges_to_double_data]
-        self.g.add_edges_from(edges_to_add_data)
-
-        new_edges_names=nx.get_edge_attributes(self.g, "name")#.keys()
-        only_new_edges=set(new_edges_names.keys()) - set(init_edges_names.keys())
-        edges_added_name_dict={name:edge for edge,name in new_edges_names.items() if edge in only_new_edges}
-
-        assert(set(edges_to_double_name_dict.keys())==set(edges_added_name_dict.keys()))
-        return edges_to_double_name_dict,edges_added_name_dict
-
     def add_relevant_null_flow_lines_all_paths(self, structured_graph, non_connected_lines,non_reconnectable_lines=[]):
         """
         Make edges bi-directionnal when flow redispatch value is null
@@ -958,7 +929,7 @@ class OverFlowGraph(PowerFlowGraph):
         #####################"
         # detect connected components for gray edges among which we will try to detect
         # some non_connected_lines of interest, that link constrained path and loop paths
-        edges_to_double, edges_double_added = self.add_double_edges_null_redispatch()  # making null flow redispatch lines bidirectionnal
+        edges_to_double, edges_double_added = add_double_edges_null_redispatch(self.g)  # making null flow redispatch lines bidirectionnal
 
         g_no_red = delete_color_edges(self.g, "coral")
         #g_no_red.remove_edges_from(edges_non_connected_lines_to_ignore)
@@ -1097,7 +1068,7 @@ class OverFlowGraph(PowerFlowGraph):
         #nx.set_edge_attributes(self.g, edge_attribues_to_set)
 
         #remove added double edges not used
-        self.remove_unused_added_double_edge(edges_to_keep,edges_to_double, edges_double_added)
+        self.g=remove_unused_added_double_edge(self.g,edges_to_keep,edges_to_double, edges_double_added)
 
     def detect_edges_to_keep(self,g_c, source_nodes, target_nodes, edges_of_interest,non_reconnectable_edges=[]):
         """
@@ -1212,35 +1183,6 @@ class OverFlowGraph(PowerFlowGraph):
                     edge_names_already_found_in_path=edge_names_already_found_in_path.union(path_edge_names_not_already_found)
 
         return set(edges_to_keep_reconnectable),set(edges_to_keep_non_reconnectable)
-
-    def remove_unused_added_double_edge(self, edges_to_keep, edges_to_double, edges_double_added):
-
-        """
-        Make edges bi-directionnal when flow redispatch value is null
-
-        Parameters
-        ----------
-         edges_to_keep: ``set`` str
-            set of edges of interest found on paths and to be recoloured
-
-        edges_to_double: ``dict`` str: networkx edge
-            original set of edges that has been doubled, with line names as key and edge as value
-
-        edges_double_added: ``dict`` str: networkx edge
-            new set of edges that doubles the original ones in the other direction, with line name as key and edge as value
-
-        """
-        name_edges_to_keep = nx.get_edge_attributes(self.g.edge_subgraph(edges_to_keep), "name").values()
-
-
-        # for initial edges that has not been recoloured but for which the added double edge has been, remove those initial edges
-        edges_to_remove=[edge for name,edge in edges_to_double.items() if name in name_edges_to_keep and self.g.edges[edge]["color"]=="gray"]
-        edge_names_to_remove=[name for name,edge in edges_to_double.items() if name in name_edges_to_keep and self.g.edges[edge]["color"]=="gray"]
-
-        # for added double edges that has not been recoloured, remove them
-        edges_to_remove+=[edge for name,edge in edges_double_added.items() if name not in edge_names_to_remove]
-        assert(len(edges_to_remove)==len(edges_to_double))
-        self.g.remove_edges_from(edges_to_remove)
 
 class ConstrainedPath:
 
@@ -1445,6 +1387,11 @@ class Structured_Overload_Distribution_Graph:
             a dataframe with rows representing each detected path, with column attibutes "Source, Target, Path" with Path representing a list of nodes
         """
 
+        attr_edge_direction=nx.get_edge_attributes(self.g_only_red_components, "dir")
+        if len(attr_edge_direction)!=0:
+            # add edges to make simple paths work for no direction edges
+            edges_to_double, edges_double_added = add_double_edges_null_redispatch(self.g_only_red_components,color_init="coral",only_no_dir=True)
+
         # print("==================== In function get_loops ====================")
         g = self.g_only_red_components
         c_path_n = self.constrained_path.full_n_constrained_path()
@@ -1478,6 +1425,10 @@ class Structured_Overload_Distribution_Graph:
             data_for_df["Path"].append(all_loop_paths[path])
 
         # pprint.pprint(data_for_df)
+        if len(attr_edge_direction)!=0:
+            #remove added edges that made simple paths working for no direction edges
+            self.g_only_red_components = remove_unused_added_double_edge(self.g_only_red_components, set(edges_to_double.values()),
+                                                                         edges_to_double, edges_double_added)
 
         return pd.DataFrame.from_dict(data_for_df)
 
@@ -1497,7 +1448,7 @@ class Structured_Overload_Distribution_Graph:
         tmp_constrained_path = []
         edge_list = nx.get_edge_attributes(self.g_only_blue_components, "color")
         for edge, color in edge_list.items():
-            if color == "black":
+            if "black" in color:
                 constrained_edge = edge
         amont_edges = self.get_amont_blue_edges(self.g_only_blue_components, constrained_edge[0])
         aval_edges = self.get_aval_blue_edges(self.g_only_blue_components, constrained_edge[1])
@@ -1676,3 +1627,82 @@ def all_simple_edge_paths_multi(G, sources, targets, cutoff=None):
                         yield path
                 except nx.NetworkXNoPath:
                     continue
+
+def remove_unused_added_double_edge(g, edges_to_keep, edges_to_double, edges_double_added):
+
+    """
+    Make edges bi-directionnal when flow redispatch value is null
+
+    Parameters
+    ----------
+     g: NetworkX graph
+      graph on which to remove edges
+     edges_to_keep: ``set`` str
+        set of edges of interest found on paths and to be recoloured
+
+    edges_to_double: ``dict`` str: networkx edge
+        original set of edges that has been doubled, with line names as key and edge as value
+
+    edges_double_added: ``dict`` str: networkx edge
+        new set of edges that doubles the original ones in the other direction, with line name as key and edge as value
+
+    Return
+    ----------------
+    g: NetworkX graph
+      graph on which edges where removed
+    """
+    name_edges_to_keep = nx.get_edge_attributes(g.edge_subgraph(edges_to_keep), "name").values()
+
+    # for initial edges that has not been recoloured but for which the added double edge has been, remove those initial edges
+    edges_to_remove = [edge for name, edge in edges_to_double.items() if
+                       name in name_edges_to_keep and g.edges[edge]["color"] == "gray"]
+    edge_names_to_remove = [name for name, edge in edges_to_double.items() if
+                            name in name_edges_to_keep and g.edges[edge]["color"] == "gray"]
+
+    # for added double edges that has not been recoloured, remove them
+    edges_to_remove += [edge for name, edge in edges_double_added.items() if name not in edge_names_to_remove]
+    assert (len(edges_to_remove) == len(edges_to_double))
+    g.remove_edges_from(edges_to_remove)
+
+    return g
+
+def add_double_edges_null_redispatch(g,color_init="gray",only_no_dir=False):
+    """
+    Make edges bi-directionnal when flow redispatch value is null
+
+    Parameters
+    -------------
+    g: NetworkX graph
+      graph on which to add edges
+
+    only_no_dir: bool
+        condition to restrict edge doubling at no_dir case
+
+    Returns
+    ----------
+    edges_to_double_name_dict: ``dict`` str: networkx edge
+        original set of edges that has been doubled, with line names as key and edge as value
+
+    edges_added_name_dict: ``dict`` str: networkx edge
+        new set of edges that doubles the original ones in the other direction, with line name as key and edge as value
+
+    """
+    init_edges_names=nx.get_edge_attributes(g, "name")
+    init_colors=nx.get_edge_attributes(g, "color").values()
+    init_capacity = nx.get_edge_attributes(g, "capacity").values()
+    no_dir_edges =nx.get_edge_attributes(g, "dir")
+
+    if only_no_dir:
+        print("stop")
+    edges_to_double_name_dict={name:edge for edge,name,color,capacity in zip(init_edges_names.keys(),init_edges_names.values(),init_colors,init_capacity) if color==color_init and capacity==0. and (not only_no_dir or edge in no_dir_edges)}
+
+    edges_to_double_data=[ (edge_or, edge_ex, edge_properties) for edge_or,edge_ex,edge_properties in g.edges(data=True) if edge_properties["color"]==color_init and edge_properties["capacity"]==0. and (not only_no_dir or "dir" in edge_properties)]
+    edges_to_add_data=[(edge_ex, edge_or, edge_properties) for edge_or,edge_ex,edge_properties in edges_to_double_data]
+    g.add_edges_from(edges_to_add_data)
+
+    new_edges_names=nx.get_edge_attributes(g, "name")#.keys()
+    only_new_edges=set(new_edges_names.keys()) - set(init_edges_names.keys())
+    edges_added_name_dict={name:edge for edge,name in new_edges_names.items() if edge in only_new_edges}
+
+    assert(set(edges_to_double_name_dict.keys())==set(edges_added_name_dict.keys()))
+    return edges_to_double_name_dict,edges_added_name_dict
