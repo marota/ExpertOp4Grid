@@ -272,44 +272,42 @@ class OverFlowGraph(PowerFlowGraph):
         self.g=g
         #self.add_double_edges_null_redispatch()
 
+    def _get_edge_attributes(self, reported_flow, gray_edge, line_is_cut):
+        """Helper method to determine edge attributes based on flow data."""
+        penwidth = max(fabs(reported_flow) / 10, 0.1)
+        attributes = {
+            "capacity": float(self.float_precision % reported_flow),
+            "label": self.float_precision % reported_flow,
+            "fontsize": 10,
+            "penwidth": float(self.float_precision % penwidth)
+        }
+
+        if line_is_cut:
+            attributes.update({"color": "black", "constrained": True})
+        elif gray_edge:
+            attributes["color"] = "gray"
+        elif reported_flow < 0:
+            attributes["color"] = "blue"
+        else:
+            attributes["color"] = "coral"
+
+        return attributes
+
     def build_edges_from_df(self, g, lines_to_cut):
-        """
-        Create edges in graph for overflow redispatch
+        """Create edges in graph for overflow redispatch."""
+        for i, row in self.df.iterrows():
+            origin = row["idx_or"]
+            extremity = row["idx_ex"]
+            line_name = row["line_name"]
 
-        Parameters
-        ----------
+            attributes = self._get_edge_attributes(
+                row["delta_flows"],
+                row["gray_edges"],
+                i in lines_to_cut
+            )
+            attributes["name"] = line_name
+            g.add_edge(origin, extremity, **attributes)
 
-        g: :class:`nx:MultiDiGraph`
-            a networkx graph to which to add edges
-
-        lines_to_cut: ``array`` int
-            list of lines in overflow that are getting disconnected
-
-        """
-
-        i = 0
-        for origin, extremity, reported_flow, gray_edge, line_name in zip(self.df["idx_or"], self.df["idx_ex"],
-                                                               self.df["delta_flows"], self.df["gray_edges"],self.df["line_name"]):
-            penwidth = fabs(reported_flow) / 10
-            min_penwidth=0.1
-            if penwidth == 0.0:
-                penwidth = min_penwidth
-            if i in lines_to_cut:
-                g.add_edge(origin, extremity, capacity=float(self.float_precision % reported_flow), label=self.float_precision % reported_flow,
-                           color="black", fontsize=10, penwidth=max(float(self.float_precision % penwidth),min_penwidth),
-                           constrained=True, name=line_name)#style="dotted, setlinewidth(2)"
-            elif gray_edge:  # Gray
-                g.add_edge(origin, extremity, capacity=float(self.float_precision % reported_flow), label=self.float_precision % reported_flow,
-                           color="gray", fontsize=10, penwidth=max(float(self.float_precision % penwidth),min_penwidth),name=line_name)
-            elif reported_flow < 0:  # Blue
-                g.add_edge(origin, extremity, capacity=float(self.float_precision % reported_flow), label=self.float_precision % reported_flow,
-                           color="blue", fontsize=10, penwidth=max(float(self.float_precision % penwidth),min_penwidth),name=line_name)
-            else:  # > 0  # Red
-                g.add_edge(origin, extremity, capacity=float(self.float_precision % reported_flow), label=self.float_precision % reported_flow,
-                           color="coral",#orange"#ff8000"#"coral",
-                           fontsize=10, penwidth=max(float(self.float_precision % penwidth),min_penwidth),name=line_name)#"#ff8000")#orange
-            i += 1
-        #nx.set_edge_attributes(g, {e:self.df["line_name"][i] for i,e in enumerate(g.edges)}, name="name")
 
     def consolidate_constrained_path(self, constrained_path_nodes_amont,constrained_path_nodes_aval,constrained_path_edges,ignore_null_edges=True):#hub_sources,hub_targets):
         """
