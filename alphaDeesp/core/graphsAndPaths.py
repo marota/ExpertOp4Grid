@@ -1386,7 +1386,7 @@ class Structured_Overload_Distribution_Graph:
         res: pd.DataFrame
             a dataframe with rows representing each detected path, with column attibutes "Source, Target, Path" with Path representing a list of nodes
         """
-
+        #TODO: could be augmented by consolidating here red paths that could include blue edges that are not on the constrained path (by reverting them artificially here)
         attr_edge_direction=nx.get_edge_attributes(self.g_only_red_components, "dir")
         if len(attr_edge_direction)!=0:
             # add edges to make simple paths work for no direction edges
@@ -1488,7 +1488,9 @@ class Structured_Overload_Distribution_Graph:
                                            edge == constrained_path_object.constrained_edge][0])
 
         g_blue=self.g_only_blue_components.copy()
-        g_blue.remove_edges_from(edges_constrained_path)
+
+        edges_to_remove=[edge for edge, edge_name in edge_names.items() if edge_name in edges_constrained_path]
+        g_blue.remove_edges_from(edges_to_remove)
 
         other_blue_edges=list(g_blue.edges())
         other_blue_nodes=[node for node in g_blue.nodes() if node not in nodes_constrained_path]
@@ -1512,7 +1514,10 @@ class Structured_Overload_Distribution_Graph:
         g_red = self.g_only_red_components
 
         if only_loop_paths:
-            list_nodes_dispatch_path = list(set(self.find_loops()["Path"].sum()))
+            if len(self.find_loops()["Path"])!=0:
+                list_nodes_dispatch_path = list(set(self.find_loops()["Path"].sum()))
+            else:
+                list_nodes_dispatch_path=[]
         else:
             list_nodes_dispatch_path=list(g_red.nodes)
 
@@ -1692,8 +1697,6 @@ def add_double_edges_null_redispatch(g,color_init="gray",only_no_dir=False):
     init_capacity = nx.get_edge_attributes(g, "capacity").values()
     no_dir_edges =nx.get_edge_attributes(g, "dir")
 
-    if only_no_dir:
-        print("stop")
     edges_to_double_name_dict={name:edge for edge,name,color,capacity in zip(init_edges_names.keys(),init_edges_names.values(),init_colors,init_capacity) if color==color_init and capacity==0. and (not only_no_dir or edge in no_dir_edges)}
 
     edges_to_double_data=[ (edge_or, edge_ex, edge_properties) for edge_or,edge_ex,edge_properties in g.edges(data=True) if edge_properties["color"]==color_init and edge_properties["capacity"]==0. and (not only_no_dir or "dir" in edge_properties)]
