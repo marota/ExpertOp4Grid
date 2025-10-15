@@ -2,6 +2,7 @@ docutils >= 0.16
 graphviz >= 0.14
 Grid2Op == 1.12.1
 lightsim2grid == 0.10.3
+lxml>=6.0.2
 networkx >= 2.4
 numpy == 2.3.3
 pandapower >= 2.2.2
