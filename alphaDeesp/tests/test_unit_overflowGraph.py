@@ -1487,3 +1487,69 @@ def test_empty_sources_or_targets_yields_no_paths(setup_path_graph):
     # Both empty
     paths_both_empty = list(all_simple_edge_paths_multi(g, [], []))
     assert len(paths_both_empty) == 0
+
+@pytest.fixture
+def setup2_graph_for_test():
+    """
+    Sets up a standard graph instance for testing consolidation and analysis methods.
+    The graph includes a constrained path, loop paths, and various null-flow lines.
+    """
+    # A more complex DataFrame to cover various graph structures
+    df = pd.DataFrame({
+        "idx_or": [0, 1, 2, 3, 4, 0, 5, 6, 7, 8, 9, 10, 11, 12],
+        "idx_ex": [1, 2, 3, 4, 5, 2, 6, 7, 8, 5, 10, 11, 12, 9],
+        "delta_flows": [-10, -10, -10, -10, -10, 0, 0, 10, 10, 0, 0, 0, 0, 0],
+        "gray_edges": [False, False, False, False, False, True, True, False, False, True, True, True, True, True],
+    })
+    # Add unique line names
+    df["line_name"] = [f"{o}_{e}_{i}" for i, (o, e) in enumerate(zip(df["idx_or"], df["idx_ex"]))]
+
+    # Mock topology and lines to cut
+    mock_topo = {
+        "nodes": {
+            "are_prods": [False] * 13, "are_loads": [False] * 13,
+            "prods_values": [], "loads_values": []
+        },
+        "edges": {}
+    }
+    lines_to_cut = [2]  # Edge from node 2 to 3 is the constrained line
+
+    # Create and build the graph objects
+    graph_obj = OverFlowGraph(topo=mock_topo, lines_to_cut=lines_to_cut, df_overflow=df)
+    graph_obj.build_graph()
+    struct_g = Structured_Overload_Distribution_Graph(graph_obj.g)
+
+    return graph_obj, struct_g
+
+
+def test_add_relevant_null_flow_lines_does_not_add_extra_edges(setup2_graph_for_test):
+    """
+    Tests that calling add_relevant_null_flow_lines_all_paths does not result in a net
+    increase or decrease in the number of edges in the graph.
+
+    This acts as a regression test to ensure that the logic within detect_edges_to_keep
+    or its callers does not inadvertently add permanent edges to the graph. The function
+    should only recolor/restyle existing edges or temporary doubled edges that are
+    subsequently cleaned up, resulting in a zero net change to the edge count.
+    """
+    graph_obj, struct_g = setup2_graph_for_test
+
+    # A set of disconnected lines to test with
+    non_connected_lines = ["0_2_5", "8_5_9", "5_6_6"]  # Using line names from fixture
+
+    # Record the initial number of edges
+    initial_edge_count = len(graph_obj.g.edges())
+
+    # Action: Run the full analysis which includes the detect_edges_to_keep logic
+    graph_obj.add_relevant_null_flow_lines_all_paths(
+        struct_g,
+        non_connected_lines=non_connected_lines
+    )
+
+    # Record the final number of edges
+    final_edge_count = len(graph_obj.g.edges())
+
+    # Assertion: The number of edges should not have changed.
+    assert final_edge_count == initial_edge_count, \
+        f"The number of edges changed from {initial_edge_count} to {final_edge_count}. " \
+        "The function should not add or remove permanent edges from the graph."

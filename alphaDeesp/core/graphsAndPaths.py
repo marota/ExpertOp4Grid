@@ -650,83 +650,71 @@ class OverFlowGraph(PowerFlowGraph):
             printer.display_geo(g, layout,rescale_factor=rescale_factor,fontsize=fontsize,node_thickness=node_thickness, name="g_overflow_print")
             return None
 
-    def _temporarily_remove_ignored_lines(self, lines_to_ignore):
-        """Finds and removes edges that should be ignored during consolidation."""
-        if not lines_to_ignore:
-            return []
+    def consolidate_graph(self, structured_graph,non_connected_lines_to_ignore=[],no_desambiguation=False):
+        """
+        Consolidate overflow graph knwoing structural elements from SuscturedOverflowGraph
 
-        edges_to_remove_data = [
-            (u, v, data) for u, v, data in self.g.edges(data=True)
-            if data.get("name") in lines_to_ignore
-        ]
+        Parameters
+        ----------
 
-        # We only need the edge keys (u, v, key) to remove them
-        edges_to_remove = [(u, v, data.get('key')) for u, v, data in edges_to_remove_data]
+        structured_graph: ``SuscturedOverflowGraph``
+            a structured graph with identified constrained path, hubs, loop paths
+
+        """
+        #remove temporarily edges
+        # Get the names of the edges in the graph
+        edge_names = nx.get_edge_attributes(self.g, 'name')
+        edges_to_remove = [edge for edge, edge_name in edge_names.items() if
+                           edge_name in non_connected_lines_to_ignore]
+#
+        edges_to_remove_data = [(edge_or, edge_ex, edge_properties) for edge_or, edge_ex, edge_properties in
+                                self.g.edges(data=True) if
+                                edge_properties["name"] in non_connected_lines_to_ignore]
+
         self.g.remove_edges_from(edges_to_remove)
 
-        return edges_to_remove_data
-
-    def _iteratively_consolidate_constrained_path(self, structured_graph):
-        """
-        Repeatedly consolidates the constrained (blue) path until the graph structure stabilizes.
-        """
+        # consolider le chemin en contrainte avec la connaissance des hubs, en itérant une fois de plus
         n_hubs_init = 0
-        # Assuming find_loops() returns a DataFrame with "Source" and "Target" columns
         hubs_paths = structured_graph.find_loops()[["Source", "Target"]].drop_duplicates()
         n_hub_paths = hubs_paths.shape[0]
 
         while n_hubs_init != n_hub_paths:
             n_hubs_init = n_hub_paths
 
-            cp = structured_graph.constrained_path
-            constrained_path_edges = cp.aval_edges + [cp.constrained_edge] + cp.amont_edges
-            self.consolidate_constrained_path(cp.n_amont(), cp.n_aval(), constrained_path_edges)
+            constrained_path = structured_graph.constrained_path
+            nodes_amont = constrained_path.n_amont()
+            nodes_aval = constrained_path.n_aval()
+            constrained_path_edges = constrained_path.aval_edges + [
+                constrained_path.constrained_edge] + constrained_path.amont_edges
+            self.consolidate_constrained_path(nodes_amont, nodes_aval, constrained_path_edges)
 
-            # Re-evaluate the graph structure after consolidation
             structured_graph = Structured_Overload_Distribution_Graph(self.g)
+
             hubs_paths = structured_graph.find_loops()[["Source", "Target"]].drop_duplicates()
             n_hub_paths = hubs_paths.shape[0]
 
-        return structured_graph
-
-    def _desambiguate_paths(self, structured_graph):
-        """Identifies and resolves ambiguous paths with mixed blue/coral colors."""
-        ambiguous_edge_paths, ambiguous_node_paths = self.identify_ambiguous_paths(structured_graph)
-
-        for edge_path, node_path in zip(ambiguous_edge_paths, ambiguous_node_paths):
-            path_type = self.desambiguation_type_path(node_path, structured_graph)
-            target_color = "coral" if path_type == "loop_path" else "blue"
-            self.reverse_edges(edge_path, target_color=target_color)
-
-    def consolidate_graph(self, structured_graph, non_connected_lines_to_ignore=[], no_desambiguation=False):
-        """
-        Consolidate overflow graph knowing structural elements from SuscturedOverflowGraph
-
-        Parameters
-        ----------
-
-        structured_graph: ``StructuredOverflowGraph``
-            a structured graph with identified constrained path, hubs, loop paths
-
-        """
-        # 1. Temporarily remove any specified lines from the graph
-        ignored_edges_data = self._temporarily_remove_ignored_lines(non_connected_lines_to_ignore)
-
-        # 2. Iteratively consolidate the main constrained (blue) path
-        final_structured_graph = self._iteratively_consolidate_constrained_path(structured_graph)
-
-        # 3. Resolve ambiguous (mixed-color) paths if requested
+        #recolor and reverse blue or red edges outside of constrained or loop paths
         if not no_desambiguation:
-            self._desambiguate_paths(final_structured_graph)
+            ambiguous_edge_paths, ambiguous_node_paths = self.identify_ambiguous_paths(structured_graph)
+            for ambiguous_edge_path, ambiguous_node_path in zip(ambiguous_edge_paths, ambiguous_node_paths):
+                path_type=self.desambiguation_type_path(ambiguous_node_path, structured_graph)
+                if path_type=="loop_path":
+                    self.reverse_edges(ambiguous_edge_path,target_color="coral")
+                else:
+                    self.reverse_edges(ambiguous_edge_path, target_color="blue")
 
-        # 4. Consolidate the loop (coral) paths
-        hubs_paths = final_structured_graph.red_loops[["Source", "Target"]].drop_duplicates()
-        if not hubs_paths.empty:
-            self.consolidate_loop_path(hubs_paths.Source, hubs_paths.Target)
+        #not needed anymore as more generic ambiguous path detection and correction above ?
+        #constrained_path = structured_graph.constrained_path.full_n_constrained_path()
+        #self.reverse_blue_edges_in_looppaths(constrained_path)
 
-        # 5. Add back the lines that were temporarily removed
-        if ignored_edges_data:
-            self.g.add_edges_from(ignored_edges_data)
+        # consolidate loop paths by recoloring gray edges that are significant enough and within a loop path
+        self.consolidate_loop_path(hubs_paths.Source, hubs_paths.Target)
+
+        #add back removed edges
+        edges_to_double_data=[ (edge_or, edge_ex, edge_properties) for edge_or,edge_ex,edge_properties in self.g.edges(data=True) if edge_properties["color"]=="gray" and edge_properties["capacity"]==0.]
+        edges_to_add_data=[(edge_ex, edge_or, edge_properties) for edge_or,edge_ex,edge_properties in edges_to_double_data]
+
+        self.g.add_edges_from(edges_to_remove_data)
 
     def identify_ambiguous_paths(self, structured_graph):
         """
@@ -1053,51 +1041,7 @@ class OverFlowGraph(PowerFlowGraph):
             all_edges_to_keep, all_non_reconnectable_in_path, doubled_edges, target_path
         )
 
-    def detect_edges_to_keep(self, g_c, source_nodes, target_nodes, edges_of_interest, non_reconnectable_edges=[]):
-        """
-        detect edges in edges of interest that belongs to gthe subgraph and are on a path between source nodes and target nodes
-
-        Parameters
-        ----------
-
-        g_c: ``Networkx Graph``
-            a networkx subgraph of gray edges to possibly recolor
-
-
-        source_nodes: ``array`` str
-            list of nodes, that belong to either constrained path or red loops, from which to find a path
-
-        target_nodes: ``array`` str
-            list of nodes, that belong to either constrained path or red loops, to which to find a path
-
-        Returns
-        ----------
-        res: ``set`` str
-            set of edges of interest found on paths and to be recoloured
-        """
-        self._prepare_graph_for_pathfinding(g_c)
-        all_paths = self._find_shortest_paths_between_sets(g_c, source_nodes, target_nodes)
-
-        g_c_edge_names = nx.get_edge_attributes(g_c, "name")
-        edge_names_of_interest = {g_c_edge_names.get(e) for e in edges_of_interest if e in g_c_edge_names}
-
-        interesting_paths = [
-            path for path in all_paths
-            if any(g_c_edge_names.get(edge) in edge_names_of_interest for edge in path)
-        ]
-
-        non_reconnectable_edge_names = {g_c_edge_names.get(e) for e in non_reconnectable_edges if e in g_c_edge_names}
-        return self._categorize_edges_from_paths(interesting_paths, g_c_edge_names, non_reconnectable_edge_names)
-
-    def _prepare_graph_for_pathfinding(self, g_c):
-        """Makes edge capacities positive for use as weights in shortest path algorithms."""
-        new_attributes = {
-            e: {"capacity": abs(capacity)}
-            for e, capacity in nx.get_edge_attributes(g_c, "capacity").items()
-        }
-        nx.set_edge_attributes(g_c, new_attributes)
-
-    def _find_shortest_paths_between_sets(self, g_c, sources, targets):
+    def _find_shortest_paths_between_sets(self, g_pathfinding, sources, targets):
         """Finds all shortest paths between any source and any target node."""
         all_paths = []
         for source in sources:
@@ -1105,9 +1049,10 @@ class OverFlowGraph(PowerFlowGraph):
                 if source == target:
                     continue
                 try:
-                    paths_nodes = nx.all_shortest_paths(g_c, source=source, target=target, weight="capacity")
-                    for p_nodes in paths_nodes:
-                        all_paths.append(nodepath_to_edgepath(g_c, p_nodes, with_keys=True))
+                    paths_nodes_iter = nx.all_shortest_paths(g_pathfinding, source=source, target=target,
+                                                             weight="capacity")
+                    for p_nodes in paths_nodes_iter:
+                        all_paths.append(nodepath_to_edgepath(g_pathfinding, p_nodes, with_keys=True))
                 except (NetworkXNoPath, nx.NodeNotFound):
                     continue
         return all_paths
@@ -1131,39 +1076,82 @@ class OverFlowGraph(PowerFlowGraph):
     #            g_c.remove_edges_from(edge_of_interest) #on supprime l'edge pour les traitements futurs ci-dessous
     #            for target_node in target_nodes:
 
-    def _categorize_edges_from_paths(self, paths, g_c_edge_names, non_reconnectable_edge_names):
-        """
-        Sorts paths by length and categorizes their edges, ensuring each edge is
-        categorized only once based on the shortest path it appears in.
-        """
-        reconnectable = set()
-        non_reconnectable = set()
-        sorted_paths = sorted(paths, key=len)
-        processed_edge_names = set()
+    def _categorize_edges_from_paths(self, paths_of_interest, g_c_edge_names_dict, edge_names_of_interest,
+                                     non_reconnectable_edges_names):
+        """Sorts paths by length and categorizes their edges as reconnectable or non-reconnectable."""
+        sorted_paths = sorted(paths_of_interest, key=len, reverse=False)
+        edge_names_already_found_in_path = set()
+        edges_to_keep_reconnectable = set()
+        edges_to_keep_non_reconnectable = set()
 
         for path in sorted_paths:
-            path_edges_to_process = []
-            path_is_non_reconnectable = False
+            path_edges_not_already_found = {edge for edge in path if
+                                            g_c_edge_names_dict.get(edge) not in edge_names_already_found_in_path}
+            path_edge_names_not_already_found = {g_c_edge_names_dict.get(edge) for edge in path_edges_not_already_found}
 
-            for edge in path:
-                edge_name = g_c_edge_names.get(edge)
-                if edge_name not in processed_edge_names:
-                    path_edges_to_process.append(edge)
-                    if edge_name in non_reconnectable_edge_names:
-                        path_is_non_reconnectable = True
-
-            if path_edges_to_process:
-                if path_is_non_reconnectable:
-                    non_reconnectable.update(path_edges_to_process)
+            if path_edge_names_not_already_found.intersection(edge_names_of_interest):
+                found_remaining_non_reconnectable_edges_names = path_edge_names_not_already_found.intersection(
+                    non_reconnectable_edges_names)
+                if found_remaining_non_reconnectable_edges_names:
+                    edges_to_keep_non_reconnectable.update(path_edges_not_already_found)
                 else:
-                    reconnectable.update(path_edges_to_process)
+                    edges_to_keep_reconnectable.update(path_edges_not_already_found)
 
-                for edge in path_edges_to_process:
-                    processed_edge_names.add(g_c_edge_names.get(edge))
+                edge_names_already_found_in_path.update(path_edge_names_not_already_found)
 
-        return reconnectable, non_reconnectable
+        return edges_to_keep_reconnectable, edges_to_keep_non_reconnectable
+
+    def detect_edges_to_keep(self, g_c, source_nodes, target_nodes, edges_of_interest, non_reconnectable_edges=[]):
+        """
+        detect edges in edges of interest that belongs to gthe subgraph and are on a path between source nodes and target nodes
+
+        Parameters
+        ----------
+
+        g_c: ``Networkx Graph``
+            a networkx subgraph of gray edges to possibly recolor
 
 
+        source_nodes: ``array`` str
+            list of nodes, that belong to either constrained path or red loops, from which to find a path
+
+        target_nodes: ``array`` str
+            list of nodes, that belong to either constrained path or red loops, to which to find a path
+
+        Returns
+        ----------
+        res: ``set`` str
+            set of edges of interest found on paths and to be recoloured
+        """
+        # 1. Prepare a safe graph copy for pathfinding locally
+        g_pathfinding = g_c.copy()
+        new_attributes = {
+            e: {"capacity": abs(capacity)}
+            for e, capacity in nx.get_edge_attributes(g_pathfinding, "capacity").items()
+        }
+        nx.set_edge_attributes(g_pathfinding, new_attributes)
+
+        # 2. Find all relevant shortest paths
+        all_paths = self._find_shortest_paths_between_sets(g_pathfinding, source_nodes, target_nodes)
+
+        # 3. Filter paths to keep only those containing an edge of interest
+        g_c_edge_names_dict = nx.get_edge_attributes(g_c, "name")
+        edge_names_of_interest = {g_c_edge_names_dict.get(edge) for edge in edges_of_interest if
+                                  edge in g_c_edge_names_dict}
+
+        paths_of_interest = []
+        for path in all_paths:
+            path_edge_names = {g_c_edge_names_dict.get(edge) for edge in path}
+            if path_edge_names.intersection(edge_names_of_interest):
+                paths_of_interest.append(path)
+
+        # 4. Categorize the edges from the filtered paths
+        non_reconnectable_edges_names = {g_c_edge_names_dict.get(edge) for edge in non_reconnectable_edges if
+                                         edge in g_c_edge_names_dict}
+
+        return self._categorize_edges_from_paths(
+            paths_of_interest, g_c_edge_names_dict, edge_names_of_interest, non_reconnectable_edges_names
+        )
 
 
 class ConstrainedPath:
