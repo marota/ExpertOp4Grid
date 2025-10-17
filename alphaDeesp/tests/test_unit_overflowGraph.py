@@ -1491,34 +1491,25 @@ def test_empty_sources_or_targets_yields_no_paths(setup_path_graph):
 @pytest.fixture
 def setup2_graph_for_test():
     """
-    Sets up a standard graph instance for testing consolidation and analysis methods.
-    The graph includes a constrained path, loop paths, and various null-flow lines.
+    Configure une instance de graphe standard pour les tests.
+    Le graphe inclut un chemin de contrainte, des boucles et diverses lignes à flux nul.
     """
-    # A more complex DataFrame to cover various graph structures
     df = pd.DataFrame({
-        "idx_or": [0, 1, 2, 3, 4, 0, 5, 6, 7, 8, 9, 10, 11, 12],
-        "idx_ex": [1, 2, 3, 4, 5, 2, 6, 7, 8, 5, 10, 11, 12, 9],
-        "delta_flows": [-10, -10, -10, -10, -10, 0, 0, 10, 10, 0, 0, 0, 0, 0],
-        "gray_edges": [False, False, False, False, False, True, True, False, False, True, True, True, True, True],
+        "idx_or": [0, 1, 2, 3, 4, 0, 5, 6, 7, 8, 9, 10, 11, 12, 1, 6],
+        "idx_ex": [1, 2, 3, 4, 5, 2, 6, 7, 8, 5, 10, 11, 12, 9, 6, 8], # Ajout de chemins pour tests
+        "delta_flows": [-10, -10, -10, -10, -10, 0, 0, 10, 10, 0, 0, 0, 0, 0, 0, 5],
+        "gray_edges": [False, False, False, False, False, True, True, False, False, True, True, True, True, True, True, False],
     })
-    # Add unique line names
     df["line_name"] = [f"{o}_{e}_{i}" for i, (o, e) in enumerate(zip(df["idx_or"], df["idx_ex"]))]
 
-    # Mock topology and lines to cut
     mock_topo = {
-        "nodes": {
-            "are_prods": [False] * 13, "are_loads": [False] * 13,
-            "prods_values": [], "loads_values": []
-        },
+        "nodes": {"are_prods": [False]*13, "are_loads": [False]*13, "prods_values": [], "loads_values": []},
         "edges": {}
     }
-    lines_to_cut = [2]  # Edge from node 2 to 3 is the constrained line
-
-    # Create and build the graph objects
+    lines_to_cut = [2]
     graph_obj = OverFlowGraph(topo=mock_topo, lines_to_cut=lines_to_cut, df_overflow=df)
     graph_obj.build_graph()
     struct_g = Structured_Overload_Distribution_Graph(graph_obj.g)
-
     return graph_obj, struct_g
 
 
@@ -1553,3 +1544,121 @@ def test_add_relevant_null_flow_lines_does_not_add_extra_edges(setup2_graph_for_
     assert final_edge_count == initial_edge_count, \
         f"The number of edges changed from {initial_edge_count} to {final_edge_count}. " \
         "The function should not add or remove permanent edges from the graph."
+
+
+@pytest.fixture
+def setup_ambiguous_graph(setup2_graph_for_test):
+    """Ajoute un chemin ambigu au graphe de test."""
+    graph_obj, struct_g = setup2_graph_for_test
+
+    # Ajoute un chemin avec des arêtes bleues et corail connectées
+    # Ce chemin connecte le chemin de contrainte (nœud 1) et le chemin de boucle (nœud 8)
+    graph_obj.g.add_edge(1, 13, name="ambiguous_1", color="blue", capacity=-5)
+    graph_obj.g.add_edge(13, 14, name="ambiguous_2", color="coral", capacity=5)
+    graph_obj.g.add_edge(14, 8, name="ambiguous_3", color="coral", capacity=5)
+
+    # Recalculer le graphe structuré avec le chemin ambigu
+    struct_g_ambiguous = Structured_Overload_Distribution_Graph(graph_obj.g)
+
+    return graph_obj, struct_g_ambiguous
+
+
+def test_temporarily_remove_ignored_lines(setup2_graph_for_test):
+    """
+    Teste que les arêtes ignorées sont correctement supprimées temporairement.
+    """
+    graph_obj, _ = setup2_graph_for_test
+    initial_edge_count = len(graph_obj.g.edges())
+    lines_to_ignore = ["0_2_5", "5_6_6"]
+
+    # Action
+    removed_data = graph_obj._temporarily_remove_ignored_lines(lines_to_ignore)
+
+    # Assertion
+    assert len(removed_data) == 2
+    assert len(graph_obj.g.edges()) == initial_edge_count - 2
+    removed_names = {d['name'] for _, _, d in removed_data}
+    assert removed_names == set(lines_to_ignore)
+
+
+def test_desambiguate_paths(setup_ambiguous_graph):
+    """
+    Teste que les chemins ambigus sont correctement identifiés et résolus.
+    """
+    graph_obj, struct_g = setup_ambiguous_graph
+
+    # Action
+    graph_obj._desambiguate_paths(struct_g)
+
+    # Assertion
+    # Le chemin ambigu connecte le chemin de contrainte et une boucle, il devrait être résolu en "loop_path" (corail)
+    # L'arête bleue d'origine (1, 13) devrait être inversée et devenir corail.
+    edge1_attrs = graph_obj.g.get_edge_data(13, 1, key=0)  # Arête inversée
+    edge2_attrs = graph_obj.g.get_edge_data(13, 14, key=0)
+
+    assert edge1_attrs['color'] == 'coral'
+    assert edge2_attrs['color'] == 'coral'
+    assert not graph_obj.g.has_edge(1, 13)  # L'arête originale a été supprimée après inversion
+
+
+def test_find_shortest_paths_between_sets():
+    """
+    Teste la recherche de plus courts chemins entre des ensembles de nœuds.
+    """
+    # Créer un graphe simple
+    g = nx.MultiDiGraph()
+    g.add_edge(0, 1, capacity=1)
+    g.add_edge(1, 2, capacity=1)
+    g.add_edge(0, 3, capacity=1)
+    g.add_edge(3, 2, capacity=1)
+    g.add_edge(2, 4, capacity=1)
+
+    # Créer un DataFrame vide avec les colonnes requises et une structure topo minimale
+    df_empty = pd.DataFrame(columns=["idx_or", "idx_ex", "delta_flows", "gray_edges", "line_name"])
+    mock_topo = {
+        "nodes": {"are_prods": [], "are_loads": [], "prods_values": [], "loads_values": []}
+    }
+    graph_obj = OverFlowGraph(topo=mock_topo, lines_to_cut=[], df_overflow=df_empty)
+
+    # Action
+    paths = graph_obj._find_shortest_paths_between_sets(g, {0}, {4})
+
+    # Assertion
+    assert len(paths) == 2  # Deux chemins de longueur égale
+    path_nodes1 = {n for e in paths[0] for n in e[:2]}
+    path_nodes2 = {n for e in paths[1] for n in e[:2]}
+    assert path_nodes1 == {0, 1, 2, 4}
+    assert path_nodes2 == {0, 3, 2, 4}
+
+
+def test_categorize_edges_from_paths():
+    """
+    Teste la catégorisation des arêtes à partir d'une liste de chemins.
+    """
+    # Créer un DataFrame vide avec les colonnes requises et une structure topo minimale
+    df_empty = pd.DataFrame(columns=["idx_or", "idx_ex", "delta_flows", "gray_edges", "line_name"])
+    mock_topo = {
+        "nodes": {"are_prods": [], "are_loads": [], "prods_values": [], "loads_values": []}
+    }
+    graph_obj = OverFlowGraph(topo=mock_topo, lines_to_cut=[], df_overflow=df_empty)
+
+    # Données de simulation
+    path1 = [('a', 'b', 0), ('b', 'c', 0)]
+    path2 = [('a', 'd', 0), ('d', 'c', 0)]
+    paths = [path1, path2]
+
+    edge_names = {
+        ('a', 'b', 0): "line_ab", ('b', 'c', 0): "line_bc",
+        ('a', 'd', 0): "line_ad", ('d', 'c', 0): "line_dc_non_recon"
+    }
+    edges_of_interest_names = {"line_bc", "line_dc_non_recon"}
+    non_reconnectable_names = {"line_dc_non_recon"}
+
+    # Action
+    recon, non_recon = graph_obj._categorize_edges_from_paths(paths, edge_names, edges_of_interest_names, non_reconnectable_names)
+
+    # Assertion
+    # Le chemin 1 est entièrement reconnectable, mais seul 'line_bc' est d'intérêt
+    # Le chemin 2 contient une arête non reconnectable d'intérêt
+    assert recon == {('a', 'b', 0), ('b', 'c', 0)}
+    assert non_recon == {('a', 'd', 0), ('d', 'c', 0)}
