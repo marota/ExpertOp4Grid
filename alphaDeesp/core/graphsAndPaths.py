@@ -650,71 +650,76 @@ class OverFlowGraph(PowerFlowGraph):
             printer.display_geo(g, layout,rescale_factor=rescale_factor,fontsize=fontsize,node_thickness=node_thickness, name="g_overflow_print")
             return None
 
-    def consolidate_graph(self, structured_graph,non_connected_lines_to_ignore=[],no_desambiguation=False):
-        """
-        Consolidate overflow graph knwoing structural elements from SuscturedOverflowGraph
+    def _temporarily_remove_ignored_lines(self, lines_to_ignore):
+        """Finds and removes edges that should be ignored during consolidation."""
+        if not lines_to_ignore:
+            return []
 
-        Parameters
-        ----------
+        edges_to_remove_data = [
+            (u, v, data) for u, v, data in self.g.edges(data=True)
+            if data.get("name") in lines_to_ignore
+        ]
 
-        structured_graph: ``SuscturedOverflowGraph``
-            a structured graph with identified constrained path, hubs, loop paths
-
-        """
-        #remove temporarily edges
-        # Get the names of the edges in the graph
-        edge_names = nx.get_edge_attributes(self.g, 'name')
-        edges_to_remove = [edge for edge, edge_name in edge_names.items() if
-                           edge_name in non_connected_lines_to_ignore]
-#
-        edges_to_remove_data = [(edge_or, edge_ex, edge_properties) for edge_or, edge_ex, edge_properties in
-                                self.g.edges(data=True) if
-                                edge_properties["name"] in non_connected_lines_to_ignore]
-
+        # We only need the edge keys (u, v, key) to remove them
+        edges_to_remove = [(u, v, data.get('key')) for u, v, data in edges_to_remove_data]
         self.g.remove_edges_from(edges_to_remove)
 
-        # consolider le chemin en contrainte avec la connaissance des hubs, en itérant une fois de plus
+        return edges_to_remove_data
+
+    def _iteratively_consolidate_constrained_path(self, structured_graph):
+        """
+        Repeatedly consolidates the constrained (blue) path until the graph structure stabilizes.
+        """
         n_hubs_init = 0
+        # Assuming find_loops() returns a DataFrame with "Source" and "Target" columns
         hubs_paths = structured_graph.find_loops()[["Source", "Target"]].drop_duplicates()
         n_hub_paths = hubs_paths.shape[0]
 
         while n_hubs_init != n_hub_paths:
             n_hubs_init = n_hub_paths
 
-            constrained_path = structured_graph.constrained_path
-            nodes_amont = constrained_path.n_amont()
-            nodes_aval = constrained_path.n_aval()
-            constrained_path_edges = constrained_path.aval_edges + [
-                constrained_path.constrained_edge] + constrained_path.amont_edges
-            self.consolidate_constrained_path(nodes_amont, nodes_aval, constrained_path_edges)
+            cp = structured_graph.constrained_path
+            constrained_path_edges = cp.aval_edges + [cp.constrained_edge] + cp.amont_edges
+            self.consolidate_constrained_path(cp.n_amont(), cp.n_aval(), constrained_path_edges)
 
+            # Re-evaluate the graph structure after consolidation
             structured_graph = Structured_Overload_Distribution_Graph(self.g)
-
             hubs_paths = structured_graph.find_loops()[["Source", "Target"]].drop_duplicates()
             n_hub_paths = hubs_paths.shape[0]
 
-        #recolor and reverse blue or red edges outside of constrained or loop paths
+        return structured_graph
+
+    def _desambiguate_paths(self, structured_graph):
+        """Identifies and resolves ambiguous paths with mixed blue/coral colors."""
+        ambiguous_edge_paths, ambiguous_node_paths = self.identify_ambiguous_paths(structured_graph)
+
+        for edge_path, node_path in zip(ambiguous_edge_paths, ambiguous_node_paths):
+            path_type = self.desambiguation_type_path(node_path, structured_graph)
+            target_color = "coral" if path_type == "loop_path" else "blue"
+            self.reverse_edges(edge_path, target_color=target_color)
+
+    def consolidate_graph(self, structured_graph, non_connected_lines_to_ignore=[], no_desambiguation=False):
+        """
+        (Refactored) Consolidates the overflow graph using its structural elements.
+        """
+        # 1. Temporarily remove any specified lines from the graph
+        ignored_edges_data = self._temporarily_remove_ignored_lines(non_connected_lines_to_ignore)
+
+        # 2. Iteratively consolidate the main constrained (blue) path
+        final_structured_graph = self._iteratively_consolidate_constrained_path(structured_graph)
+
+        # 3. Resolve ambiguous (mixed-color) paths if requested
         if not no_desambiguation:
-            ambiguous_edge_paths, ambiguous_node_paths = self.identify_ambiguous_paths(structured_graph)
-            for ambiguous_edge_path, ambiguous_node_path in zip(ambiguous_edge_paths, ambiguous_node_paths):
-                path_type=self.desambiguation_type_path(ambiguous_node_path, structured_graph)
-                if path_type=="loop_path":
-                    self.reverse_edges(ambiguous_edge_path,target_color="coral")
-                else:
-                    self.reverse_edges(ambiguous_edge_path, target_color="blue")
+            self._desambiguate_paths(final_structured_graph)
 
-        #not needed anymore as more generic ambiguous path detection and correction above ?
-        #constrained_path = structured_graph.constrained_path.full_n_constrained_path()
-        #self.reverse_blue_edges_in_looppaths(constrained_path)
+        # 4. Consolidate the loop (coral) paths
+        hubs_paths = final_structured_graph.red_loops[["Source", "Target"]].drop_duplicates()
+        if not hubs_paths.empty:
+            self.consolidate_loop_path(hubs_paths.Source, hubs_paths.Target)
 
-        # consolidate loop paths by recoloring gray edges that are significant enough and within a loop path
-        self.consolidate_loop_path(hubs_paths.Source, hubs_paths.Target)
-
-        #add back removed edges
-        edges_to_double_data=[ (edge_or, edge_ex, edge_properties) for edge_or,edge_ex,edge_properties in self.g.edges(data=True) if edge_properties["color"]=="gray" and edge_properties["capacity"]==0.]
-        edges_to_add_data=[(edge_ex, edge_or, edge_properties) for edge_or,edge_ex,edge_properties in edges_to_double_data]
-
-        self.g.add_edges_from(edges_to_remove_data)
+        # 5. Add back the lines that were temporarily removed
+        if ignored_edges_data:
+            self.g.add_edges_from(ignored_edges_data)
 
     def identify_ambiguous_paths(self, structured_graph):
         """
