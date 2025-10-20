@@ -272,14 +272,15 @@ class OverFlowGraph(PowerFlowGraph):
         self.g=g
         #self.add_double_edges_null_redispatch()
 
-    def _get_edge_attributes(self, reported_flow, gray_edge, line_is_cut):
+    def _get_edge_attributes(self, reported_flow, gray_edge, line_is_cut,min_penwidth=0.1,fontsize=10):
         """Helper method to determine edge attributes based on flow data."""
-        penwidth = max(fabs(reported_flow) / 10, 0.1)
+        base_penwidth= fabs(reported_flow) / 10
+        penwidth = max(float(self.float_precision % base_penwidth),min_penwidth)
         attributes = {
             "capacity": float(self.float_precision % reported_flow),
             "label": self.float_precision % reported_flow,
-            "fontsize": 10,
-            "penwidth": float(self.float_precision % penwidth)
+            "fontsize": fontsize,
+            "penwidth": penwidth
         }
 
         if line_is_cut:
