@@ -332,42 +332,93 @@ class Grid2opSimulation(Simulation):
             res = list(res)
         return res
 
-    def create_and_fill_internal_structures(self, obs, df):
-        """This function fills multiple structures:
-        self.substation_elements, self.substation_to_node_mapping, self.internal_to_external_mapping
-        @:arg observation, df"""
-        # ################ PART I : fill self.internal_to_external_mapping
-        substations_list = list(obs.name_sub)
-        # we create mapping from external representation to internal.
-        for i, substation_id in enumerate(substations_list):
-            self.internal_to_external_mapping[i] = substation_id
-        if self.internal_to_external_mapping:
-            self.external_to_internal_mapping = self.invert_dict_keys_values(self.internal_to_external_mapping)
+    import numpy as np
 
-        # ################ PART II : fill self.substation_elements
-        for substation_id in self.internal_to_external_mapping.keys():
-            elements_array = []
-            objects = obs.get_obj_connect_to(substation_id=substation_id)
-            for gen_id in objects['generators_id']:
-                gen_state = obs.state_of(gen_id=gen_id)
-                elements_array.append(Production(gen_state['bus']-1, gen_state['p']))
-            for load_id in objects['loads_id']:
-                load_state = obs.state_of(load_id=load_id)
-                elements_array.append(Consumption(load_state['bus']-1, load_state['p']))
-            for line_id in objects['lines_or_id']:
-                line_state = obs.state_of(line_id=line_id)
-                orig = line_state['origin']
-                ext = line_state['extremity']
-                dest = ext['sub_id']
-                elements_array.append(self.get_model_obj_from_or(self.df, substation_id, dest, orig['bus']-1))
-            for line_id in objects['lines_ex_id']:
-                line_state = obs.state_of(line_id=line_id)
-                orig = line_state['origin']
-                ext = line_state['extremity']
-                dest = orig['sub_id']
-                elements_array.append(self.get_model_obj_from_ext(self.df, substation_id, dest, ext['bus']-1))
-            self.substations_elements[substation_id] = elements_array
-        # pprint(self.substations_elements)
+    def create_and_fill_internal_structures(self, obs, df):
+        """
+        Version optimisée CORRECTIVE.
+        Respecte l'ordre strict : [Gens, Loads, Lines_OR, Lines_EX] pour correspondre
+        exactement à l'implémentation originale (legacy).
+        """
+
+        # ################ PART I : Mappings #################
+        self.internal_to_external_mapping = dict(enumerate(obs.name_sub))
+        self.external_to_internal_mapping = {v: k for k, v in self.internal_to_external_mapping.items()}
+
+        # ################ PART II : Fill Substation Elements #################
+
+        # Préparation DataFrame
+        df_indexed = df.set_index(['idx_or', 'idx_ex']).sort_index()
+
+        # Initialisation des buckets
+        n_subs = obs.n_sub
+        sub_elements_buckets = [[] for _ in range(n_subs)]
+
+        # 1. Process Generators (Reste identique)
+        gen_sub_ids = obs.gen_to_subid
+        gen_buses = obs.gen_bus
+        gen_ps = obs.gen_p
+
+        for i in range(obs.n_gen):
+            sub_id = gen_sub_ids[i]
+            if sub_id != -1:
+                obj = Production(gen_buses[i] - 1, gen_ps[i])
+                sub_elements_buckets[sub_id].append(obj)
+
+        # 2. Process Loads (Reste identique)
+        load_sub_ids = obs.load_to_subid
+        load_buses = obs.load_bus
+        load_ps = obs.load_p
+
+        for i in range(obs.n_load):
+            sub_id = load_sub_ids[i]
+            if sub_id != -1:
+                obj = Consumption(load_buses[i] - 1, load_ps[i])
+                sub_elements_buckets[sub_id].append(obj)
+
+        # 3. Process Lines - PARTIE CORRIGÉE
+        # On sépare en deux boucles pour garantir que TOUTES les origines
+        # sont ajoutées avant TOUTES les extrémités pour chaque sous-station.
+
+        line_or_subs = obs.line_or_to_subid
+        line_ex_subs = obs.line_ex_to_subid
+        line_or_buses = obs.line_or_bus
+        line_ex_buses = obs.line_ex_bus
+
+        # PASSE A : Uniquement les origines (Lines OR)
+        for i in range(obs.n_line):
+            sub_or = line_or_subs[i]
+            sub_ex = line_ex_subs[i]  # Nécessaire pour chercher dans le DF
+
+            if sub_or != -1:
+                # get_model_obj_from_or_optimized doit être le nom de votre méthode optimisée
+                or_obj = self.get_model_obj_from_or(
+                    df_indexed,
+                    substation_id=sub_or,
+                    dest=sub_ex,
+                    busbar=line_or_buses[i] - 1
+                )
+                if or_obj:
+                    sub_elements_buckets[sub_or].append(or_obj)
+
+        # PASSE B : Uniquement les extrémités (Lines EX)
+        for i in range(obs.n_line):
+            sub_or = line_or_subs[i]  # Nécessaire pour chercher dans le DF
+            sub_ex = line_ex_subs[i]
+
+            if sub_ex != -1:
+                # get_model_obj_from_ext_pandas doit être le nom de votre méthode optimisée
+                ex_obj = self.get_model_obj_from_ext(
+                    df_indexed,
+                    substation_id=sub_ex,
+                    dest=sub_or,
+                    busbar=line_ex_buses[i] - 1
+                )
+                if ex_obj:
+                    sub_elements_buckets[sub_ex].append(ex_obj)
+
+        # 5. Assignation finale
+        self.substations_elements = dict(enumerate(sub_elements_buckets))
 
     @staticmethod
     def extract_topo_from_obs(obs):
