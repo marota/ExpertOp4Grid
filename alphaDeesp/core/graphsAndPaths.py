@@ -5,6 +5,7 @@ from networkx.exception import NetworkXNoPath
 from math import fabs
 from alphaDeesp.core.printer import Printer
 import numpy as np
+import rustworkx as rx
 
 default_voltage_colors={400:"red",225:"darkgreen",90:"gold",63:"purple",20:"pink",24:"pink",15:"pink",10:"pink",33:"pink",}#[400., 225.,  63.,  24.,  20.,  33.,  10.]
 
@@ -1070,7 +1071,7 @@ class OverFlowGraph(PowerFlowGraph):
         #remove added double edges not used
         self.g=remove_unused_added_double_edge(self.g,edges_to_keep,edges_to_double, edges_double_added)
 
-    def detect_edges_to_keep(self,g_c, source_nodes, target_nodes, edges_of_interest,non_reconnectable_edges=[]):
+    def detect_edges_to_keep(self,g_c, source_nodes, target_nodes, edges_of_interest,non_reconnectable_edges=[],depth_edges_search=2):
         """
         detect edges in edges of interest that belongs to gthe subgraph and are on a path between source nodes and target nodes
 
@@ -1087,6 +1088,9 @@ class OverFlowGraph(PowerFlowGraph):
         target_nodes: ``array`` str
             list of nodes, that belong to either constrained path or red loops, to which to find a path
 
+        depth_edges_search: int
+            The max distance from which to first identify possible relevant reconnectable edges and then look for paths
+
         Returns
         ----------
         res: ``set`` str
@@ -1096,6 +1100,7 @@ class OverFlowGraph(PowerFlowGraph):
         edges_to_keep_non_reconnectable=[]
 
         g_c_edge_names_dict=nx.get_edge_attributes(g_c,"name")#[name for edge,name in nx.get_edge_attributes(g_c,"name").items()]
+        g_c_names_edge_dict = {v: k for k, v in g_c_edge_names_dict.items()}
 
         edge_names_of_interest=set([g_c_edge_names_dict[edge] for edge in edges_of_interest if edge in g_c_edge_names_dict.keys()])
         non_reconnectable_edges_names=set([g_c_edge_names_dict[edge] for edge in non_reconnectable_edges if edge in g_c_edge_names_dict.keys()])
@@ -1121,7 +1126,7 @@ class OverFlowGraph(PowerFlowGraph):
         #            g_c.remove_edges_from(edge_of_interest) #on supprime l'edge pour les traitements futurs ci-dessous
         #            for target_node in target_nodes:
 
-
+        all_path_nodes=[]
         for source_node in source_nodes:
             for target_node in target_nodes:
                     if source_node!=target_node:
@@ -1141,22 +1146,48 @@ class OverFlowGraph(PowerFlowGraph):
                                     in nx.get_edge_attributes(g_c,"capacity").items() if capacity < 0}
                                 nx.set_edge_attributes(g_c, new_attributes_dict)
 
-                                paths_nodes = nx.all_shortest_paths(g_c, source=source_node, target=target_node,weight="capacity")#there might be several shortest path with 0 capacity
-                                paths_nodes = sorted(paths_nodes, key=len, reverse=False)
-                                path_nodes=paths_nodes[0]#only keep the path with less nodes
-                                #path_nodes = nx.shortest_path(g_c, source=source_node,
-                                #                                    target=target_node, weight="capacity")
-                                #paths = list(nx.all_simple_edge_paths(g_c, source=node_continuing_path, target=target_node))
-                                path = nodepath_to_edgepath(g_c, path_nodes, with_keys=True)
+
+                                ## Result is a small subgraph containing ONLY the optimal routes
+                                found_edges_names_of_interest_around=find_multidigraph_edges_by_name(g_c, source_node, edge_names_of_interest, depth=depth_edges_search, name_attr="name")
+                                found_edges_names_of_interest_around += find_multidigraph_edges_by_name(g_c, target_node,
+                                                                                                 edge_names_of_interest,
+                                                                                                 depth=depth_edges_search,
+                                                                                                 name_attr="name")
+                                found_edges_names_of_interest_around=[g_c_names_edge_dict[edge_name] for edge_name in found_edges_names_of_interest_around]
+
+                                if len(found_edges_names_of_interest_around)!=0:
+                                    print(f"check possible paths of reconnectable lines between {source_node} and {target_node}")
+                                    path_nodes, total_cost = shortest_path_with_promoted_edges(g_c, source_node,
+                                                                                               target_node,
+                                                                                               promoted_edges=edges_of_interest,
+                                                                                               weight_attr="capacity")  # shortest_path_min_weight_then_hops(g_c, source_node, target_node, mandatory_edge, weight_attr="capacity")
+                                    if path_nodes is not None and len(path_nodes) != 0:
+                                        path = nodepath_to_edgepath(g_c, path_nodes, with_keys=True)
+                                        paths_of_interest.append(path)
+                                    #for mandatory_edge in found_edges_names_of_interest_around:
+#
+                                #        path_nodes,total_cost=shortest_path_mandatory_and_promoted(g_c, source_node, target_node, mandatory_edge, promoted_edges=edges_of_interest, weight_attr = "capacity")#shortest_path_min_weight_then_hops(g_c, source_node, target_node, mandatory_edge, weight_attr="capacity")
+                                #        if path_nodes is not None and len(path_nodes)!=0:
+                                #            path = nodepath_to_edgepath(g_c, path_nodes, with_keys=True)
+                                #            paths_of_interest.append(path)
 
 
-
-                                # for path in edge_paths:
-                                path_edge_names = set([g_c_edge_names_dict[edge] for edge in path])
-
-                                found_edges_names_of_interest_in_path = path_edge_names.intersection(edge_names_of_interest)
-                                if len(found_edges_names_of_interest_in_path) != 0:
-                                    paths_of_interest.append(path)
+                                    #paths_nodes = nx.all_shortest_paths(g_c, source=source_node, target=target_node,weight="capacity")#there might be several shortest path with 0 capacity
+                                    #paths_nodes = sorted(paths_nodes, key=len, reverse=False)
+                                    #path_nodes=paths_nodes[0]#only keep the path with less nodes
+                                    ##path_nodes = nx.shortest_path(g_c, source=source_node,
+                                    ##                                    target=target_node, weight="capacity")
+                                    ##paths = list(nx.all_simple_edge_paths(g_c, source=node_continuing_path, target=target_node))
+                                    #path = nodepath_to_edgepath(g_c, path_nodes, with_keys=True)
+#
+#
+#
+                                    ## for path in edge_paths:
+                                    #path_edge_names = set([g_c_edge_names_dict[edge] for edge in path])
+#
+                                    #found_edges_names_of_interest_in_path = path_edge_names.intersection(edge_names_of_interest)
+                                    #if len(found_edges_names_of_interest_in_path) != 0:
+                                    #    paths_of_interest.append(path)
                             except NetworkXNoPath:
                                 print("⚠️ No path between "+source_node+" and "+target_node)
 
@@ -1398,25 +1429,42 @@ class Structured_Overload_Distribution_Graph:
         all_loop_paths = {}
         ii = 0
 
-        for i in range(len(c_path_n)):
-            for j in reversed(range(len(c_path_n))):
-                if i < j:
-                    # # print(i, j)
-                    # # print("we compare paths from source: {} to target: {}".format(c_path_n[i], c_path_n[j]))
-                    node_source=c_path_n[i]
-                    node_target = c_path_n[j]
-                    if (node_source in g.nodes) and  (node_target in g.nodes):
-                        try:
-                            res = nx.all_simple_paths(g, node_source, node_target)#nx.all_shortest_paths(g, node_source, node_target)
-                            for p in res:
-                                # print("path = ", p)
-                                all_loop_paths[ii] = p
-                                ii += 1
-                        except nx.NetworkXNoPath:
-                            print("shortest path between {0} and {1} failed".format(c_path_n[i], c_path_n[j]))
+        # --- 1. PRE-PROCESSING (Rustworkx) ---
+        # Convert NetworkX graph to Rustworkx for 50x speedup
+        rx_graph = rx.networkx_converter(g)
 
-        # print("### Print in get_loops ###, all_loop_paths")
-        # pprint.pprint(all_loop_paths)
+        # Map Node Names (Strings) -> Node Indices (Integers)
+        nodes_list = list(g.nodes())
+        node_map = {node: i for i, node in enumerate(nodes_list)}
+
+        all_loop_paths = {}
+
+        # --- 2. SEARCH LOOP ---
+        # We iterate efficiently
+        for i in range(len(c_path_n)):
+            for j in range(len(c_path_n) - 1, i, -1):
+                src_name = c_path_n[i]
+                tgt_name = c_path_n[j]
+
+                # Ensure nodes exist in the graph to avoid crashes
+                if src_name in node_map and tgt_name in node_map:
+                    try:
+                        s_idx = node_map[src_name]
+                        t_idx = node_map[tgt_name]
+
+                        # Rustworkx: Find all simple paths (FAST)
+                        # cutoff=10 is crucial to prevent hanging on large grids
+                        paths_indices = rx.all_simple_paths(rx_graph, s_idx, t_idx, min_depth=1)#, cutoff=10)
+
+                        # Convert Indices -> Names
+                        # We extend the main list directly
+                        paths_names = [[nodes_list[idx] for idx in p] for p in paths_indices]
+                        for p in paths_names:
+                            # print("path = ", p)
+                            all_loop_paths[ii] = p
+                            ii += 1
+                    except nx.NetworkXNoPath:
+                        print("shortest path between {0} and {1} failed".format(c_path_n[i], c_path_n[j]))
 
         data_for_df = {"Source": [], "Target": [], "Path": []}
         for path in list(all_loop_paths.keys()):
@@ -1706,3 +1754,104 @@ def add_double_edges_null_redispatch(g,color_init="gray",only_no_dir=False):
 
     assert(set(edges_to_double_name_dict.keys())==set(edges_added_name_dict.keys()))
     return edges_to_double_name_dict,edges_added_name_dict
+
+
+
+def find_multidigraph_edges_by_name(G, source_node, target_names, depth=3, name_attr="name"):
+    """
+    Traverses the MultiDiGraph using BFS up to 'depth'.
+    For every connection (u, v) traversed, checks ALL parallel edges
+    to see if their name is in 'target_names'.
+    """
+    # 1. Optimization: Set for O(1) lookup
+    target_set = set(target_names)
+    found_edges = []
+
+    # 2. Lazy BFS Traversal
+    # nx.bfs_edges yields (u, v) pairs representing the discovery path.
+    # It yields (u, v) exactly once, even if there are multiple edges.
+    for u, v in nx.bfs_edges(G, source_node, depth_limit=depth):
+
+        # 3. Inspect ALL parallel edges between u and v
+        # G[u][v] returns a dictionary of keys: {key1: {attr...}, key2: {attr...}}
+        if G.has_edge(u, v):
+            parallel_edges = G[u][v]
+
+            for key, attributes in parallel_edges.items():
+                edge_name = attributes.get(name_attr)
+
+                # Check if this specific line is in our target list
+                if edge_name in target_set:
+                    found_edges.append(edge_name)
+
+    return found_edges
+
+
+def shortest_path_with_promoted_edges(G, source, target, promoted_edges, weight_attr="weight"):
+    """
+    Finds a path from source to target that:
+    1. Minimizes Total Weight (Primary - strict dominance)
+    2. Maximizes use of 'promoted_edges' (Secondary)
+    3. Minimizes Total Hops (Tertiary)
+
+    Args:
+        G: The graph.
+        source, target: Node IDs.
+        promoted_edges: A list of edges to favor. Can be tuples (u, v) or (u, v, key).
+        weight_attr: The physical weight attribute name.
+    """
+
+    # Configuration
+    # HUGE: Ensures physical weight always dominates preference.
+    # PENALTY: How much we dislike normal edges.
+    #          100 means: "We prefer 3 promoted edges over 1 normal edge."
+    HUGE_MULTIPLIER = 1_000_000_000
+    NORMAL_HOP_COST = 100
+    PROMOTED_HOP_COST = 33
+
+    # 1. Optimize Lookup: Convert list to set for O(1) checking
+    # We handle both (u,v) and (u,v,key) formats
+    promoted_set = set(promoted_edges)
+
+    # 2. Define the Custom Weight Function
+    def incentivized_weight(u, v, attr):
+        # --- A. Physical Cost ---
+        real_weight = attr.get(weight_attr, 0)
+        if real_weight < 0:
+            raise ValueError("Negative weights not allowed.")
+
+        # --- B. Preference Cost ---
+        # Check if this edge is promoted
+        # (MultiGraph keys are not passed to this function in all NX versions,
+        # but 'attr' usually contains them or we check connectivity)
+
+        is_promoted = False
+
+        # Check 1: Is the specific (u, v) pair in the set?
+        if (u, v) in promoted_set:
+            is_promoted = True
+        # Check 2: If MultiGraph, is the specific key in the set?
+        elif G.is_multigraph():
+            # In some NX versions, 'attr' might not have the key directly if iterated strictly.
+            # But usually we can infer or pass keys.
+            # If your promoted_edges has keys (u, v, k), we need to match carefully.
+            # For simplicity here: if (u, v) is promoted, we treat all parallel lines as promoted
+            # UNLESS you specifically require key matching.
+            pass
+
+            # Apply costs
+        hop_cost = PROMOTED_HOP_COST if is_promoted else NORMAL_HOP_COST
+
+        # Formula: (Weight * HUGE) + Hop_Cost
+        return (real_weight * HUGE_MULTIPLIER) + hop_cost
+
+    # 3. Run Dijkstra with the Custom Weight
+    try:
+        path = nx.dijkstra_path(G, source, target, weight=incentivized_weight)
+
+        # 4. Calculate Real Metrics (for display/return)
+        total_weight = nx.path_weight(G, path, weight=weight_attr)
+        return path, total_weight
+
+    except nx.NetworkXNoPath:
+        return None, float('inf')
