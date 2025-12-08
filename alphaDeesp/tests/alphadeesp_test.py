@@ -225,7 +225,7 @@ def test_consolidate_loop_path():
     n_red_edges_init=len(g_with_only_red_edges_init.edges)
 
     #consolidate loop paths
-    hubs_paths = g_distribution_graph.find_loops()[["Source", "Target"]].drop_duplicates()
+    hubs_paths = g_distribution_graph.red_loops[["Source","Target"]].drop_duplicates()
     g_over.consolidate_loop_path(hubs_paths.Source, hubs_paths.Target,ignore_null_edges=False)
 
     #compute final red edges
@@ -557,7 +557,9 @@ def test_add_relevant_null_flow_lines_red_path_1():
 
     ##############
     # function to test on this case
-    g_over.add_relevant_null_flow_lines(g_distribution_graph, non_connected_lines=non_connected_reconnectable_lines,non_reconnectable_lines=lines_non_reconnectable, target_path="red_only")
+    g_over.add_relevant_null_flow_lines(g_distribution_graph, non_connected_lines=non_connected_reconnectable_lines,
+                                        non_reconnectable_lines=lines_non_reconnectable, target_path="red_only",
+                                        max_null_flow_path_length=8)
 
     ##############
     # tests

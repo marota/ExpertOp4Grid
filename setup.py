@@ -17,7 +17,8 @@ pkgs = {
         #"pygame==1.9.6",
         "matplotlib>=3.3.3",
         "pytest>=4.4.2",
-        "Sphinx>=3.1.2"
+        "Sphinx>=3.1.2",
+        "rustworkx>=0.17"
         #numba==0.49.1
     ],
     "extras": {
