@@ -6,6 +6,7 @@ from math import fabs
 from alphaDeesp.core.printer import Printer
 import numpy as np
 import rustworkx as rx
+import itertools
 
 default_voltage_colors={400:"red",225:"darkgreen",90:"gold",63:"purple",20:"pink",24:"pink",15:"pink",10:"pink",33:"pink",}#[400., 225.,  63.,  24.,  20.,  33.,  10.]
 
@@ -1071,7 +1072,7 @@ class OverFlowGraph(PowerFlowGraph):
         #remove added double edges not used
         self.g=remove_unused_added_double_edge(self.g,edges_to_keep,edges_to_double, edges_double_added)
 
-    def detect_edges_to_keep(self,g_c, source_nodes, target_nodes, edges_of_interest,non_reconnectable_edges=[],depth_edges_search=2):
+    def detect_edges_to_keep(self,g_c, source_nodes, target_nodes, edges_of_interest,non_reconnectable_edges=[],depth_edges_search=2,max_null_flow_path_length=5):
         """
         detect edges in edges of interest that belongs to gthe subgraph and are on a path between source nodes and target nodes
 
@@ -1108,25 +1109,6 @@ class OverFlowGraph(PowerFlowGraph):
         #first find the paths of interest, then review them from the shortest to the longest and decide non reconnectable vs reconnectable path
         paths_of_interest=[]
 
-        #TODO plutot parcourir les edges of interest ?
-        #for edge_of_interest in edges_of_interest:
-        #    if edge_of_interest in g_c.edges:
-        #        node1=edge_of_interest[0]
-        #        node2=edge_of_interest[1]
-        #        source_node=None
-        #        node_continuing_path=None
-        #        if node1 in source_nodes:
-        #            source_node=node1
-        #            node_continuing_path=node2
-        #        elif node2 in source_nodes:
-        #            source_node=node2
-        #            node_continuing_path = node1
-#
-        #        if source_node:
-        #            g_c.remove_edges_from(edge_of_interest) #on supprime l'edge pour les traitements futurs ci-dessous
-        #            for target_node in target_nodes:
-
-        all_path_nodes=[]
         for source_node in source_nodes:
             for target_node in target_nodes:
                     if source_node!=target_node:
@@ -1161,33 +1143,13 @@ class OverFlowGraph(PowerFlowGraph):
                                                                                                target_node,
                                                                                                promoted_edges=edges_of_interest,
                                                                                                weight_attr="capacity")  # shortest_path_min_weight_then_hops(g_c, source_node, target_node, mandatory_edge, weight_attr="capacity")
-                                    if path_nodes is not None and len(path_nodes) != 0:
+                                    if path_nodes is not None and len(path_nodes) != 0 and len(path_nodes)<=max_null_flow_path_length:
                                         path = nodepath_to_edgepath(g_c, path_nodes, with_keys=True)
-                                        paths_of_interest.append(path)
-                                    #for mandatory_edge in found_edges_names_of_interest_around:
-#
-                                #        path_nodes,total_cost=shortest_path_mandatory_and_promoted(g_c, source_node, target_node, mandatory_edge, promoted_edges=edges_of_interest, weight_attr = "capacity")#shortest_path_min_weight_then_hops(g_c, source_node, target_node, mandatory_edge, weight_attr="capacity")
-                                #        if path_nodes is not None and len(path_nodes)!=0:
-                                #            path = nodepath_to_edgepath(g_c, path_nodes, with_keys=True)
-                                #            paths_of_interest.append(path)
-
-
-                                    #paths_nodes = nx.all_shortest_paths(g_c, source=source_node, target=target_node,weight="capacity")#there might be several shortest path with 0 capacity
-                                    #paths_nodes = sorted(paths_nodes, key=len, reverse=False)
-                                    #path_nodes=paths_nodes[0]#only keep the path with less nodes
-                                    ##path_nodes = nx.shortest_path(g_c, source=source_node,
-                                    ##                                    target=target_node, weight="capacity")
-                                    ##paths = list(nx.all_simple_edge_paths(g_c, source=node_continuing_path, target=target_node))
-                                    #path = nodepath_to_edgepath(g_c, path_nodes, with_keys=True)
-#
-#
-#
-                                    ## for path in edge_paths:
-                                    #path_edge_names = set([g_c_edge_names_dict[edge] for edge in path])
-#
-                                    #found_edges_names_of_interest_in_path = path_edge_names.intersection(edge_names_of_interest)
-                                    #if len(found_edges_names_of_interest_in_path) != 0:
-                                    #    paths_of_interest.append(path)
+                                        found_edges_of_interest=[edge for edge in path if edge in edges_of_interest]
+                                        if len(found_edges_of_interest)!=0:
+                                            paths_of_interest.append(path)
+                                        else:
+                                            print("no found edge of interest on shortest path")
                             except NetworkXNoPath:
                                 print("⚠️ No path between "+source_node+" and "+target_node)
 
@@ -1285,7 +1247,7 @@ class Structured_Overload_Distribution_Graph:
     """
     Staring from a raw overload distribution graph with color edges, this class identifies the underlying path structure in terms of constrained path, loop paths and hub nodes
     """
-    def __init__(self,g):
+    def __init__(self,g,possible_hubs=None):
         """
         Parameters
         ----------
@@ -1306,6 +1268,10 @@ class Structured_Overload_Distribution_Graph:
 
         self.constrained_path= self.find_constrained_path() #constrained path that contains the constrained edges and their connected component of blue edges
         self.type=""#
+        if possible_hubs is not None:#in case we already have a subset of candidates, for instance when we already built a first Overload graph and are consolidating it
+            self.hubs=possible_hubs
+        else:
+            self.hubs=[]
         self.red_loops = self.find_loops() #parallel path to the constrained path on which flow can be rerouted
         self.hubs = self.find_hubs() #specific nodes at substations connecting loop paths to constrained path. This is where flow can be most easily rerouted
 
@@ -1426,8 +1392,8 @@ class Structured_Overload_Distribution_Graph:
         # print("==================== In function get_loops ====================")
         g = self.g_only_red_components
         c_path_n = self.constrained_path.full_n_constrained_path()
-        all_loop_paths = {}
-        ii = 0
+        if len(self.hubs)!=0:#already some insights of possible hubs
+            c_path_n=self.hubs
 
         # --- 1. PRE-PROCESSING (Rustworkx) ---
         # Convert NetworkX graph to Rustworkx for 50x speedup
@@ -1437,7 +1403,7 @@ class Structured_Overload_Distribution_Graph:
         nodes_list = list(g.nodes())
         node_map = {node: i for i, node in enumerate(nodes_list)}
 
-        all_loop_paths = {}
+        all_loop_paths = []
 
         # --- 2. SEARCH LOOP ---
         # We iterate efficiently
@@ -1448,37 +1414,44 @@ class Structured_Overload_Distribution_Graph:
 
                 # Ensure nodes exist in the graph to avoid crashes
                 if src_name in node_map and tgt_name in node_map:
-                    try:
-                        s_idx = node_map[src_name]
-                        t_idx = node_map[tgt_name]
+                    s_idx = node_map[src_name]
+                    t_idx = node_map[tgt_name]
 
-                        # Rustworkx: Find all simple paths (FAST)
-                        # cutoff=10 is crucial to prevent hanging on large grids
-                        paths_indices = rx.all_simple_paths(rx_graph, s_idx, t_idx, min_depth=1)#, cutoff=10)
+                    # Rustworkx: Find all simple paths (FAST)
+                    # cutoff=10 is crucial to prevent hanging on large grids
+                    paths_indices = rx.all_simple_paths(rx_graph, s_idx, t_idx, min_depth=1)#, cutoff=10)
 
-                        # Convert Indices -> Names
-                        # We extend the main list directly
-                        paths_names = [[nodes_list[idx] for idx in p] for p in paths_indices]
-                        for p in paths_names:
-                            # print("path = ", p)
-                            all_loop_paths[ii] = p
-                            ii += 1
-                    except nx.NetworkXNoPath:
-                        print("shortest path between {0} and {1} failed".format(c_path_n[i], c_path_n[j]))
+                    # Convert Indices -> Names
+                    # We extend the main list directly
+                    paths_names = [[nodes_list[idx] for idx in p] for p in paths_indices]
+                    all_loop_paths.extend(paths_names)
 
-        data_for_df = {"Source": [], "Target": [], "Path": []}
-        for path in list(all_loop_paths.keys()):
-            data_for_df["Source"].append(all_loop_paths[path][0])
-            data_for_df["Target"].append(all_loop_paths[path][-1])
-            data_for_df["Path"].append(all_loop_paths[path])
+        # --- 3. OPTIMIZED DATAFRAME CREATION ---
+        # Instead of iterating and appending, we build lists directly.
+        # This assumes 'all_loop_paths' is a list of lists: [['A', 'B'], ['C', 'D']]
 
-        # pprint.pprint(data_for_df)
-        if len(attr_edge_direction)!=0:
-            #remove added edges that made simple paths working for no direction edges
-            self.g_only_red_components = remove_unused_added_double_edge(self.g_only_red_components, set(edges_to_double.values()),
-                                                                         edges_to_double, edges_double_added)
+        if not all_loop_paths:
+            # Handle empty case to avoid errors
+            data_for_df = {"Source": [], "Target": [], "Path": []}
+        else:
+            # List comprehensions are significantly faster than .append() loop
+            data_for_df = {
+                "Source": [p[0] for p in all_loop_paths],
+                "Target": [p[-1] for p in all_loop_paths],
+                "Path": all_loop_paths
+            }
 
-        return pd.DataFrame.from_dict(data_for_df)
+        # --- 4. GRAPH CLEANUP (Your original logic) ---
+        if len(attr_edge_direction) != 0:
+            # remove added edges that made simple paths working for no direction edges
+            self.g_only_red_components = remove_unused_added_double_edge(
+                self.g_only_red_components,
+                set(edges_to_double.values()),
+                edges_to_double,
+                edges_double_added
+            )
+
+        return pd.DataFrame(data_for_df)
 
     def get_loops(self):
         return self.red_loops
@@ -1757,7 +1730,7 @@ def add_double_edges_null_redispatch(g,color_init="gray",only_no_dir=False):
 
 
 
-def find_multidigraph_edges_by_name(G, source_node, target_names, depth=3, name_attr="name"):
+def find_multidigraph_edges_by_name(G, source_node, target_names, depth=2, name_attr="name"):
     """
     Traverses the MultiDiGraph using BFS up to 'depth'.
     For every connection (u, v) traversed, checks ALL parallel edges
@@ -1785,6 +1758,154 @@ def find_multidigraph_edges_by_name(G, source_node, target_names, depth=3, name_
                     found_edges.append(edge_name)
 
     return found_edges
+
+
+def shortest_path_min_weight_then_hops(G, source, target, mandatory_edge, weight_attr="weight"):
+    """
+    Finds the path that:
+    1. Passes through 'mandatory_edge'
+    2. Minimizes Total Weight (Primary)
+    3. Minimizes Edge Count (Secondary/Tie-breaker)
+    """
+    # Large multiplier ensures Weight always dominates Hop Count.
+    # Must be larger than the max possible number of edges in a path (e.g., number of nodes).
+    MULTIPLIER = 1_000_000
+
+    # Define the custom weight function for Dijkstra
+    # Returns: (Actual_Weight * 1,000,000) + 1
+    def composite_weight(u, v, attr):
+        # Handle MultiDiGraph: attr might be the inner dict or we might be iterating keys
+        # nx.dijkstra_path passes the edge attribute dictionary directly
+        w = attr.get(weight_attr, 0)  # Default to 0 if no weight
+        if w < 0:
+            raise ValueError("Dijkstra does not accept negative weights.")
+        return (w * MULTIPLIER) + 1
+
+    # Unpack mandatory edge
+    u, v = mandatory_edge[0], mandatory_edge[1]
+
+    try:
+        # 1. Path Source -> u (Using composite weight)
+        path_S_to_u = nx.dijkstra_path(G, source, u, weight=composite_weight)
+
+        # 2. Path v -> Target (Using composite weight)
+        path_v_to_T = nx.dijkstra_path(G, v, target, weight=composite_weight)
+
+        # 3. Handle the mandatory edge itself
+        # We need to find the specific parallel key that minimizes (Weight, then Hops)
+        # Usually, hops is always 1 for a single edge, so just min(weight)
+        if G.is_multigraph():
+            if len(mandatory_edge) == 3:
+                # Key was specified explicitly
+                key = mandatory_edge[2]
+                mid_edge_attr = G[u][v][key]
+            else:
+                # Key not specified: Find the parallel edge with lowest weight
+                # (All parallel edges are 1 hop, so just strictly minimize weight)
+                mid_edge_attr = min(G[u][v].values(), key=lambda x: x.get(weight_attr, 0))
+        else:
+            mid_edge_attr = G[u][v]
+
+        # Calculate real final stats (without the multiplier math)
+        full_path = path_S_to_u + path_v_to_T
+
+        # Calculate strict total weight (sum of original weights)
+        # Note: We recalculate using path_weight to be precise
+        cost_S_u = nx.path_weight(G, path_S_to_u, weight=weight_attr)
+        cost_v_T = nx.path_weight(G, path_v_to_T, weight=weight_attr)
+        mid_cost = mid_edge_attr.get(weight_attr, 0)
+
+        total_real_weight = cost_S_u + mid_cost + cost_v_T
+
+        return full_path, total_real_weight
+
+    except nx.NetworkXNoPath:
+        return None, float('inf')
+
+
+def shortest_path_mandatory_and_promoted(G, source, target, mandatory_edge, promoted_edges, weight_attr="weight"):
+    """
+    Finds a path that:
+    1. MUST pass through 'mandatory_edge'.
+    2. Minimizes Total Physical Weight (Primary constraint).
+    3. Maximizes use of 'promoted_edges' (Secondary preference).
+    4. Minimizes Total Hops (Tertiary preference).
+
+    Args:
+        G: The graph (DiGraph or MultiDiGraph).
+        source, target: Node IDs.
+        mandatory_edge: Tuple (u, v) or (u, v, key).
+        promoted_edges: List of edges to favor [(u, v), ...].
+    """
+
+    # --- Configuration ---
+    # HUGE: Ensures physical weight dominates everything (1kg of extra weight is worse than 1M extra hops)
+    HUGE_MULTIPLIER = 1_000_000_000
+
+    # COST: The "Virtual Price" of crossing an edge
+    # We prefer paying 1 dollar (Promoted) over 100 dollars (Normal)
+    NORMAL_HOP_COST = 100
+    PROMOTED_HOP_COST = 1
+
+    # Optimization: Set for O(1) lookup
+    promoted_set = set(promoted_edges)
+
+    # --- 1. Define the Custom Weight Function ---
+    def incentivized_weight(u, v, attr):
+        # A. Physical Cost
+        real_weight = attr.get(weight_attr, 0)
+        if real_weight < 0:
+            raise ValueError("Dijkstra does not accept negative weights.")
+
+        # B. Preference Cost
+        is_promoted = (u, v) in promoted_set
+
+        # Note: For MultiDiGraph, strict key checking would require iterating G[u][v]
+        # or checking if ANY parallel edge is promoted.
+        # Here we assume if the connection (u,v) is promoted, we take the bonus.
+
+        hop_cost = PROMOTED_HOP_COST if is_promoted else NORMAL_HOP_COST
+
+        # Formula: (Physical_Weight * HUGE) + Preference_Cost
+        return (real_weight * HUGE_MULTIPLIER) + hop_cost
+
+    # --- 2. Decompose the Problem ---
+    u_mand, v_mand = mandatory_edge[0], mandatory_edge[1]
+
+    try:
+        # Step A: Find best promoted path from Source -> Mandatory Start (u)
+        path_S_to_u = nx.dijkstra_path(G, source, u_mand, weight=incentivized_weight)
+
+        # Step B: Find best promoted path from Mandatory End (v) -> Target
+        path_v_to_T = nx.dijkstra_path(G, v_mand, target, weight=incentivized_weight)
+
+        # --- 3. Construct the Full Path ---
+        # path_S_to_u ends with 'u', path_v_to_T starts with 'v'
+        # We join them: [... , u] + [v, ...]
+        full_path = path_S_to_u + path_v_to_T
+
+        # --- 4. Calculate Real Stats (Optional but useful) ---
+        # We recalculate the strict physical weight to return clean data
+        cost_S_u = nx.path_weight(G, path_S_to_u, weight=weight_attr)
+        cost_v_T = nx.path_weight(G, path_v_to_T, weight=weight_attr)
+
+        # Handle the mandatory edge's own weight
+        if G.is_multigraph():
+            if len(mandatory_edge) == 3:
+                key = mandatory_edge[2]
+                mand_cost = G[u_mand][v_mand][key].get(weight_attr, 0)
+            else:
+                # If key not specified, assume the cheapest parallel line
+                mand_cost = min(d.get(weight_attr, 0) for d in G[u_mand][v_mand].values())
+        else:
+            mand_cost = G[u_mand][v_mand].get(weight_attr, 0)
+
+        total_real_weight = cost_S_u + mand_cost + cost_v_T
+
+        return full_path, total_real_weight
+
+    except nx.NetworkXNoPath:
+        return None, float('inf')
 
 
 def shortest_path_with_promoted_edges(G, source, target, promoted_edges, weight_attr="weight"):
