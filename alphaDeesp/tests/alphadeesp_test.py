@@ -557,7 +557,9 @@ def test_add_relevant_null_flow_lines_red_path_1():
 
     ##############
     # function to test on this case
-    g_over.add_relevant_null_flow_lines(g_distribution_graph, non_connected_lines=non_connected_reconnectable_lines,non_reconnectable_lines=lines_non_reconnectable, target_path="red_only")
+    g_over.add_relevant_null_flow_lines(g_distribution_graph, non_connected_lines=non_connected_reconnectable_lines,
+                                        non_reconnectable_lines=lines_non_reconnectable, target_path="red_only",
+                                        max_null_flow_path_length=8)
 
     ##############
     # tests
