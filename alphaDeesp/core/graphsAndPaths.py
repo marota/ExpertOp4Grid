@@ -863,7 +863,7 @@ class OverFlowGraph(PowerFlowGraph):
 
 
 
-    def add_relevant_null_flow_lines(self,structured_graph,non_connected_lines,non_reconnectable_lines=[],target_path="blue_to_red"):
+    def add_relevant_null_flow_lines(self,structured_graph,non_connected_lines,non_reconnectable_lines=[],target_path="blue_to_red",depth_reconnectable_edges_search=2,max_null_flow_path_length=5):
         """
         Make edges bi-directionnal when flow redispatch value is null, recolor the relevant ones that could be of interest
         for analyzing the problem or solving it, and get back to initial edges for the other
@@ -975,11 +975,15 @@ class OverFlowGraph(PowerFlowGraph):
 
                     #only look at edges that connect "amont" path on one side "aval" path on the other side.
                     #edges that would connect "amont" and "aval" path should be rather considered as a new loop path and tagged blue
-                    edges_to_keep_path, edges_non_reconnectable_path=self.detect_edges_to_keep(g_c, intersect_constrained_path_amont, intersect_constrained_path_amont, edges_non_connected_lines,edges_non_reconnectable_lines)
+                    edges_to_keep_path, edges_non_reconnectable_path=self.detect_edges_to_keep(g_c, intersect_constrained_path_amont,
+                                                                                               intersect_constrained_path_amont, edges_non_connected_lines,edges_non_reconnectable_lines,
+                                                                                               depth_edges_search=depth_reconnectable_edges_search,max_null_flow_path_length=max_null_flow_path_length)
                     edges_to_keep.update(edges_to_keep_path)
                     edges_non_reconnectable.update(edges_non_reconnectable_path)
 
-                    edges_to_keep_path, edges_non_reconnectable_path=self.detect_edges_to_keep(g_c, intersect_constrained_path_aval, intersect_constrained_path_aval, edges_non_connected_lines,edges_non_reconnectable_lines)
+                    edges_to_keep_path, edges_non_reconnectable_path=self.detect_edges_to_keep(g_c, intersect_constrained_path_aval,
+                                                                                               intersect_constrained_path_aval, edges_non_connected_lines,edges_non_reconnectable_lines,
+                                                                                               depth_edges_search=depth_reconnectable_edges_search,max_null_flow_path_length=max_null_flow_path_length)
                     edges_to_keep.update(edges_to_keep_path)
                     edges_non_reconnectable.update(edges_non_reconnectable_path)
 
@@ -992,7 +996,8 @@ class OverFlowGraph(PowerFlowGraph):
                                                                                                  intersect_constrained_path_amont,
                                                                                                  intersect_constrained_path_aval,
                                                                                                  edges_non_connected_lines,
-                                                                                                 edges_non_reconnectable_lines)
+                                                                                                 edges_non_reconnectable_lines,
+                                                                                                 depth_edges_search=depth_reconnectable_edges_search,max_null_flow_path_length=max_null_flow_path_length)
                     edges_to_keep.update(edges_to_keep_path)
                     edges_non_reconnectable.update(edges_non_reconnectable_path)
 
@@ -1006,7 +1011,9 @@ class OverFlowGraph(PowerFlowGraph):
 
                     #####
                     intersect_red_path = set(g_c).intersection(set(node_red_paths))
-                    edges_to_keep_path, edges_non_reconnectable_path=self.detect_edges_to_keep(g_c, intersect_red_path, intersect_red_path, edges_non_connected_lines,edges_non_reconnectable_lines)
+                    edges_to_keep_path, edges_non_reconnectable_path=self.detect_edges_to_keep(g_c, intersect_red_path,
+                                                                                               intersect_red_path, edges_non_connected_lines,edges_non_reconnectable_lines,
+                                                                                               depth_edges_search=depth_reconnectable_edges_search,max_null_flow_path_length=max_null_flow_path_length)
                     edges_to_keep.update(edges_to_keep_path)
                     edges_non_reconnectable.update(edges_non_reconnectable_path)
 
@@ -1020,13 +1027,15 @@ class OverFlowGraph(PowerFlowGraph):
                     # look for edges from constrained path ("amont", before the constraint) to red_path
                     if len(intersect_constrained_path_amont) != 0:
                         edges_to_keep_path, edges_non_reconnectable_path=self.detect_edges_to_keep(g_c, intersect_constrained_path_amont, intersect_red_path,
-                                                                  edges_non_connected_lines,edges_non_reconnectable_lines)
+                                                                  edges_non_connected_lines,edges_non_reconnectable_lines,
+                                                                  depth_edges_search=depth_reconnectable_edges_search,max_null_flow_path_length=max_null_flow_path_length)
                         edges_to_keep.update(edges_to_keep_path)
                         edges_non_reconnectable.update(edges_non_reconnectable_path)
                     # look for edges from red_path to constrained path ("aval", after the constraint)
                     if len(intersect_constrained_path_aval) != 0:
                         edges_to_keep_path, edges_non_reconnectable_path =self.detect_edges_to_keep(g_c, intersect_red_path, intersect_constrained_path_aval,
-                                                 edges_non_connected_lines,edges_non_reconnectable_lines)
+                                                 edges_non_connected_lines,edges_non_reconnectable_lines,
+                                                 depth_edges_search=depth_reconnectable_edges_search,max_null_flow_path_length=max_null_flow_path_length)
                         edges_to_keep.update(edges_to_keep_path)
                         edges_non_reconnectable.update(edges_non_reconnectable_path)
 
@@ -1034,7 +1043,8 @@ class OverFlowGraph(PowerFlowGraph):
                     #look for a new loop path that could exist with disconnected lines
                     if len(intersect_constrained_path_amont)!=0 and len(intersect_constrained_path_aval) != 0:
                         edges_to_keep_path, edges_non_reconnectable_path=self.detect_edges_to_keep(g_c, intersect_constrained_path_amont, intersect_constrained_path_aval,
-                                                      edges_non_connected_lines,edges_non_reconnectable_lines)
+                                                      edges_non_connected_lines,edges_non_reconnectable_lines,
+                                                      depth_edges_search=depth_reconnectable_edges_search,max_null_flow_path_length=max_null_flow_path_length)
                         edges_to_keep.update(edges_to_keep_path)
                         edges_non_reconnectable.update(edges_non_reconnectable_path)
 
@@ -1138,12 +1148,14 @@ class OverFlowGraph(PowerFlowGraph):
                                 found_edges_names_of_interest_around=[g_c_names_edge_dict[edge_name] for edge_name in found_edges_names_of_interest_around]
 
                                 if len(found_edges_names_of_interest_around)!=0:
-                                    print(f"check possible paths of reconnectable lines between {source_node} and {target_node}")
+
                                     path_nodes, total_cost = shortest_path_with_promoted_edges(g_c, source_node,
                                                                                                target_node,
                                                                                                promoted_edges=edges_of_interest,
                                                                                                weight_attr="capacity")  # shortest_path_min_weight_then_hops(g_c, source_node, target_node, mandatory_edge, weight_attr="capacity")
                                     if path_nodes is not None and len(path_nodes) != 0 and len(path_nodes)<=max_null_flow_path_length:
+                                        #print(
+                                        #    f"found possible paths of reconnectable lines between {source_node} and {target_node}")
                                         path = nodepath_to_edgepath(g_c, path_nodes, with_keys=True)
                                         found_edges_of_interest=[edge for edge in path if edge in edges_of_interest]
                                         if len(found_edges_of_interest)!=0:
@@ -1533,7 +1545,7 @@ class Structured_Overload_Distribution_Graph:
         g_red = self.g_only_red_components
 
         if only_loop_paths:
-            list_nodes_dispatch_path = list(set(self.find_loops()["Path"].sum()))
+            list_nodes_dispatch_path = list(set(self.red_loops.Path.sum()))#list(set(self.find_loops()["Path"].sum()))
         else:
             list_nodes_dispatch_path=list(g_red.nodes)
 
