@@ -225,7 +225,7 @@ def test_consolidate_loop_path():
     n_red_edges_init=len(g_with_only_red_edges_init.edges)
 
     #consolidate loop paths
-    hubs_paths = g_distribution_graph.find_loops()[["Source", "Target"]].drop_duplicates()
+    hubs_paths = g_distribution_graph.red_loops[["Source","Target"]].drop_duplicates()
     g_over.consolidate_loop_path(hubs_paths.Source, hubs_paths.Target,ignore_null_edges=False)
 
     #compute final red edges
