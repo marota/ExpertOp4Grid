@@ -413,6 +413,9 @@ class AlphaDeesp:  # AKA SOLVER
                         break
             else:#when comparing all combinations at a substation, you don't need to figure out for which of the two splitted nodes you compute the score, as the two symetrical combinations on the 2 nodes exist
                 #find most interesting node with largest ingoing negative flow
+                #TODO
+                # => False, there can be cases where there are no ingoing negative flow
+                # but for sure there are always outgoing negative flow in amont
                 in_edge_capacities_bus0 = [float(all_edges_xlabel_attributes[edge]) for edge in graph.in_edges(node, keys=True)
                                       if self.get_bus_id_from_edge(node, edge, topo_vect) == 0]
                 in_edge_negative_capacities_bus0 = fabs(sum(x for x in in_edge_capacities_bus0 if x < 0))
@@ -456,8 +459,16 @@ class AlphaDeesp:  # AKA SOLVER
                     sum(in_negative_flows) + max_pos_in_or_out_flows + diff_sums,
                     decimals=2)
             else:
-                final_score = np.around(
-                    sum(in_negative_flows) - np.around(sum(out_negative_flows)) + sum(out_positive_flows),# + diff_sums,
+                #You want to separate ingoing negative flow from outgoing negative flow and push that to red path
+                sum_in_negative_flows = sum(in_negative_flows)
+                sum_out_negative_flows = sum(out_negative_flows)
+                sum_out_positive_flows = sum(out_positive_flows)
+
+                attraction_part=(sum_in_negative_flows + sum_out_positive_flows)/(1+abs(sum_in_negative_flows-sum_out_positive_flows))
+                repulsion_part=0#(sum_in_negative_flows+sum_out_negative_flows)/(1+abs(sum_in_negative_flows-sum_out_negative_flows))
+                weight=(sum_in_negative_flows-sum_out_negative_flows)
+
+                final_score = np.around(weight*(attraction_part-repulsion_part),# + diff_sums,
                     decimals=2)  # + diff_sums, it is not very clear its impact
             if self.debug:
                 print("AMONT")
@@ -486,6 +497,9 @@ class AlphaDeesp:  # AKA SOLVER
                         break
             else: #when you are considering only specific configurations (without its symetric one) and want to compare this among substations, not only within this substation
                 # find most interesting node with largest ougoing negative flow
+                #TODO
+                # => False, there can be cases where there are no outgoing negative flow
+                # but for sure there are always ingoing negative flow in amont
                 out_edge_capacities_bus0 = [float(all_edges_xlabel_attributes[edge]) for edge in
                                             graph.out_edges(node, keys=True)
                                             if self.get_bus_id_from_edge(node, edge, topo_vect) == 0]
@@ -537,9 +551,17 @@ class AlphaDeesp:  # AKA SOLVER
             if (is_score_specific_substation):
                 final_score = np.around(sum(out_negative_flows)+ max_pos_in_or_out_flows + diff_sums, decimals=2)
             else:
-                final_score = np.around(
-                sum(out_negative_flows) - np.around(sum(in_negative_flows)) + sum(in_positive_flows),# + diff_sums,
-                decimals=2)
+                sum_in_negative_flows = sum(in_negative_flows)
+                sum_out_negative_flows = sum(out_negative_flows)
+                sum_in_positive_flows = sum(in_positive_flows)
+
+                attraction_part=(sum_out_negative_flows + sum_in_positive_flows) / (
+                            1 + abs(sum_out_negative_flows - sum_in_positive_flows))
+                repulsion_part=0#(sum_in_negative_flows+sum_out_negative_flows)/(1+abs(sum_in_negative_flows-sum_out_negative_flows))
+                weight = sum_out_negative_flows-sum_in_positive_flows
+
+                final_score = np.around(weight*(attraction_part-repulsion_part),# + diff_sums,
+                    decimals=2)
 
             if self.debug:
                 print("AVAL")
@@ -556,39 +578,92 @@ class AlphaDeesp:  # AKA SOLVER
 
             if 1 in topo_vect and 0 in topo_vect:  # need to be a 2 node topology
                 # we find the node with the biggest red ingoing delta flow
-                InputRedDeltaFlow_1 = 0
-                InputRedDeltaFlow_2 = 0
+                NegativeFlowIn_node1=sum(float(all_edges_xlabel_attributes[edge]) for edge in graph.in_edges(node,keys=True) if all_edges_color_attributes[edge]=="blue" and self.get_bus_id_from_edge(node, edge, topo_vect)==0)
+                NegativeFlowOut_node1=sum(float(all_edges_xlabel_attributes[edge]) for edge in graph.out_edges(node,keys=True) if all_edges_color_attributes[edge]=="blue" and self.get_bus_id_from_edge(node, edge, topo_vect)==0)
+
+                NegativeFlowIn_node2 = sum(
+                    float(all_edges_xlabel_attributes[edge]) for edge in graph.in_edges(node, keys=True) if
+                    all_edges_color_attributes[edge] == "blue" and self.get_bus_id_from_edge(node, edge,
+                                                                                             topo_vect) == 1)
+                NegativeFlowOut_node2 = sum(
+                    float(all_edges_xlabel_attributes[edge]) for edge in graph.out_edges(node, keys=True) if
+                    all_edges_color_attributes[edge] == "blue" and self.get_bus_id_from_edge(node, edge,
+                                                                                             topo_vect) == 1)
+
+                BusOfInterest=0
+                NegativeFlowIn=NegativeFlowIn_node1
+                NegativeFlowOut=NegativeFlowOut_node1
+                if(abs(NegativeFlowOut_node2-NegativeFlowIn_node2)>=abs(NegativeFlowOut_node1-NegativeFlowIn_node1)):
+                    BusOfInterest=1
+                    NegativeFlowIn=NegativeFlowIn_node2
+                    NegativeFlowOut=NegativeFlowOut_node2
+
+                #################
+                InputRedDeltaFlow=sum(
+                    float(all_edges_xlabel_attributes[edge]) for edge in graph.in_edges(node, keys=True) if
+                    all_edges_color_attributes[edge] == "coral" and self.get_bus_id_from_edge(node, edge,
+                                                                                             topo_vect) == BusOfInterest)
+                OutputRedDeltaFlow=sum(
+                    float(all_edges_xlabel_attributes[edge]) for edge in graph.out_edges(node, keys=True) if
+                    all_edges_color_attributes[edge] == "coral" and self.get_bus_id_from_edge(node, edge,
+                                                                                             topo_vect) == BusOfInterest)
+
+                if is_score_specific_substation:
+                    min_pos_in_or_out_flows = min(OutputRedDeltaFlow, InputRedDeltaFlow)
+                    injection = -self.get_prod_conso_sum(node, BusOfInterest, topo_vect)
+                    final_score = np.around(min_pos_in_or_out_flows + injection, decimals=2)
+                else:
+                    repulsion_part = 0#(NegativeFlowIn + NegativeFlowOut) / (
+                                #1 + abs(NegativeFlowIn - NegativeFlowOut))
+
+                    if NegativeFlowIn>NegativeFlowOut:#manage it similarly to amont
+                        attraction_part = (NegativeFlowIn + OutputRedDeltaFlow) / (
+                                1 + abs(NegativeFlowIn - OutputRedDeltaFlow))
+                        weight = NegativeFlowIn - NegativeFlowOut
+                    else:
+                        attraction_part = (NegativeFlowOut + InputRedDeltaFlow) / (
+                                1 + abs(NegativeFlowOut - InputRedDeltaFlow))
+                        weight = NegativeFlowOut - NegativeFlowIn
+
+                    final_score = np.around(weight*(attraction_part - repulsion_part),  # + diff_sums,
+                                            decimals=2)
 
 
-                for edge in graph.in_edges(node,keys=True):
-                    edge_bus_id = self.get_bus_id_from_edge(node, edge, topo_vect)
-                    edge_color = all_edges_color_attributes[edge]
-                    edge_value = float(all_edges_xlabel_attributes[edge])
-                    if (edge_color == "coral"):
-                        if edge_bus_id == 0: # MASK
-                            InputRedDeltaFlow_1 += edge_value
-                        elif edge_bus_id == 1: # MASK
-                            InputRedDeltaFlow_2 += edge_value
-
-                Bus_BiggestInputDeltaFlow = 0
-                InputRedDeltaFlow = InputRedDeltaFlow_1
-                if (InputRedDeltaFlow_2 >= InputRedDeltaFlow_1):
-                    Bus_BiggestInputDeltaFlow = 1
-                    InputRedDeltaFlow = InputRedDeltaFlow_2
-                ###
-                # over node with BiggestInputDeltaFlow, we want as much ingoing and outgoing red flow possible, with least possible production
-                OutputRedDeltaFlow = 0
-                for edge in graph.out_edges(node,keys=True):
-                    edge_bus_id = self.get_bus_id_from_edge(node, edge, topo_vect)
-                    if edge_bus_id == Bus_BiggestInputDeltaFlow:
-                        edge_color = all_edges_color_attributes[edge]
-                        edge_value = float(all_edges_xlabel_attributes[edge])
-                        if (edge_color == "coral"):
-                            OutputRedDeltaFlow += edge_value
-
-                min_pos_in_or_out_flows = min(OutputRedDeltaFlow, InputRedDeltaFlow)
-                injection = -self.get_prod_conso_sum(node, Bus_BiggestInputDeltaFlow, topo_vect)
-                final_score = np.around(min_pos_in_or_out_flows + injection, decimals=2)
+                #InputRedDeltaFlow_1 = 0
+                #InputRedDeltaFlow_2 = 0
+                #InputNegativeDeltaFlow_1 = 0
+                #InputNegativeDeltaFlow_2 = 0
+#
+#
+                #for edge in graph.in_edges(node,keys=True):
+                #    edge_bus_id = self.get_bus_id_from_edge(node, edge, topo_vect)
+                #    edge_color = all_edges_color_attributes[edge]
+                #    edge_value = float(all_edges_xlabel_attributes[edge])
+                #    if (edge_color == "coral"):
+                #        if edge_bus_id == 0: # MASK
+                #            InputRedDeltaFlow_1 += edge_value
+                #        elif edge_bus_id == 1: # MASK
+                #            InputRedDeltaFlow_2 += edge_value
+#
+                #Bus_BiggestInputDeltaFlow = 0
+                #InputRedDeltaFlow = InputRedDeltaFlow_1
+                #if (InputRedDeltaFlow_2 >= InputRedDeltaFlow_1):
+                #    Bus_BiggestInputDeltaFlow = 1
+                #    InputRedDeltaFlow = InputRedDeltaFlow_2
+                ####
+                ## over node with BiggestInputDeltaFlow, we want as much ingoing and outgoing red flow possible, with least possible production
+                #OutputRedDeltaFlow = 0
+                #for edge in graph.out_edges(node,keys=True):
+                #    edge_bus_id = self.get_bus_id_from_edge(node, edge, topo_vect)
+                #    if edge_bus_id == Bus_BiggestInputDeltaFlow:
+                #        edge_color = all_edges_color_attributes[edge]
+                #        edge_value = float(all_edges_xlabel_attributes[edge])
+                #        if (edge_color == "coral"):
+                #            OutputRedDeltaFlow += edge_value
+#
+                #min_pos_in_or_out_flows = min(OutputRedDeltaFlow, InputRedDeltaFlow)
+                #injection = -self.get_prod_conso_sum(node, Bus_BiggestInputDeltaFlow, topo_vect)
+                #final_score = np.around(min_pos_in_or_out_flows + injection, decimals=2)
         else:
             print("||||||||||||||||||||||||||| node [{}] is not connected to a path to the constrained_edge.".format(node))
             in_negative_flows_node_1 = []
