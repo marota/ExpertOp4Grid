@@ -863,7 +863,7 @@ class OverFlowGraph(PowerFlowGraph):
 
 
 
-    def add_relevant_null_flow_lines(self,structured_graph,non_connected_lines,non_reconnectable_lines=[],target_path="blue_to_red",depth_reconnectable_edges_search=2,max_null_flow_path_length=5):
+    def add_relevant_null_flow_lines(self,structured_graph,non_connected_lines,non_reconnectable_lines=[],target_path="blue_to_red",depth_reconnectable_edges_search=2,max_null_flow_path_length=7):
         """
         Make edges bi-directionnal when flow redispatch value is null, recolor the relevant ones that could be of interest
         for analyzing the problem or solving it, and get back to initial edges for the other
@@ -933,6 +933,13 @@ class OverFlowGraph(PowerFlowGraph):
         # some non_connected_lines of interest, that link constrained path and loop paths
         edges_to_double, edges_double_added = add_double_edges_null_redispatch(self.g)  # making null flow redispatch lines bidirectionnal
 
+        #Update edges_non_connected_lines after no direction edges addition
+        edge_names = nx.get_edge_attributes(self.g, 'name')
+        edges_non_connected_lines = set(
+            [edge for edge, edge_name in edge_names.items() if edge_name in non_connected_lines])
+        edges_non_reconnectable_lines= set([edge for edge, edge_name in edge_names.items() if edge_name in non_reconnectable_lines])
+
+        ###########
         g_no_red = delete_color_edges(self.g, "coral")
         #g_no_red.remove_edges_from(edges_non_connected_lines_to_ignore)
         g_only_blue_components = delete_color_edges(g_no_red, "gray")
@@ -1082,7 +1089,7 @@ class OverFlowGraph(PowerFlowGraph):
         #remove added double edges not used
         self.g=remove_unused_added_double_edge(self.g,edges_to_keep,edges_to_double, edges_double_added)
 
-    def detect_edges_to_keep(self,g_c, source_nodes, target_nodes, edges_of_interest,non_reconnectable_edges=[],depth_edges_search=2,max_null_flow_path_length=5):
+    def detect_edges_to_keep(self,g_c, source_nodes, target_nodes, edges_of_interest,non_reconnectable_edges=[],depth_edges_search=2,max_null_flow_path_length=7):
         """
         detect edges in edges of interest that belongs to gthe subgraph and are on a path between source nodes and target nodes
 
