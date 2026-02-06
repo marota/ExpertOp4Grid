@@ -939,23 +939,23 @@ class OverFlowGraph(PowerFlowGraph):
         edge_names = nx.get_edge_attributes(self.g, 'name')
         non_connected_lines_set = set(non_connected_lines)
         non_reconnectable_lines_set = set(non_reconnectable_lines)
-        edges_non_connected_lines = set(
-            edge for edge, edge_name in edge_names.items() if edge_name in non_connected_lines_set)
 
-        # look for non_connected lines that are connex to already colored graph, to filter the ones that have a chance to be influencial when reconnected
-        all_nodes = set(self.g.nodes)
-        all_edges = set(self.g.edges)
-        g_wo_gray_edges = delete_color_edges(self.g, "gray")
-        nodes_coloured = set(g_wo_gray_edges.nodes)
-        nodes_grey = all_nodes - nodes_coloured
+        # Compute nodes with at least one non-gray edge and connex edge names
+        # in a single pass over edge colors (replaces delete_color_edges copy)
+        edge_colors = nx.get_edge_attributes(self.g, 'color')
+        nodes_coloured = set()
+        for edge, color in edge_colors.items():
+            if color != "gray":
+                nodes_coloured.add(edge[0])
+                nodes_coloured.add(edge[1])
 
-        g_gray = self.g.subgraph(nodes_grey)
-
-        edges_grey = set(g_gray.edges)
-        edges_coloured = set(g_wo_gray_edges.edges)
-        edges_connex = all_edges - edges_grey - edges_coloured
-        edge_connex_names = set(
-            name for edge, name in edge_names.items() if edge in edges_connex)
+        # Find connex edges: gray edges with at least one endpoint in coloured nodes
+        edge_connex_names = set()
+        for edge, color in edge_colors.items():
+            if color == "gray" and (edge[0] in nodes_coloured or edge[1] in nodes_coloured):
+                name = edge_names.get(edge)
+                if name:
+                    edge_connex_names.add(name)
 
         non_connected_lines_to_consider = non_connected_lines_set & edge_connex_names
         edges_non_connected_lines_to_consider = set(
@@ -974,10 +974,13 @@ class OverFlowGraph(PowerFlowGraph):
             edge for edge, edge_name in edge_names.items() if edge_name in non_reconnectable_lines_set)
 
         ###########
-        g_no_red = delete_color_edges(self.g, "coral")
-        g_only_blue_components = delete_color_edges(g_no_red, "gray")
-        g_only_gray_components = delete_color_edges(g_no_red, "blue")
-        g_only_gray_components = delete_color_edges(g_only_gray_components, "black")
+        # Build gray component graph in a single pass (replaces 3 delete_color_edges copies)
+        _EXCLUDED_COLORS = frozenset({"coral", "blue", "black"})
+        g_only_gray_components = nx.MultiDiGraph()
+        for u, v, k, data in self.g.edges(keys=True, data=True):
+            if data.get("color") not in _EXCLUDED_COLORS:
+                g_only_gray_components.add_edge(u, v, key=k, **data)
+        g_only_gray_components.remove_nodes_from(list(nx.isolates(g_only_gray_components)))
 
         S = [g_only_gray_components.subgraph(c).copy() for c in sorted(nx.weakly_connected_components(g_only_gray_components), key=len, reverse=False)]
 
@@ -1194,38 +1197,67 @@ class OverFlowGraph(PowerFlowGraph):
             bfs_cache[node] = find_multidigraph_edges_by_name(
                 g_c, node, edge_names_of_interest, depth=depth_edges_search, name_attr="name")
 
-        # Find paths of interest with cached lookups
-        paths_of_interest = []
+        # Pre-check: which sources/targets have BFS results
+        targets_with_bfs = frozenset(t for t in target_nodes_in_gc if bfs_cache[t])
+        any_target_has_interest = any(node_has_incident_interest[t] for t in target_nodes_in_gc)
 
+        # Build incentivized weight function for single-source Dijkstra
+        # (matches the logic in shortest_path_with_promoted_edges)
+        HUGE_MULTIPLIER = 1_000_000_000
+        NORMAL_HOP_COST = 100
+        PROMOTED_HOP_COST = 33
+        promoted_set = set(edges_of_interest)
+
+        def incentivized_weight(u, v, attr):
+            real_weight = attr.get("capacity", 0)
+            if real_weight < 0:
+                raise ValueError("Negative weights not allowed.")
+            is_promoted = (u, v) in promoted_set
+            hop_cost = PROMOTED_HOP_COST if is_promoted else NORMAL_HOP_COST
+            return (real_weight * HUGE_MULTIPLIER) + hop_cost
+
+        # Run single-source Dijkstra per unique source (O(S) instead of O(S*T) Dijkstra calls)
+        target_set = set(target_nodes_in_gc)
+        sssp_paths_cache = {}
+        for source_node in set(source_nodes_in_gc):
+            # Quick check: does this source have at least one valid target?
+            if not node_has_incident_interest[source_node] and not any_target_has_interest:
+                continue
+            if not bfs_cache[source_node] and not targets_with_bfs:
+                continue
+            try:
+                sssp_paths_cache[source_node] = nx.single_source_dijkstra_path(
+                    g_c, source_node, weight=incentivized_weight)
+            except Exception:
+                sssp_paths_cache[source_node] = {}
+
+        # Find paths of interest by looking up cached shortest paths
+        paths_of_interest = []
         for source_node in source_nodes_in_gc:
+            if source_node not in sssp_paths_cache:
+                continue
+            source_paths = sssp_paths_cache[source_node]
+            source_has_bfs = bool(bfs_cache[source_node])
+            source_has_interest = node_has_incident_interest[source_node]
+
             for target_node in target_nodes_in_gc:
                 if source_node == target_node:
                     continue
 
                 # Edge of interest should be at the interface, one neighbor away
-                if not node_has_incident_interest[source_node] and not node_has_incident_interest[target_node]:
+                if not source_has_interest and not node_has_incident_interest[target_node]:
                     continue
 
-                try:
-                    found_edges_names_of_interest_around = bfs_cache[source_node] + bfs_cache[target_node]
+                # Check BFS: edges of interest reachable from source or target
+                if not source_has_bfs and target_node not in targets_with_bfs:
+                    continue
 
-                    if len(found_edges_names_of_interest_around) != 0:
-                        found_edges_of_interest_around = [g_c_names_edge_dict[edge_name]
-                            for edge_name in found_edges_names_of_interest_around
-                            if edge_name in g_c_names_edge_dict]
-
-                        if len(found_edges_of_interest_around) != 0:
-                            path_nodes, total_cost = shortest_path_with_promoted_edges(g_c, source_node,
-                                                                                       target_node,
-                                                                                       promoted_edges=edges_of_interest,
-                                                                                       weight_attr="capacity")
-                            if path_nodes is not None and len(path_nodes) != 0 and len(path_nodes) <= max_null_flow_path_length:
-                                path = nodepath_to_edgepath(g_c, path_nodes, with_keys=True)
-                                found_edges_of_interest = [edge for edge in path if edge in edges_of_interest_in_gc]
-                                if len(found_edges_of_interest) != 0:
-                                    paths_of_interest.append(path)
-                except NetworkXNoPath:
-                    print("⚠️ No path between " + source_node + " and " + target_node)
+                if target_node in source_paths:
+                    path_nodes = source_paths[target_node]
+                    if len(path_nodes) > 0 and len(path_nodes) <= max_null_flow_path_length:
+                        path = nodepath_to_edgepath(g_c, path_nodes, with_keys=True)
+                        if any(edge in edges_of_interest_in_gc for edge in path):
+                            paths_of_interest.append(path)
 
         # Sort paths to start looking at the shortest ones and tag them of interest
         paths_of_interest.sort(key=len)
@@ -1744,13 +1776,20 @@ def remove_unused_added_double_edge(g, edges_to_keep, edges_to_double, edges_dou
     g: NetworkX graph
       graph on which edges where removed
     """
-    name_edges_to_keep = nx.get_edge_attributes(g.edge_subgraph(edges_to_keep), "name").values()
+    # Get names of kept edges directly (replaces edge_subgraph creation)
+    name_edges_to_keep = set()
+    for edge in edges_to_keep:
+        name = g.edges[edge].get("name") if g.has_edge(*edge) else None
+        if name is not None:
+            name_edges_to_keep.add(name)
 
     # for initial edges that has not been recoloured but for which the added double edge has been, remove those initial edges
-    edges_to_remove = [edge for name, edge in edges_to_double.items() if
-                       name in name_edges_to_keep and g.edges[edge]["color"] == "gray"]
-    edge_names_to_remove = [name for name, edge in edges_to_double.items() if
-                            name in name_edges_to_keep and g.edges[edge]["color"] == "gray"]
+    edges_to_remove = []
+    edge_names_to_remove = set()
+    for name, edge in edges_to_double.items():
+        if name in name_edges_to_keep and g.edges[edge]["color"] == "gray":
+            edges_to_remove.append(edge)
+            edge_names_to_remove.add(name)
 
     # for added double edges that has not been recoloured, remove them
     edges_to_remove += [edge for name, edge in edges_double_added.items() if name not in edge_names_to_remove]
@@ -1780,22 +1819,20 @@ def add_double_edges_null_redispatch(g,color_init="gray",only_no_dir=False):
         new set of edges that doubles the original ones in the other direction, with line name as key and edge as value
 
     """
-    init_edges_names=nx.get_edge_attributes(g, "name")
-    init_colors=nx.get_edge_attributes(g, "color").values()
-    init_capacity = nx.get_edge_attributes(g, "capacity").values()
-    no_dir_edges =nx.get_edge_attributes(g, "dir")
+    # Single pass over edges to find those to double (replaces 4 nx.get_edge_attributes calls)
+    to_double = []
+    edges_to_double_name_dict = {}
+    for u, v, k, data in g.edges(keys=True, data=True):
+        if data.get("color") == color_init and data.get("capacity") == 0.:
+            if not only_no_dir or "dir" in data:
+                to_double.append((u, v, k, data))
+                edges_to_double_name_dict[data["name"]] = (u, v, k)
 
-    if only_no_dir:
-        print("stop")
-    edges_to_double_name_dict={name:edge for edge,name,color,capacity in zip(init_edges_names.keys(),init_edges_names.values(),init_colors,init_capacity) if color==color_init and capacity==0. and (not only_no_dir or edge in no_dir_edges)}
-
-    edges_to_double_data=[ (edge_or, edge_ex, edge_properties) for edge_or,edge_ex,edge_properties in g.edges(data=True) if edge_properties["color"]==color_init and edge_properties["capacity"]==0. and (not only_no_dir or "dir" in edge_properties)]
-    edges_to_add_data=[(edge_ex, edge_or, edge_properties) for edge_or,edge_ex,edge_properties in edges_to_double_data]
-    g.add_edges_from(edges_to_add_data)
-
-    new_edges_names=nx.get_edge_attributes(g, "name")#.keys()
-    only_new_edges=set(new_edges_names.keys()) - set(init_edges_names.keys())
-    edges_added_name_dict={name:edge for edge,name in new_edges_names.items() if edge in only_new_edges}
+    # Add reverse edges and directly track new edge keys
+    edges_added_name_dict = {}
+    for u, v, k, data in to_double:
+        new_key = g.add_edge(v, u, **data)
+        edges_added_name_dict[data["name"]] = (v, u, new_key)
 
     assert(set(edges_to_double_name_dict.keys())==set(edges_added_name_dict.keys()))
     return edges_to_double_name_dict,edges_added_name_dict
