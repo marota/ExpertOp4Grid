@@ -95,6 +95,211 @@ def _make_detect_edges_graph():
 # Tests for delete_color_edges
 # ──────────────────────────────────────────────────────────────────────
 
+# ──────────────────────────────────────────────────────────────────────
+# Tests for OverFlowGraph.keep_overloads_components
+# ──────────────────────────────────────────────────────────────────────
+
+class TestKeepOverloadsComponents:
+    """Tests for the keep_overloads_components method which greys-out
+    connected components that do not contain any overloaded (black) edge."""
+
+    @staticmethod
+    def _make_ofg_with_graph(g):
+        """Create a minimal OverFlowGraph-like object with a pre-built graph."""
+        obj = _FakeOverFlowGraph()
+        obj.g = g
+        obj.keep_overloads_components = OverFlowGraph.keep_overloads_components.__get__(obj)
+        return obj
+
+    def _edge_colors(self, g):
+        """Return dict of (u,v,key)->color for all edges."""
+        return {(u, v, k): d["color"] for u, v, k, d in g.edges(keys=True, data=True)}
+
+    def test_component_with_overload_is_kept(self):
+        """Edges in a component that contains a black edge stay unchanged."""
+        g = nx.MultiDiGraph()
+        g.add_edge(0, 1, color="black", capacity=-5.)
+        g.add_edge(1, 2, color="blue", capacity=-3.)
+        ofg = self._make_ofg_with_graph(g)
+
+        ofg.keep_overloads_components()
+
+        colors = self._edge_colors(ofg.g)
+        assert colors[(0, 1, 0)] == "black"
+        assert colors[(1, 2, 0)] == "blue"
+
+    def test_component_without_overload_becomes_gray(self):
+        """Edges in a component with no black edge are recoloured to gray."""
+        g = nx.MultiDiGraph()
+        g.add_edge(0, 1, color="coral", capacity=2.)
+        g.add_edge(1, 2, color="blue", capacity=-1.)
+        ofg = self._make_ofg_with_graph(g)
+
+        ofg.keep_overloads_components()
+
+        colors = self._edge_colors(ofg.g)
+        assert colors[(0, 1, 0)] == "gray"
+        assert colors[(1, 2, 0)] == "gray"
+
+    def test_multiple_components_mixed(self):
+        """Only the component without overloads gets greyed out."""
+        g = nx.MultiDiGraph()
+        # Component 1: has overload
+        g.add_edge("A", "B", color="black", capacity=-10.)
+        g.add_edge("B", "C", color="blue", capacity=-3.)
+        # Component 2: no overload (coral only)
+        g.add_edge("X", "Y", color="coral", capacity=5.)
+        ofg = self._make_ofg_with_graph(g)
+
+        ofg.keep_overloads_components()
+
+        colors = self._edge_colors(ofg.g)
+        assert colors[("A", "B", 0)] == "black"
+        assert colors[("B", "C", 0)] == "blue"
+        assert colors[("X", "Y", 0)] == "gray"
+
+    def test_already_gray_edges_stay_gray(self):
+        """Gray edges not part of any coloured component remain gray."""
+        g = nx.MultiDiGraph()
+        g.add_edge(0, 1, color="gray", capacity=0.)
+        g.add_edge(2, 3, color="black", capacity=-5.)
+        ofg = self._make_ofg_with_graph(g)
+
+        ofg.keep_overloads_components()
+
+        colors = self._edge_colors(ofg.g)
+        assert colors[(0, 1, 0)] == "gray"
+        assert colors[(2, 3, 0)] == "black"
+
+    def test_empty_graph(self):
+        """No error on an empty graph."""
+        g = nx.MultiDiGraph()
+        ofg = self._make_ofg_with_graph(g)
+
+        ofg.keep_overloads_components()  # should not raise
+
+        assert ofg.g.number_of_edges() == 0
+
+    def test_all_gray_graph(self):
+        """A graph with only gray edges is unchanged."""
+        g = nx.MultiDiGraph()
+        g.add_edge(0, 1, color="gray", capacity=0.)
+        g.add_edge(1, 2, color="gray", capacity=0.)
+        ofg = self._make_ofg_with_graph(g)
+
+        ofg.keep_overloads_components()
+
+        colors = self._edge_colors(ofg.g)
+        assert all(c == "gray" for c in colors.values())
+
+    def test_single_black_edge_component(self):
+        """A single black edge in its own component is kept."""
+        g = nx.MultiDiGraph()
+        g.add_edge(0, 1, color="black", capacity=-10.)
+        ofg = self._make_ofg_with_graph(g)
+
+        ofg.keep_overloads_components()
+
+        assert self._edge_colors(ofg.g)[(0, 1, 0)] == "black"
+
+    def test_single_blue_edge_component_becomes_gray(self):
+        """A single blue edge without any black in its component becomes gray."""
+        g = nx.MultiDiGraph()
+        g.add_edge(0, 1, color="blue", capacity=-2.)
+        ofg = self._make_ofg_with_graph(g)
+
+        ofg.keep_overloads_components()
+
+        assert self._edge_colors(ofg.g)[(0, 1, 0)] == "gray"
+
+    def test_parallel_edges_component_with_overload(self):
+        """Parallel edges between same nodes: one black keeps the whole component."""
+        g = nx.MultiDiGraph()
+        g.add_edge(0, 1, color="black", capacity=-5.)
+        g.add_edge(0, 1, color="coral", capacity=3.)
+        ofg = self._make_ofg_with_graph(g)
+
+        ofg.keep_overloads_components()
+
+        colors = self._edge_colors(ofg.g)
+        assert colors[(0, 1, 0)] == "black"
+        assert colors[(0, 1, 1)] == "coral"
+
+    def test_parallel_edges_component_without_overload(self):
+        """Parallel edges with no black all become gray."""
+        g = nx.MultiDiGraph()
+        g.add_edge(0, 1, color="coral", capacity=3.)
+        g.add_edge(0, 1, color="blue", capacity=-2.)
+        ofg = self._make_ofg_with_graph(g)
+
+        ofg.keep_overloads_components()
+
+        colors = self._edge_colors(ofg.g)
+        assert colors[(0, 1, 0)] == "gray"
+        assert colors[(0, 1, 1)] == "gray"
+
+    def test_gray_edge_between_components_does_not_bridge(self):
+        """A gray edge between two otherwise separate coloured components
+        does not merge them: components are detected on the non-gray graph."""
+        g = nx.MultiDiGraph()
+        # Component A (has overload)
+        g.add_edge(0, 1, color="black", capacity=-5.)
+        # Gray bridge
+        g.add_edge(1, 2, color="gray", capacity=0.)
+        # Component B (no overload) — only connected via gray
+        g.add_edge(2, 3, color="coral", capacity=2.)
+        ofg = self._make_ofg_with_graph(g)
+
+        ofg.keep_overloads_components()
+
+        colors = self._edge_colors(ofg.g)
+        assert colors[(0, 1, 0)] == "black"   # kept
+        assert colors[(1, 2, 0)] == "gray"     # was already gray
+        assert colors[(2, 3, 0)] == "gray"     # greyed-out (no overload)
+
+    def test_three_components_only_middle_has_overload(self):
+        """Three separate components; only the one with a black edge survives."""
+        g = nx.MultiDiGraph()
+        # Component 1: blue only
+        g.add_edge(10, 11, color="blue", capacity=-1.)
+        # Component 2: has overload
+        g.add_edge(20, 21, color="black", capacity=-5.)
+        g.add_edge(21, 22, color="coral", capacity=4.)
+        # Component 3: coral only
+        g.add_edge(30, 31, color="coral", capacity=2.)
+        ofg = self._make_ofg_with_graph(g)
+
+        ofg.keep_overloads_components()
+
+        colors = self._edge_colors(ofg.g)
+        # Component 1 greyed-out
+        assert colors[(10, 11, 0)] == "gray"
+        # Component 2 kept
+        assert colors[(20, 21, 0)] == "black"
+        assert colors[(21, 22, 0)] == "coral"
+        # Component 3 greyed-out
+        assert colors[(30, 31, 0)] == "gray"
+
+    def test_idempotent(self):
+        """Calling keep_overloads_components twice gives the same result."""
+        g = nx.MultiDiGraph()
+        g.add_edge(0, 1, color="black", capacity=-5.)
+        g.add_edge(2, 3, color="coral", capacity=2.)
+        ofg = self._make_ofg_with_graph(g)
+
+        ofg.keep_overloads_components()
+        colors_after_first = dict(self._edge_colors(ofg.g))
+
+        ofg.keep_overloads_components()
+        colors_after_second = dict(self._edge_colors(ofg.g))
+
+        assert colors_after_first == colors_after_second
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Tests for delete_color_edges
+# ──────────────────────────────────────────────────────────────────────
+
 class TestDeleteColorEdges:
 
     def test_removes_gray_edges(self):
