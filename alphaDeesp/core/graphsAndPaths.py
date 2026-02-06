@@ -313,6 +313,37 @@ class OverFlowGraph(PowerFlowGraph):
             i += 1
         #nx.set_edge_attributes(g, {e:self.df["line_name"][i] for i,e in enumerate(g.edges)}, name="name")
 
+    def keep_overloads_components(self):
+        """
+        Filter the graph to only keep components that contain overloaded (black) edges.
+
+        For the coloured graph (graph without grey edges), detect connected components
+        that do not include any overloaded edges (black colour) and recolour all their
+        edges to grey so they are no longer considered significant.
+        """
+        # Build the coloured graph: remove grey edges to get only significant ones
+        g_coloured = delete_color_edges(self.g, "gray")
+
+        # Find weakly connected components of the coloured graph
+        components = list(nx.weakly_connected_components(g_coloured))
+
+        for component_nodes in components:
+            # Get the subgraph for this component
+            subgraph = g_coloured.subgraph(component_nodes)
+
+            # Check if the component contains any black (overloaded) edge
+            has_overload = any(
+                color == "black"
+                for _, _, color in subgraph.edges(data="color")
+            )
+
+            if not has_overload:
+                # Recolour all edges of this component to grey in the original graph
+                for u, v, key in self.g.edges(keys=True):
+                    if u in component_nodes and v in component_nodes:
+                        if self.g[u][v][key].get("color") != "gray":
+                            self.g[u][v][key]["color"] = "gray"
+
     def consolidate_constrained_path(self, constrained_path_nodes_amont,constrained_path_nodes_aval,constrained_path_edges,ignore_null_edges=True):#hub_sources,hub_targets):
         """
         Consolidate constrained blue path for some edges that were discarded with lower values but are actually on the path
