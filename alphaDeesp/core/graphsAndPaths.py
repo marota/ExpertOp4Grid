@@ -1312,6 +1312,58 @@ class OverFlowGraph(PowerFlowGraph):
 
         return set(edges_to_keep_reconnectable), set(edges_to_keep_non_reconnectable)
 
+    def collapse_red_loops(self):
+        """
+        Collapse nodes that are purely part of "red loops" (coral-only edges) into point shapes.
+
+        A node is collapsed when all of the following conditions are met:
+        - All edges connected to the node (both incoming and outgoing) are "coral" coloured
+        - The node shape is simply "oval" (default shape, not a hub)
+        - The node has no "peripheries" attribute set (no electrical node number)
+        - None of the connected edges have "dashed" or "dotted" style
+        """
+        shapes = nx.get_node_attributes(self.g, "shape")
+        peripheries = nx.get_node_attributes(self.g, "peripheries")
+        edge_colors = nx.get_edge_attributes(self.g, "color")
+        edge_styles = nx.get_edge_attributes(self.g, "style")
+
+        nodes_to_collapse = {}
+
+        for node in self.g.nodes:
+            # Check shape is simply "oval"
+            if shapes.get(node) != "oval":
+                continue
+
+            # Check no peripheries attribute
+            if node in peripheries:
+                continue
+
+            # Get all edges connected to this node (in and out)
+            in_edges = list(self.g.in_edges(node, keys=True))
+            out_edges = list(self.g.out_edges(node, keys=True))
+            all_edges = in_edges + out_edges
+
+            # Node must have at least one edge
+            if not all_edges:
+                continue
+
+            # Check all edges are coral and none are dashed/dotted
+            all_coral = True
+            has_dashed_dotted = False
+            for edge in all_edges:
+                if edge_colors.get(edge) != "coral":
+                    all_coral = False
+                    break
+                style = edge_styles.get(edge, "")
+                if style in ("dashed", "dotted"):
+                    has_dashed_dotted = True
+                    break
+
+            if all_coral and not has_dashed_dotted:
+                nodes_to_collapse[node] = "point"
+
+        nx.set_node_attributes(self.g, nodes_to_collapse, "shape")
+
 class ConstrainedPath:
 
     """
