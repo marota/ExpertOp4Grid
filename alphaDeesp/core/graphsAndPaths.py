@@ -1335,7 +1335,7 @@ class OverFlowGraph(PowerFlowGraph):
                 continue
 
             # Check no peripheries attribute
-            if node in peripheries:
+            if node in peripheries and peripheries[node]>=2:
                 continue
 
             # Get all edges connected to this node (in and out)
@@ -1348,18 +1348,18 @@ class OverFlowGraph(PowerFlowGraph):
                 continue
 
             # Check all edges are coral and none are dashed/dotted
-            all_coral = True
+            at_least_one_coral = False
             has_dashed_dotted = False
             for edge in all_edges:
-                if edge_colors.get(edge) != "coral":
-                    all_coral = False
-                    break
+                if edge_colors.get(edge) == "coral":
+                    at_least_one_coral = True
+                    #break
                 style = edge_styles.get(edge, "")
                 if style in ("dashed", "dotted"):
                     has_dashed_dotted = True
-                    break
+                    #break
 
-            if all_coral and not has_dashed_dotted:
+            if at_least_one_coral and not has_dashed_dotted:
                 nodes_to_collapse[node] = "point"
 
         nx.set_node_attributes(self.g, nodes_to_collapse, "shape")
