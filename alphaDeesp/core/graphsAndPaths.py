@@ -133,7 +133,7 @@ class PowerFlowGraph:
         """
 
         #if gtype is "powerflow":
-        max_abs_flow = np.array(edge_weights).abs().max()
+        max_abs_flow = np.abs(np.array(edge_weights)).max()
         target_max_penwidth = 15.0
         # Determine the scaling factor
         if max_abs_flow > 0:
