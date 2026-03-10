@@ -296,6 +296,132 @@ class TestKeepOverloadsComponents:
         assert colors_after_first == colors_after_second
 
 
+class TestCollapseRedLoops:
+    """Tests for the collapse_red_loops method which turns nodes in coral-only
+    loops into point shapes."""
+
+    @staticmethod
+    def _make_ofg_with_graph(g):
+        obj = _FakeOverFlowGraph()
+        obj.g = g
+        obj.collapse_red_loops = OverFlowGraph.collapse_red_loops.__get__(obj)
+        return obj
+
+    def test_node_in_coral_loop_is_collapsed(self):
+        """A simple oval node connected only by coral edges becomes a point."""
+        g = nx.MultiDiGraph()
+        g.add_node("N1", shape="oval")
+        g.add_edge("N1", "N2", color="coral")
+        ofg = self._make_ofg_with_graph(g)
+
+        ofg.collapse_red_loops()
+
+        assert ofg.g.nodes["N1"]["shape"] == "point"
+
+    def test_hub_is_not_collapsed(self):
+        """A node with shape 'diamond' (hub) is not collapsed."""
+        g = nx.MultiDiGraph()
+        g.add_node("N1", shape="diamond")
+        g.add_edge("N1", "N2", color="coral")
+        ofg = self._make_ofg_with_graph(g)
+
+        ofg.collapse_red_loops()
+
+        assert ofg.g.nodes["N1"]["shape"] == "diamond"
+
+    def test_node_with_peripheries_not_collapsed(self):
+        """A node with peripheries >= 2 (electrical substation) is not collapsed."""
+        g = nx.MultiDiGraph()
+        g.add_node("N1", shape="oval", peripheries=2)
+        g.add_edge("N1", "N2", color="coral")
+        ofg = self._make_ofg_with_graph(g)
+
+        ofg.collapse_red_loops()
+
+        assert ofg.g.nodes["N1"]["shape"] == "oval"
+
+    def test_node_with_non_coral_edge_not_collapsed(self):
+        """A node with at least one blue/black/gray edge is not collapsed."""
+        g = nx.MultiDiGraph()
+        g.add_node("N1", shape="oval")
+        g.add_edge("N1", "N2", color="coral")
+        g.add_edge("N1", "N3", color="blue")
+        ofg = self._make_ofg_with_graph(g)
+
+        ofg.collapse_red_loops()
+
+        assert ofg.g.nodes["N1"]["shape"] == "oval"
+
+    def test_node_with_dashed_edge_not_collapsed(self):
+        """A node with a dashed edge is not collapsed."""
+        g = nx.MultiDiGraph()
+        g.add_node("N1", shape="oval")
+        g.add_edge("N1", "N2", color="coral", style="dashed")
+        ofg = self._make_ofg_with_graph(g)
+
+        ofg.collapse_red_loops()
+
+        assert ofg.g.nodes["N1"]["shape"] == "oval"
+
+
+class TestOverFlowGraphScaling:
+    """Tests for the penwidth scaling in OverFlowGraph."""
+
+    def test_linear_scaling(self):
+        import pandas as pd
+        topo = {
+            "nodes": {
+                "are_prods": [False, False, False],
+                "are_loads": [False, False, False],
+                "prods_values": [0.0, 0.0, 0.0],
+                "loads_values": [0.0, 0.0, 0.0]
+            },
+            "edges": {"idx_or": [0, 1], "idx_ex": [1, 2], "init_flows": [100.0, 50.0]}
+        }
+        df = pd.DataFrame({
+            "idx_or": [0, 1, 2],
+            "idx_ex": [1, 2, 0],
+            "delta_flows": [1000.0, 100.0, 10.0],
+            "gray_edges": [False, False, False],
+            "line_name": ["L1", "L2", "L3"]
+        })
+        ofg = OverFlowGraph(topo, [], df)
+        
+        # Max flow 1000 -> target_max_penwidth 15.0 (updated by user)
+        # Scaling factor = 15.0 / 1000 = 0.015
+        # L1: 1000 * 0.015 = 15.0
+        # L2: 100 = 1.5
+        # L3: 10 = 0.15
+        
+        penwidths = {data['name']: data['penwidth'] for u, v, data in ofg.g.edges(data=True)}
+        assert penwidths["L1"] == 15.0
+        assert abs(penwidths["L2"] - 1.5) < 1e-5
+        assert abs(penwidths["L3"] - 0.15) < 1e-5
+
+    def test_min_penwidth_clamping(self):
+        import pandas as pd
+        topo = {
+            "nodes": {
+                "are_prods": [False, False],
+                "are_loads": [False, False],
+                "prods_values": [0.0, 0.0],
+                "loads_values": [0.0, 0.0]
+            },
+            "edges": {"idx_or": [0], "idx_ex": [1], "init_flows": [0.0]}
+        }
+        df = pd.DataFrame({
+            "idx_or": [0],
+            "idx_ex": [1],
+            "delta_flows": [0.0],
+            "gray_edges": [False],
+            "line_name": ["L1"]
+        })
+        ofg = OverFlowGraph(topo, [], df)
+        
+        penwidth = list(ofg.g.edges(data=True))[0][2]['penwidth']
+        assert penwidth == 0.1
+
+
 # ──────────────────────────────────────────────────────────────────────
 # Tests for delete_color_edges
 # ──────────────────────────────────────────────────────────────────────

@@ -133,10 +133,18 @@ class PowerFlowGraph:
         """
 
         #if gtype is "powerflow":
+        max_abs_flow = np.array(edge_weights).abs().max()
+        target_max_penwidth = 15.0
+        # Determine the scaling factor
+        if max_abs_flow > 0:
+            scaling_factor = target_max_penwidth / max_abs_flow
+        else:
+            scaling_factor = 1.0
+
         for origin, extremity, weight_value in zip(idx_or, idx_ex, edge_weights):
             # origin += 1
             # extremity += 1
-            penwidth = fabs(weight_value) / 10
+            penwidth = fabs(weight_value) * scaling_factor
             min_penwidth=0.1
             if penwidth == 0.0:
                 penwidth = min_penwidth
@@ -290,9 +298,17 @@ class OverFlowGraph(PowerFlowGraph):
         """
 
         i = 0
+        max_abs_flow = self.df["delta_flows"].abs().max()
+        target_max_penwidth = 15.0
+        # Determine the scaling factor
+        if max_abs_flow > 0:
+            scaling_factor = target_max_penwidth / max_abs_flow
+        else:
+            scaling_factor = 1.0
+
         for origin, extremity, reported_flow, gray_edge, line_name in zip(self.df["idx_or"], self.df["idx_ex"],
                                                                self.df["delta_flows"], self.df["gray_edges"],self.df["line_name"]):
-            penwidth = fabs(reported_flow) / 10
+            penwidth = fabs(reported_flow) * scaling_factor
             min_penwidth=0.1
             if penwidth == 0.0:
                 penwidth = min_penwidth
@@ -1348,18 +1364,17 @@ class OverFlowGraph(PowerFlowGraph):
                 continue
 
             # Check all edges are coral and none are dashed/dotted
-            at_least_one_coral = False
-            has_dashed_dotted = False
+            all_coral = True
             for edge in all_edges:
-                if edge_colors.get(edge) == "coral":
-                    at_least_one_coral = True
-                    #break
+                if edge_colors.get(edge) != "coral":
+                    all_coral = False
+                    break
                 style = edge_styles.get(edge, "")
                 if style in ("dashed", "dotted"):
-                    has_dashed_dotted = True
-                    #break
+                    all_coral = False
+                    break
 
-            if at_least_one_coral and not has_dashed_dotted:
+            if all_coral and all_edges:
                 nodes_to_collapse[node] = "point"
 
         nx.set_node_attributes(self.g, nodes_to_collapse, "shape")

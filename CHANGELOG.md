@@ -1,4 +1,21 @@
 # Changelog
+ 
+## [0.3.0.post1] - 2026-03-10
+ 
+### New Features
+ 
+- **Standardized overflow graph arrow sizes** (PR #66): Implemented linear scaling for `penwidth` in `OverFlowGraph` based on absolute delta flow. This ensures arrow sizes are reasonable and readable even for very high delta flows, with a standardized maximum penwidth.
+- **Improved arrow scaling in PowerFlowGraph**: Also applied linear scaling to `PowerFlowGraph` for consistent visualization across different graph types.
+ 
+### Bug Fixes
+ 
+- **Fixed `collapse_red_loops` logic**: Optimized the node collapse condition to ensure ALL connected edges are coral before collapsing a node into a "point" shape.
+ 
+### Tests
+ 
+- Added unit tests for arrow scaling and `collapse_red_loops` in `test_graphs_and_paths_unit.py`.
+- Adapted `test_visualization_filtering.py` in the recommender repo to verify `collapse_red_loops` call.
+ 
 
 ## [0.3.0] - 2026-02-10
 
