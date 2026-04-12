@@ -53,8 +53,13 @@ jobs:
               alphaDeesp/main.py
       - run:
           name: Run tests
-          # This assumes pytest is installed via the install-package step above
-          command: pytest --ignore=alphaDeesp/tests/pypownet/ --ignore=alphaDeesp/tests/test_cli.py --ignore=alphaDeesp/tests/test_expert_rules.py
+          # `test_cli.py` is run in its own dedicated step below (it spawns a
+          # subprocess and has different reporting needs).
+          # The pypownet-backend tests and `test_expert_rules.py` now call
+          # `pytest.importorskip` at module top so they self-skip when their
+          # optional dependencies (pypownet, the Dijon eval toolbox) are not
+          # installed — no `--ignore` flag needed anymore.
+          command: pytest --ignore=alphaDeesp/tests/test_cli.py
       - run:
           name: Run cli test
           # This assumes pytest is installed via the install-package step above

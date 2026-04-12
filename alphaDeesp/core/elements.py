@@ -9,6 +9,10 @@
 This file contains substation elements, ie, Objects: Production, Consumption, Line.
 """
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 class Production:
     ID = 0
@@ -51,7 +55,7 @@ class Consumption:
 
     @busbar.setter
     def busbar(self, new_busbar):
-        print("debug inside busbar setter, new busbar =", new_busbar)
+        logger.debug("busbar setter, new busbar = %s", new_busbar)
         self.busbar_id = new_busbar
 
 

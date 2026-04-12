@@ -7,7 +7,19 @@
 # SPDX-License-Identifier: MPL-2.0
 # This file is part of ExpertOp4Grid, an expert system approach to solve flow congestions in power grids
 
-#from make_evaluation_env import make_grid2op_evaluation_env
+import pytest
+
+# These tests depend on the Dijon evaluation environment toolbox
+# (`make_training_env`, `load_evaluation_data`, `Expert_rule_action_verification`
+# and friends), which live in a sibling project and are not installed in the
+# default CI image. Skip the whole module cleanly when they are unavailable
+# instead of crashing collection — this replaces the blanket
+# `--ignore=alphaDeesp/tests/test_expert_rules.py` that used to live in
+# `.circleci/config.yml`.
+make_training_env = pytest.importorskip("make_training_env")
+load_evaluation_data = pytest.importorskip("load_evaluation_data")
+_era = pytest.importorskip("Expert_rule_action_verification")
+
 from make_training_env import make_grid2op_training_env
 from load_evaluation_data import list_all_chronics, get_first_obs_on_chronic
 from datetime import datetime

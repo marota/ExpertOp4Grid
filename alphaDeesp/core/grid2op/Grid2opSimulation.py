@@ -31,7 +31,7 @@ class Grid2opSimulation(Simulation):
             layout = self.param_options['CustomLayout']
             # Conversion from string to list
             layout = ast.literal_eval(layout)
-            print("WARNING : A CustomLayout has been given in config.ini. This layout will be set for the simulator")
+            logger.warning("A CustomLayout has been given in config.ini. This layout will be set for the simulator")
             return layout
         except (KeyError, ValueError, SyntaxError) as exc:
             logger.debug("No usable CustomLayout in param_options (%s); "
@@ -40,7 +40,7 @@ class Grid2opSimulation(Simulation):
         try:
             # Grid2op Layout if exists
             layout = list(self.obs.grid_layout.values())
-            print("WARNING : No CustomLayout has been given in config.ini. The grid_layout in Grid2Op structure will be set for the simulator")
+            logger.warning("No CustomLayout has been given in config.ini. The grid_layout in Grid2Op structure will be set for the simulator")
             return layout
         except AttributeError as exc:
             logger.debug("Observation has no grid_layout (%s); "
@@ -50,7 +50,7 @@ class Grid2opSimulation(Simulation):
                   (438, 0), (326, 54), (222, 108), (79, 162), (-152, 270), (-64, 270), (222, 216),
                   (-280, -151), (-100, -340), (366, -340), (390, -110), (-14, -104), (-184, 54), (400, -80),
                   (438, 100), (326, 140), (200, 8), (79, 12), (-152, 170), (-70, 200), (222, 200)]
-        print("WARNING : No CustomLayout has been given in config.ini and no grid_layout has been found in Grid2op data. Default layout is set and might cause plotting errors : "+str(layout))
+        logger.warning("No CustomLayout has been given in config.ini and no grid_layout has been found in Grid2op data. Default layout is set and might cause plotting errors: %s", layout)
         return layout
 
     def get_layout(self):
@@ -83,11 +83,11 @@ class Grid2opSimulation(Simulation):
         self.args_number_of_simulated_topos = param_options["totalnumberofsimulatedtopos"]
         self.args_inner_number_of_simulated_topos_per_node = param_options["numberofsimulatedtopospernode"]
 
-        print("Number of generators of the powergrid: {}".format(self.obs.n_gen))
-        print("Number of loads of the powergrid: {}".format(self.obs.n_load))
-        print("Number of powerline of the powergrid: {}".format(self.obs.n_line))
-        print("Number of elements connected to each substations in the powergrid: {}".format(self.obs.sub_info))
-        print("Total number of elements: {}".format(self.obs.dim_topo))
+        logger.info("Number of generators of the powergrid: %s", self.obs.n_gen)
+        logger.info("Number of loads of the powergrid: %s", self.obs.n_load)
+        logger.info("Number of powerline of the powergrid: %s", self.obs.n_line)
+        logger.info("Number of elements connected to each substations in the powergrid: %s", self.obs.sub_info)
+        logger.info("Total number of elements: %s", self.obs.dim_topo)
         self.internal_to_external_mapping = {}
         self.external_to_internal_mapping = {}
         self.substations_elements = {}
@@ -185,9 +185,9 @@ class Grid2opSimulation(Simulation):
         Number of tested combinations and topo per node is given in alphadeesp parameters
         :returns pandas.DataFrame with results of simulations
         """
-        print("\n##############################################################################")
-        print("##########...........COMPUTE NEW NETWORK CHANGES..........####################")
-        print("##############################################################################")
+        logger.info("##############################################################################")
+        logger.info("##########...........COMPUTE NEW NETWORK CHANGES..........####################")
+        logger.info("##############################################################################")
         end_result_dataframe = self.create_end_result_empty_dataframe()
         actions = []
         j = 0
@@ -217,8 +217,8 @@ class Grid2opSimulation(Simulation):
 
 
                 score_topo = i
-                print("###########"" Compute new network changes on node [{}] with new topo [{}] ###########"
-                      .format(internal_target_node, new_conf))
+                logger.info("########### Compute new network changes on node [%s] with new topo [%s] ###########",
+                            internal_target_node, new_conf)
 
 
                 if(len(alphaDeesp_Internal_topo)==1):#this is a line to disconnect, not a topology to change

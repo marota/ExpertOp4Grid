@@ -6,9 +6,12 @@
 # SPDX-License-Identifier: MPL-2.0
 # This file is part of ExpertOp4Grid, an expert system approach to solve flow congestions in power grids
 
+import logging
 import os
 import grid2op
 from grid2op.Parameters import Parameters
+
+logger = logging.getLogger(__name__)
 
 class Grid2opObservationLoader:
     def __init__(self, parameter_folder, difficulty = None):
@@ -24,7 +27,7 @@ class Grid2opObservationLoader:
         except ImportError:
             from grid2op.Backend import PandaPowerBackend
             backend = PandaPowerBackend()
-            print("You might need to install the LightSimBackend (provisory name) to gain massive speed up")
+            logger.warning("You might need to install the LightSimBackend (provisory name) to gain massive speed up")
 
         if difficulty is None:
             # By default, easy difficulty is set through parameters
@@ -43,12 +46,12 @@ class Grid2opObservationLoader:
         # If an int is provided, chronic_scenario is string by default, so it has to be converted
         try:
             chronic_scenario = int(chronic_scenario)
-            print("INFO - An integer has been provided as chronic scenario - looking for the chronic folder in this position")
+            logger.info("An integer has been provided as chronic scenario - looking for the chronic folder in this position")
         except (TypeError, ValueError):
             if chronic_scenario is None:
-                print("INFO - No value has been provided for chronic scenario - the first chronic folder will be chosen")
+                logger.info("No value has been provided for chronic scenario - the first chronic folder will be chosen")
             else:
-                print("INFO - A string value has been provided as chronic scenario - searching for a chronic folder with name "+str(chronic_scenario))
+                logger.info("A string value has been provided as chronic scenario - searching for a chronic folder with name %s", chronic_scenario)
 
         # Go to desired chronic scenario (if None, first scenario will be taken)
         if chronic_scenario is None:
@@ -59,7 +62,7 @@ class Grid2opObservationLoader:
             elif type(chronic_scenario) is int:
                 found_id = chronic_scenario
                 scenario_name = self.search_chronic_name_from_num(found_id)
-                print("INFO - the name of the loaded Grid2op scenario is : " + str(scenario_name))
+                logger.info("the name of the loaded Grid2op scenario is: %s", scenario_name)
             if found_id is not None:
                 self.env.set_id(found_id)
                 self.env.reset()

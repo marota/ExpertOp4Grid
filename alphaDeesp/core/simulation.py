@@ -6,6 +6,7 @@
 # SPDX-License-Identifier: MPL-2.0
 # This file is part of ExpertOp4Grid, an expert system approach to solve flow congestions in power grids
 
+import logging
 from abc import ABC, abstractmethod
 from math import fabs
 import numpy as np
@@ -13,6 +14,8 @@ import numpy as np
 import pandas as pd
 
 from alphaDeesp.core.elements import ExtremityLine, OriginLine
+
+logger = logging.getLogger(__name__)
 
 
 class Simulation(ABC):
@@ -24,50 +27,153 @@ class Simulation(ABC):
 
     @abstractmethod
     def cut_lines_and_recomputes_flows(self, ids: list):
-        """network is the grid in pypownet, XX in RTE etc..."""
+        """Disconnect the lines identified by ``ids`` and re-run a power flow.
+
+        Implementations must not mutate the long-lived simulation state
+        beyond what is needed to compute the new flows (overload
+        disconnection parameters, for example, should be restored before
+        returning).
+
+        :param ids: list of internal line ids (as used by the backend) to
+            switch off before recomputing the flows.
+        :returns: A sequence of post-cut line flows (``numpy.ndarray`` or
+            similar), aligned on the backend's line ordering. The values
+            are used by :meth:`create_df` to fill the ``new_flows`` column.
+        """
 
     @abstractmethod
     def isAntenna(self):
-        """TODO"""
+        """Return the substation id of an antenna attached to the overloaded line, if any.
+
+        An "antenna" is a substation where the overloaded line is the only
+        line connected at a given busbar; splitting such a substation cannot
+        help relieving the overload and AlphaDeesp uses this information to
+        prune candidate topologies.
+
+        :returns: The external substation id of the antenna, or ``None`` if
+            the overloaded line is not attached to an antenna.
+        """
+
     @abstractmethod
     def isDoubleLine(self):
-        """TODO"""
+        """Return the list of parallel lines sharing the endpoints of the overloaded line.
+
+        Two substations may be connected by more than one line ("double
+        line"); AlphaDeesp needs to know this because topology actions on
+        either endpoint behave differently from the single-line case.
+
+        :returns: A list of backend line ids that run in parallel to the
+            current overloaded line (``self.ltc[0]``), or ``None`` if there
+            is no parallel line.
+        """
 
     @abstractmethod
     def getLinesAtSubAndBusbar(self):
-        """TODO"""
+        """Return the lines connected to each endpoint substation, grouped by busbar.
+
+        Used by :meth:`isAntenna` and by the ranking step to count the
+        degree of each busbar around the overloaded line.
+
+        :returns: A ``dict`` keyed by ``(substation_id, busbar_id)`` (or a
+            backend-specific equivalent) whose values are the list of line
+            ids connected at that busbar.
+        """
 
     @abstractmethod
     def get_layout(self):
-        """returns the layour of the graph in array of (x,y) form : [(x1,y1),(x2,y2)...]]"""
+        """Return the 2D coordinates of each substation for plotting.
+
+        :returns: A list of ``(x, y)`` tuples, one per substation, in the
+            order used by the backend (``[(x1, y1), (x2, y2), ...]``).
+        """
 
     @abstractmethod
     def get_substation_in_cooldown(self):
-        """TODO"""
+        """Return substations that cannot be acted upon at the current timestep.
+
+        Some backends (notably Grid2op) enforce a cooldown period after a
+        topology change; substations still in cooldown must be excluded
+        from the candidate set.
+
+        :returns: A list of substation ids currently in cooldown.
+        """
 
     @abstractmethod
     def get_substation_elements(self):
-        """TODO"""
+        """Return the per-substation element model built from the observation.
+
+        Each element is an instance of one of the classes in
+        :mod:`alphaDeesp.core.elements` (``Production``, ``Consumption``,
+        ``OriginLine``, ``ExtremityLine``). AlphaDeesp consumes this mapping
+        to enumerate busbar configurations.
+
+        :returns: A ``dict`` mapping substation id (int) to the list of
+            element objects attached to that substation.
+        """
 
     @abstractmethod
     def get_substation_to_node_mapping(self):
-        """TODO"""
+        """Return the mapping from substation ids to overflow-graph node ids.
+
+        Depending on the backend a substation may map to one or two nodes
+        (one per busbar); this mapping is used to translate AlphaDeesp's
+        internal graph back to substation-level actions.
+
+        :returns: A ``dict`` keyed by substation id whose values are node
+            ids in the overflow graph, or ``None`` if the backend uses a
+            1-to-1 mapping and does not need the translation table.
+        """
 
     @abstractmethod
     def get_internal_to_external_mapping(self):
-        """TODO"""
+        """Return the translation table from internal node ids to backend ids.
+
+        AlphaDeesp renumbers substations densely starting at 0 for its
+        graph algorithms; this mapping is used to emit topology actions
+        that reference the original backend ids.
+
+        :returns: A ``dict`` keyed by internal (AlphaDeesp) node id whose
+            values are the corresponding backend substation ids.
+        """
 
     @abstractmethod
     def get_dataframe(self):
-        """TODO"""
+        """Return the main topology + flow dataframe produced by :meth:`create_df`.
+
+        The dataframe has one row per line of the grid and at least the
+        columns ``idx_or``, ``idx_ex``, ``init_flows``, ``new_flows``,
+        ``delta_flows``, ``swapped`` and ``gray_edges``. It is the primary
+        input of the AlphaDeesp ranking step.
+
+        :returns: A ``pandas.DataFrame`` representing the overloaded grid.
+        """
 
     @abstractmethod
-    def get_reference_topovec_sub(self):
-        """TODO"""
+    def get_reference_topovec_sub(self, sub):
+        """Return the all-on-busbar-1 topology vector for substation ``sub``.
+
+        AlphaDeesp uses this vector as the "do nothing" reference when
+        ranking candidate busbar splits.
+
+        :param sub: Backend substation id.
+        :returns: A list of integers, one per element attached to ``sub``,
+            all initialized to the reference busbar (typically 0 or 1
+            depending on the backend convention).
+        """
 
     @abstractmethod
-    def get_overload_disconnection_topovec_subor(self):
-        """TODO"""
+    def get_overload_disconnection_topovec_subor(self, l):
+        """Return the topology vector that disconnects the origin side of line ``l``.
+
+        This is used to simulate a line-opening action as a degenerate
+        topology change on the ``origin`` substation.
+
+        :param l: Backend line id (typically the overloaded line).
+        :returns: A ``(substation_id, topo_vect)`` tuple where
+            ``topo_vect`` has ``-1`` at the element position corresponding
+            to the origin side of ``l`` (meaning "disconnected") and
+            preserves the current assignment elsewhere.
+        """
 
     @staticmethod
     def create_end_result_empty_dataframe():
@@ -176,8 +282,8 @@ class Simulation(ABC):
         df["gray_edges"] = gray_edges
 
         if getattr(self, "debug", False):
-            print("==== After gray_edges added IN FUNCTION CREATE DF ====")
-            print(df)
+            logger.debug("==== After gray_edges added IN FUNCTION CREATE DF ====")
+            logger.debug("%s", df)
 
         return df
 

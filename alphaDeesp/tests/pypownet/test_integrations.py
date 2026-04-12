@@ -1,3 +1,11 @@
+import pytest
+
+# The pypownet backend is legacy and pypownet is not installed in the
+# default CI image. Skip the whole module cleanly when pypownet is not
+# importable rather than crashing collection. This replaces the blanket
+# `--ignore=alphaDeesp/tests/pypownet/` CI flag.
+pytest.importorskip("pypownet")
+
 import configparser
 from alphaDeesp.core.printer import Printer
 from alphaDeesp.core.pypownet.PypownetObservationLoader import PypownetObservationLoader

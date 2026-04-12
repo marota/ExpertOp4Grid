@@ -1,6 +1,12 @@
 """This file contains tests for creating overflow graph. ie,
 graph with delta flows, current_flows - flows_after_closing_line"""
 
+import pytest
+
+# The pypownet backend is legacy and pypownet is not installed in the
+# default CI image; skip cleanly when unavailable.
+pytest.importorskip("pypownet")
+
 import configparser
 import networkx as nx
 from alphaDeesp.core.printer import Printer

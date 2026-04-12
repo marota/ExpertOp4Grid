@@ -6,14 +6,19 @@
 # SPDX-License-Identifier: MPL-2.0
 # This file is part of ExpertOp4Grid, an expert system approach to solve flow congestions in power grids
 
+import logging
+import pprint
+
+import numpy as np
+
 from alphaDeesp.core.elements import (
     Consumption,
     ExtremityLine,
     OriginLine,
     Production,
 )
-import pprint
-import numpy as np
+
+logger = logging.getLogger(__name__)
 
 
 class Network:
@@ -28,10 +33,10 @@ class Network:
 
     """
     def __init__(self, substations_elements: dict):
-        print("A Network got created...")
+        logger.debug("A Network got created...")
 
         nodes = sorted(list(substations_elements.keys()))
-        print("Nodes = ", nodes)
+        logger.debug("Nodes = %s", nodes)
 
         #####################################################################################################
         # ##################################### NODE PART ###################################################
@@ -46,11 +51,11 @@ class Network:
             }
 
             mapping_node_id_to_prod_minus_load[substation_id] = prods_minus_loads
-            print("Node ID = ", substation_id)
+            logger.debug("Node ID = %s", substation_id)
 
             # LOOP THROUGH SUBSTATIONS
             for element in substations_elements[substation_id]:
-                print(element)
+                logger.debug("%s", element)
                 for busbar_id in [0, 1]:  # TODO IMPORTANT, DO A PREPROCESSING OR CONFIG INI TO GET NB TOTAL BUSBARS
                     if element.busbar_id == busbar_id:
                         if isinstance(element, Production) or isinstance(element, Consumption):
@@ -81,11 +86,12 @@ class Network:
                             # if element.flow_value is None:
                             #     prods_minus_loads[busbar_id] = "XXX"
 
-            print("PROD MINUS LOAD")
-            pprint.pprint(prods_minus_loads)
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug("PROD MINUS LOAD\n%s", pprint.pformat(prods_minus_loads))
 
-        print("mapping_node_id_to_prod_minus_load")
-        pprint.pprint(mapping_node_id_to_prod_minus_load)
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug("mapping_node_id_to_prod_minus_load\n%s",
+                         pprint.pformat(mapping_node_id_to_prod_minus_load))
 
         ################################
         ################################
@@ -104,13 +110,18 @@ class Network:
                     # nodes 666+ that are on busbar1 +
                     save_for_complementary_nodes.append((twin_node_name, value))
 
-        pprint.pprint(final_array_for_drawing_nodes)
-        pprint.pprint(save_for_complementary_nodes)
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug("final_array_for_drawing_nodes\n%s",
+                         pprint.pformat(final_array_for_drawing_nodes))
+            logger.debug("save_for_complementary_nodes\n%s",
+                         pprint.pformat(save_for_complementary_nodes))
 
         for elem in save_for_complementary_nodes:
             final_array_for_drawing_nodes.append(elem)
 
-        pprint.pprint(final_array_for_drawing_nodes)
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug("final_array_for_drawing_nodes (with complementaries)\n%s",
+                         pprint.pformat(final_array_for_drawing_nodes))
         self.nodes_prod_values = final_array_for_drawing_nodes
 
         #####################################################################################################
@@ -124,7 +135,7 @@ class Network:
         substation_id_busbar_id_to_node_id_mapping = {}
         # node_id is a tuple(node_id, value) value is a prod or cons value, or None, if there is none on this node
         for node_id in reversed(self.nodes_prod_values):
-            print("\nnode_id = ", node_id)
+            logger.debug("node_id = %s", node_id)
             substation_id = node_id[0]
 
             # first create dict
@@ -134,36 +145,38 @@ class Network:
             # meaning there is a busbar 1 used on node X, from 666X
             if "666" in str(substation_id):
                 initial_node_id = int(str(substation_id)[3:])  # we remove 666 and take the rest, from 6662, we get 2
-                print("REST = ", initial_node_id)
-                print("substation_id = ", substation_id)
+                logger.debug("REST = %s", initial_node_id)
+                logger.debug("substation_id = %s", substation_id)
 
                 # create dict for initial_node_id if not exists
                 substation_id_busbar_id_to_node_id_mapping[initial_node_id] = {0: None, 1: None}
 
                 # then update accordingly
                 substation_id_busbar_id_to_node_id_mapping[initial_node_id][1] = substation_id
-                print("###############################===================================###############################")
-                print("###############################===================================###############################")
-                pprint.pprint(substation_id_busbar_id_to_node_id_mapping)
+                if logger.isEnabledFor(logging.DEBUG):
+                    logger.debug("substation_id_busbar_id_to_node_id_mapping\n%s",
+                                 pprint.pformat(substation_id_busbar_id_to_node_id_mapping))
 
             # meaning there is no busbar1 used on this node, we just do a standard mapping
             else:
                 # change only if neither bus has been set
-                print("substation_id_busbar_id_to_node_id_mapping[substation_id][0] = ", substation_id_busbar_id_to_node_id_mapping[substation_id][0])
-                print("substation_id_busbar_id_to_node_id_mapping[substation_id][1] = ", substation_id_busbar_id_to_node_id_mapping[substation_id][1])
+                logger.debug("substation_id_busbar_id_to_node_id_mapping[substation_id][0] = %s",
+                             substation_id_busbar_id_to_node_id_mapping[substation_id][0])
+                logger.debug("substation_id_busbar_id_to_node_id_mapping[substation_id][1] = %s",
+                             substation_id_busbar_id_to_node_id_mapping[substation_id][1])
                 if substation_id_busbar_id_to_node_id_mapping[substation_id][0] is None or \
                         substation_id_busbar_id_to_node_id_mapping[substation_id][1] is None:
-                    print("we where in the IFFFFFFF")
+                    logger.debug("we were in the IFFFFFFF")
                     substation_id_busbar_id_to_node_id_mapping[substation_id][0] = substation_id
 
-        print("###############################===================================###############################")
-        print("###############################===================================###############################")
-        print("End of Network's init")
-        pprint.pprint(substation_id_busbar_id_to_node_id_mapping)
+        logger.debug("End of Network's init")
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug("substation_id_busbar_id_to_node_id_mapping\n%s",
+                         pprint.pformat(substation_id_busbar_id_to_node_id_mapping))
 
         self.substation_id_busbar_id_node_id_mapping = substation_id_busbar_id_to_node_id_mapping
         self.nb_graphical_nodes = len(list(substation_id_busbar_id_to_node_id_mapping.keys()))
-        print("There are {} graphical nodes in this graph.".format(self.nb_graphical_nodes))
+        logger.debug("There are %s graphical nodes in this graph.", self.nb_graphical_nodes)
 
 
     def get_number_total_number_of_nodes(self):
