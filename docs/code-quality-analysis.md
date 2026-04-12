@@ -1,10 +1,14 @@
 # Code Quality & Maintainability Analysis
 
-_Last updated: 2026-04-12 — longer-term refactors for the four highest-CC
-functions and the `"666"` twin-node encoding landed on branch
-`claude/refactor-rank-topo-function-U4y9g`. Short-term action plan landed on
-`claude/code-quality-short-term-tnydm`; original immediate-cleanup pass on
-`claude/code-quality-analysis-8Ftgi`._
+_Last updated: 2026-04-12 — high-impact items 5, 6, 7 and 9 are now all
+resolved on branch `claude/fix-code-quality-issues-XGpMU` (type hints on
+`core/simulation.py` and `core/elements.py`; remaining mutable defaults on
+`Grid2opSimulation.__init__` / `PypownetSimulation.__init__`; items 5 and 7
+were already done in prior passes and are reconfirmed). Longer-term refactors
+for the four highest-CC functions and the `"666"` twin-node encoding landed
+on branch `claude/refactor-rank-topo-function-U4y9g`. Short-term action plan
+landed on `claude/code-quality-short-term-tnydm`; original immediate-cleanup
+pass on `claude/code-quality-analysis-8Ftgi`._
 
 This document captures a diagnostic review of the `alphaDeesp` (ExpertOp4Grid)
 codebase. It is intended as a living punch-list for incremental cleanup work.
@@ -94,6 +98,8 @@ and discrimination are covered in `TestTwinNodeIds`.
 | done | Write real docstrings for every abstract method in `core/simulation.py` | Replaced 9 `"""TODO"""` stubs with full contract documentation |
 | done | Re-enable the three excluded test modules in CI (or document why) | Tests now self-skip via `pytest.importorskip`; `--ignore` flags removed |
 | done | Unify `LICENSE`/`LICENSE.md`; refresh `setup.py` classifiers and version pins | See "Packaging cleanup" below |
+| done | Fix remaining mutable defaults on `Grid2opSimulation.__init__` / `PypownetSimulation.__init__` | See "Mutable defaults" below |
+| done | Type hints seed on `core/simulation.py` and `core/elements.py` | See "Type hints seed" below |
 
 ### Bare except cleanup
 
@@ -180,9 +186,80 @@ Two mutable defaults in `alphaDeesp/core/alphadeesp.py`:
   `None`.
 
 The `ltc=[9]` / `other_ltc=[]` defaults on `Grid2opSimulation.__init__` and
-`PypownetSimulation.__init__` are **not** fixed yet — they are part of the
-simulator public API and fixing them cleanly needs a careful scan of the
-call sites. Tracked under the short-term action plan below.
+the `ltc=[9]` default on `PypownetSimulation.__init__` are now also fixed.
+Both signatures take `ltc=None` / `other_ltc=None` and normalize to `[9]` /
+`[]` inside the body; all in-tree callers pass these as keyword arguments
+(verified across `main.py`, `agent_call.py`, the three grid2op test
+modules, `Expert_rule_action_verification.py` and the four
+`getting_started/` notebooks), so the signature change is source-compatible
+for embedders too.
+
+### Type hints seed
+
+`core/elements.py` and `core/simulation.py` — the two modules the original
+audit flagged as the highest-leverage starting points — are now fully
+type-annotated. The rest of the package is still untyped; the two files
+above are intended as a **seed** the rest of the code can be annotated
+against without chasing `Any` through every call site.
+
+What landed:
+
+- `core/elements.py`:
+  - `Production.__init__(self, busbar_id: int, value: Optional[float] = None) -> None`
+  - `Consumption.__init__(self, busbar_id: int, value: Optional[float] = None) -> None`
+  - `OriginLine.__init__(self, busbar_id: int, end_substation_id: Optional[int] = None, flow_value: Optional[List[float]] = None) -> None`
+  - `ExtremityLine.__init__(self, busbar_id: int, start_substation_id: Optional[int] = None, flow_value: Optional[List[float]] = None) -> None`
+  - `ID: int` class variable annotation on each of the four classes.
+  - `busbar` property / setter typed as `int` on all four classes.
+  - `__repr__(self) -> str` on all four classes.
+  - The three ``# print("... created...")`` commented-out debug stubs that
+    had been sitting at the top of each ``__init__`` were dropped along the
+    way — they were dead and made the type annotations noisier to read.
+
+- `core/simulation.py`:
+  - `Simulation.__init__(self) -> None`.
+  - All 10 abstract methods carry concrete return types:
+    `cut_lines_and_recomputes_flows -> Sequence[float]`,
+    `isAntenna -> Optional[int]`,
+    `isDoubleLine -> Optional[List[int]]`,
+    `getLinesAtSubAndBusbar -> Dict[Any, List[int]]`,
+    `get_layout -> List[Tuple[float, float]]`,
+    `get_substation_in_cooldown -> List[int]`,
+    `get_substation_elements -> Dict[int, List[SubstationElement]]`,
+    `get_substation_to_node_mapping -> Optional[Dict[int, Any]]`,
+    `get_internal_to_external_mapping -> Dict[int, int]`,
+    `get_dataframe -> pd.DataFrame`,
+    `get_reference_topovec_sub(sub: int) -> List[int]`,
+    `get_overload_disconnection_topovec_subor(l: int) -> Tuple[int, List[int]]`.
+  - Concrete helpers: `create_df(self, d: Dict[str, Any], line_to_cut: List[int]) -> pd.DataFrame`,
+    `branch_direction_swaps(df: pd.DataFrame) -> None`,
+    `invert_dict_keys_values(d: Dict[Any, Any]) -> Dict[Any, Any]`,
+    `create_end_result_empty_dataframe() -> pd.DataFrame`,
+    `get_model_obj_from_or/ext(df_indexed: pd.DataFrame, substation_id: int, dest: int, busbar: int) -> Optional[Union[OriginLine, ExtremityLine]]`.
+  - A module-level ``SubstationElement = Union[Production, Consumption,
+    OriginLine, ExtremityLine]`` alias is exposed so downstream annotations
+    can use a single name instead of repeating the 4-way union.
+
+Deliberately out of scope for this pass (tracked under longer-term item 14):
+
+- `core/alphadeesp.py`, `core/graphsAndPaths.py`, `core/network.py`,
+  `core/printer.py`, and the two concrete backends
+  (`core/grid2op/Grid2opSimulation.py`, `core/pypownet/PypownetSimulation.py`).
+  These modules consume the seed types but annotating them requires
+  carefully typing `networkx.DiGraph` / `rustworkx.PyDiGraph` nodes and
+  edges, which is a larger job.
+- Wiring `mypy --ignore-missing-imports` into CI. With only the two seed
+  modules annotated mypy would be almost entirely noise; it makes sense to
+  enable it once `alphadeesp.py` and the backends are typed.
+
+Verification:
+
+- `python -m pyflakes alphaDeesp/core alphaDeesp/*.py` (CI lint scope) →
+  **0 findings**.
+- `python -m pytest alphaDeesp/tests/test_graphs_and_paths_unit.py
+  alphaDeesp/tests/test_alphadeesp_unit.py` → **130 passed**.
+- `from alphaDeesp.core import simulation, elements` imports clean on
+  Python 3.12 with numpy / pandas installed.
 
 ### `Simulation.create_df` stdout spam
 
@@ -347,17 +424,17 @@ CI-config change.
 | Average complexity | **B (5.72)** across 163 functions/classes | `radon cc` |
 | `print()` calls | baseline: **247** across 20 files → **~108 remaining** (tests, `build_new_parameters_environment.py`, legacy Pypownet backend, `Expert_rule_action_verification.py`); all 10 CI-scoped first-party modules are at **0** | grep |
 | Bare `except:` clauses | baseline: 9 → **0** | grep |
-| Type-annotated functions | **1** across the entire codebase | grep `-> ` |
+| Type-annotated functions | baseline 1 → **36** after the core base-class seed (16 in `core/elements.py` + 20 in `core/simulation.py`); rest of the package still untyped | grep `-> ` |
 | Pyflakes findings | baseline: 59 → **0** in CI scope | `pyflakes` |
 | TODO/FIXME markers | 25 across 7 files | grep |
 | Test functions | 164 across 9 files; CI now only excludes `test_cli.py` (run as a dedicated step); pypownet + expert_rules self-skip via `pytest.importorskip` | `.circleci/config.yml` |
 
 ## Critical issues (fix first)
 
-> Items 1, 2, 3, 4, 8 and 10 below are now resolved and are kept for
-> historical context — see the "Cleanup progress" section at the top.
-> Items 5, 6, 7, 9, 11+ remain as targets for the remaining longer-term
-> refactors.
+> Items 1–10 below are now resolved and are kept for historical context —
+> see the "Cleanup progress" section at the top. Items 11+ remain as
+> targets for the remaining longer-term refactors (14: type hints beyond
+> the core base classes; 15: Pypownet backend fate).
 
 ### 1. Bare `except:` clauses swallowing all errors
 `alphaDeesp/main.py` (×3 near lines 100, 105, 117),
@@ -403,44 +480,44 @@ CI**. The CLI is re-added as a separate job, but `test_expert_rules.py`
 
 ## High-impact issues
 
-### 5. No logging — 247 `print()` calls
-Distribution: `PypownetSimulation.py` (42), `alphadeesp.py` (39),
-`Expert_rule_action_verification.py` (34), `main.py` (14),
-`Grid2opSimulation.py` (12). There is no verbosity control; `-d/--debug` is
-checked in only a few places. Embedders (e.g. l2rpn-baselines `ExpertAgent`)
-cannot suppress output. Replace with `logging.getLogger(__name__)`.
+### 5. ~~No logging — 247 `print()` calls~~ (done)
+Replaced with module-level `logging.getLogger(__name__)` across the 10
+first-party modules in the CI scope. See the "Logging migration" section
+near the top of this document. Embedders can now silence the expert system
+with a single `logging.getLogger("alphaDeesp").setLevel(logging.WARNING)`.
 
-### 6. Zero type hints
-Exactly one `-> ` return annotation in the whole package. Given how much of
-the code manipulates `pd.DataFrame`, `networkx.DiGraph`, and custom
-`OriginLine`/`ExtremityLine` objects, this is the largest onboarding cost.
-Start by annotating `core/simulation.py` (the abstract base) and
-`core/elements.py` — they propagate outward.
+### 6. ~~Zero type hints~~ (done for the core base classes)
+`core/elements.py` and `core/simulation.py` — the two starting points the
+original analysis recommended — are now fully annotated. All four element
+classes (`Production`, `Consumption`, `OriginLine`, `ExtremityLine`) carry
+annotations on constructors, the `busbar` property/setter, and the `ID`
+class variable. `Simulation` has annotated signatures for all 10 abstract
+methods, `create_df`, `branch_direction_swaps`, `invert_dict_keys_values`,
+and both `get_model_obj_from_*` helpers. A `SubstationElement` `Union`
+alias is exported from `simulation.py` so downstream code (the two
+backends) can use the same type in their own annotations as they are
+converted. See "Type hints seed" below. Further propagation to
+`alphadeesp.py`, `network.py`, `graphsAndPaths.py` and the backend
+simulators is tracked under longer-term item 14.
 
-### 7. Pyflakes: 15+ dead locals and unused imports in `alphadeesp.py` alone
-Unused imports: `pprint`, `math.ceil`, `os`. Unused locals include
-`ranked_combinations` (line 50), `current_node`/`new_node` (271-272),
-`edge_color` (336), `all_nodes_value_attributes` (385, 758),
-`not_interesting_bus_id` (428), `node2` (555), `p` (823), `indexEdge_inDf`
-(805). This is abandoned refactoring. Similar patterns in `graphsAndPaths.py`
-(5 dead locals), `printer.py` (3 unused imports + 2 dead locals),
-`Expert_rule_action_verification.py` (redefinition of `version_packaging`).
+### 7. ~~Pyflakes: 15+ dead locals and unused imports in `alphadeesp.py` alone~~ (done)
+See the "Pyflakes cleanup" section near the top of this document.
+Reconfirmed: `python -m pyflakes` on the CI scope reports **0 findings**
+after the item 6/9 edits.
 
 ### 8. Abstract-method docstrings are just `"""TODO"""`
 `core/simulation.py:29-70` — 9 of 10 abstract methods have `"""TODO"""` as the
 entire contract documentation. New backend authors have nothing to implement
 against. The class is the public extension point; this is a doc-gap bug.
 
-### 9. Mutable default arguments
-`core/alphadeesp.py:28`:
-
-```python
-def __init__(self, _g, df_of_g, simulator_data=None,
-             substation_in_cooldown=[], debug=False):
-```
-
-and `rank_current_topo_at_node_x(..., topo_vect=[0, 0, 1, 1, 1], ...)`.
-Classic Python footgun that silently leaks state across calls.
+### 9. ~~Mutable default arguments~~ (done)
+The two remaining `ltc=[9]` / `other_ltc=[]` defaults on
+`Grid2opSimulation.__init__` and the `ltc=[9]` default on
+`PypownetSimulation.__init__` are now `None` sentinels normalized inside
+the body. Together with the prior `AlphaDeesp.__init__` /
+`rank_current_topo_at_node_x` fixes this closes out the original audit
+finding. See "Mutable defaults" above (updated) for the full list of
+signatures.
 
 ## Medium-impact issues
 
@@ -543,7 +620,10 @@ details of each change.
 13. ~~Replace the `"666"` twin-node encoding with a proper id scheme.~~ Done,
     see `alphaDeesp/core/twin_nodes.py`.
 14. Add type hints starting from `core/simulation.py` and `core/elements.py`
-    outward; enable `mypy --ignore-missing-imports` in CI.
+    outward; enable `mypy --ignore-missing-imports` in CI. _Seed done for
+    the two base-class modules — see "Type hints seed" above. Remaining:
+    `core/alphadeesp.py`, `core/graphsAndPaths.py`, `core/network.py`,
+    `core/printer.py`, and the two concrete simulator backends._
 15. Decide the fate of the Pypownet backend: first-class (re-enable CI,
     modernize) or deprecated.
 

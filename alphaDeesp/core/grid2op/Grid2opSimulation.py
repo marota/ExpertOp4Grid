@@ -56,12 +56,14 @@ class Grid2opSimulation(Simulation):
     def get_layout(self):
         return self.layout
 
-    def __init__(self, obs, action_space, observation_space, param_options=None, debug = False, ltc=[9],other_ltc=[], plot=False, plot_folder = None,reward_type=None,simu_step=0):
+    def __init__(self, obs, action_space, observation_space, param_options=None, debug=False, ltc=None, other_ltc=None, plot=False, plot_folder=None, reward_type=None, simu_step=0):
         super().__init__()
 
         # Get Grid2op objects
         if ltc is None:
             ltc = [9]
+        if other_ltc is None:
+            other_ltc = []
         self.plot_folder=None
         if plot: # Manual mode
             self.plot_folder = plot_folder
