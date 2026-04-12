@@ -9,24 +9,29 @@
 import logging
 from abc import ABC, abstractmethod
 from math import fabs
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
+
 import numpy as np
 
 import pandas as pd
 
-from alphaDeesp.core.elements import ExtremityLine, OriginLine
+from alphaDeesp.core.elements import Consumption, ExtremityLine, OriginLine, Production
 
 logger = logging.getLogger(__name__)
+
+# Convenience alias for the heterogeneous per-substation element lists.
+SubstationElement = Union[Production, Consumption, OriginLine, ExtremityLine]
 
 
 class Simulation(ABC):
     """Abstract Class Simulation"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
 
 
     @abstractmethod
-    def cut_lines_and_recomputes_flows(self, ids: list):
+    def cut_lines_and_recomputes_flows(self, ids: List[int]) -> Sequence[float]:
         """Disconnect the lines identified by ``ids`` and re-run a power flow.
 
         Implementations must not mutate the long-lived simulation state
@@ -42,7 +47,7 @@ class Simulation(ABC):
         """
 
     @abstractmethod
-    def isAntenna(self):
+    def isAntenna(self) -> Optional[int]:
         """Return the substation id of an antenna attached to the overloaded line, if any.
 
         An "antenna" is a substation where the overloaded line is the only
@@ -55,7 +60,7 @@ class Simulation(ABC):
         """
 
     @abstractmethod
-    def isDoubleLine(self):
+    def isDoubleLine(self) -> Optional[List[int]]:
         """Return the list of parallel lines sharing the endpoints of the overloaded line.
 
         Two substations may be connected by more than one line ("double
@@ -68,7 +73,7 @@ class Simulation(ABC):
         """
 
     @abstractmethod
-    def getLinesAtSubAndBusbar(self):
+    def getLinesAtSubAndBusbar(self) -> Dict[Any, List[int]]:
         """Return the lines connected to each endpoint substation, grouped by busbar.
 
         Used by :meth:`isAntenna` and by the ranking step to count the
@@ -80,7 +85,7 @@ class Simulation(ABC):
         """
 
     @abstractmethod
-    def get_layout(self):
+    def get_layout(self) -> List[Tuple[float, float]]:
         """Return the 2D coordinates of each substation for plotting.
 
         :returns: A list of ``(x, y)`` tuples, one per substation, in the
@@ -88,7 +93,7 @@ class Simulation(ABC):
         """
 
     @abstractmethod
-    def get_substation_in_cooldown(self):
+    def get_substation_in_cooldown(self) -> List[int]:
         """Return substations that cannot be acted upon at the current timestep.
 
         Some backends (notably Grid2op) enforce a cooldown period after a
@@ -99,7 +104,7 @@ class Simulation(ABC):
         """
 
     @abstractmethod
-    def get_substation_elements(self):
+    def get_substation_elements(self) -> Dict[int, List[SubstationElement]]:
         """Return the per-substation element model built from the observation.
 
         Each element is an instance of one of the classes in
@@ -112,7 +117,7 @@ class Simulation(ABC):
         """
 
     @abstractmethod
-    def get_substation_to_node_mapping(self):
+    def get_substation_to_node_mapping(self) -> Optional[Dict[int, Any]]:
         """Return the mapping from substation ids to overflow-graph node ids.
 
         Depending on the backend a substation may map to one or two nodes
@@ -125,7 +130,7 @@ class Simulation(ABC):
         """
 
     @abstractmethod
-    def get_internal_to_external_mapping(self):
+    def get_internal_to_external_mapping(self) -> Dict[int, int]:
         """Return the translation table from internal node ids to backend ids.
 
         AlphaDeesp renumbers substations densely starting at 0 for its
@@ -137,7 +142,7 @@ class Simulation(ABC):
         """
 
     @abstractmethod
-    def get_dataframe(self):
+    def get_dataframe(self) -> pd.DataFrame:
         """Return the main topology + flow dataframe produced by :meth:`create_df`.
 
         The dataframe has one row per line of the grid and at least the
@@ -149,7 +154,7 @@ class Simulation(ABC):
         """
 
     @abstractmethod
-    def get_reference_topovec_sub(self, sub):
+    def get_reference_topovec_sub(self, sub: int) -> List[int]:
         """Return the all-on-busbar-1 topology vector for substation ``sub``.
 
         AlphaDeesp uses this vector as the "do nothing" reference when
@@ -162,7 +167,7 @@ class Simulation(ABC):
         """
 
     @abstractmethod
-    def get_overload_disconnection_topovec_subor(self, l):
+    def get_overload_disconnection_topovec_subor(self, l: int) -> Tuple[int, List[int]]:
         """Return the topology vector that disconnects the origin side of line ``l``.
 
         This is used to simulate a line-opening action as a degenerate
@@ -176,7 +181,7 @@ class Simulation(ABC):
         """
 
     @staticmethod
-    def create_end_result_empty_dataframe():
+    def create_end_result_empty_dataframe() -> pd.DataFrame:
         """This function creates initial structure for the dataframe"""
 
         end_result_dataframe_structure_initiation = {
@@ -199,7 +204,7 @@ class Simulation(ABC):
 
         return end_result_data_frame
 
-    def create_df(self, d: dict, line_to_cut: list):
+    def create_df(self, d: Dict[str, Any], line_to_cut: List[int]) -> pd.DataFrame:
         """arg: d represents a topology"""
         # HERE WE CREATE DATAFRAME
         df = pd.DataFrame(d["edges"])
@@ -288,7 +293,7 @@ class Simulation(ABC):
         return df
 
     @staticmethod
-    def branch_direction_swaps(df):
+    def branch_direction_swaps(df: pd.DataFrame) -> None:
         """we parse self.df and invert branches init_flows < 0"""
         swapped = []
         for i, row in df.iterrows():
@@ -312,11 +317,16 @@ class Simulation(ABC):
         df["swapped"] = swapped
 
     @staticmethod
-    def invert_dict_keys_values(d):
+    def invert_dict_keys_values(d: Dict[Any, Any]) -> Dict[Any, Any]:
         return dict([(v, k) for k, v in d.items()])
 
     @staticmethod
-    def get_model_obj_from_or(df_indexed, substation_id, dest, busbar):
+    def get_model_obj_from_or(
+        df_indexed: pd.DataFrame,
+        substation_id: int,
+        dest: int,
+        busbar: int,
+    ) -> Optional[Union[OriginLine, ExtremityLine]]:
         try:
             # Case 1: Direct Match
             val = df_indexed.loc[(substation_id, dest), 'delta_flows']
@@ -351,7 +361,12 @@ class Simulation(ABC):
                 return None
 
     @staticmethod
-    def get_model_obj_from_ext(df_indexed, substation_id, dest, busbar):
+    def get_model_obj_from_ext(
+        df_indexed: pd.DataFrame,
+        substation_id: int,
+        dest: int,
+        busbar: int,
+    ) -> Optional[Union[OriginLine, ExtremityLine]]:
         """
         Optimized version using Pandas MultiIndex, robust against Duplicate Rows.
         """

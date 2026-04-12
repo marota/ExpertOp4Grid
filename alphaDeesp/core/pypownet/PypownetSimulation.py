@@ -17,12 +17,15 @@ from alphaDeesp.core.printer import Printer
 
 
 class PypownetSimulation(Simulation):
-    def __init__(self, env, obs, action_space, param_options=None, debug=False, ltc=[9], plot_folder = None,isScoreFromBackend=False):
+    def __init__(self, env, obs, action_space, param_options=None, debug=False, ltc=None, plot_folder=None, isScoreFromBackend=False):
         super().__init__()
         print("PypownetSimulation object created...")
 
         if not param_options or param_options is None:
             raise AttributeError("\nparam_options are empty or None, meaning the config file is not properly read.")
+
+        if ltc is None:
+            ltc = [9]
 
         self.save_bag = []
         self.debug = debug
