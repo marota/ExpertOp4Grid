@@ -8,11 +8,14 @@
 
 """This file contains all the possible displays for graph from NetworkX"""
 
-import os
 import datetime
+import logging
+import os
+import subprocess
+
 import networkx as nx
 
-import subprocess
+logger = logging.getLogger(__name__)
 
 
 class Printer:
@@ -27,7 +30,7 @@ class Printer:
         os.makedirs(self.base_output_path, exist_ok=True)
         self.results_output_path = os.path.join(self.default_output_path,"Result graph")
         os.makedirs(self.results_output_path, exist_ok=True)
-        print("self.default output path = ", self.default_output_path)
+        logger.debug("self.default output path = %s", self.default_output_path)
 
     def plot_graphviz(self, g, custom_layout=None,rescale_factor=None,allow_overlap=True,fontsize=None,node_thickness=3, axial_symetry=False, save=False, name=None):
         "filenames are pathlib.Paths objects"
@@ -124,7 +127,7 @@ class Printer:
             cmd_line = 'dot -Tpdf "' + str(filename_dot) + '" -o "' + str(filename_pdf) + '"'#'neato -Tpdf "' + str(filename_dot) + '" -o "' + str(filename_pdf) + '"'
         else:
             cmd_line = 'neato -n -Tpdf "' + str(filename_dot) + '" -o "' + str(filename_pdf) + '"'
-        print("we print the cmd line = ", cmd_line)
+        logger.debug("we print the cmd line = %s", cmd_line)
 
         assert execute_command(cmd_line)
 
@@ -158,7 +161,7 @@ class Printer:
 
         if name is None:
             name = ""
-        print("name = ", name)
+        logger.debug("name = %s", name)
         filename_dot = name + "_" + display_type + "_" + current_date + ".dot"
         filename_pdf = name + "_" + display_type + "_" + current_date + ".pdf"
 
@@ -172,8 +175,8 @@ class Printer:
         # hard_filename_dot = filename_dot
         hard_filename_pdf = os.path.join(output_path,filename_pdf)
 
-        print("============================= FUNCTION create_namefile =============================")
-        print("hard_filename = ", hard_filename_pdf)
+        logger.debug("============================= FUNCTION create_namefile =============================")
+        logger.debug("hard_filename = %s", hard_filename_pdf)
 
         return hard_filename_dot, hard_filename_pdf
 

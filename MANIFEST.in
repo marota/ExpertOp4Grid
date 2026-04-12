@@ -1,5 +1,5 @@
 include README.md
-include LICENSE.md
+include LICENSE
 include docs/*.rst
 include alphaDeesp/ressources/config/*
 include alphaDeesp/ressources/parameters/l2rpn_2019/chronics/a/*

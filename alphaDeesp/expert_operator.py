@@ -6,10 +6,14 @@
 # you can obtain one at http://mozilla.org/MPL/2.0/.
 # SPDX-License-Identifier: MPL-2.0
 # This file is part of ExpertOp4Grid, an expert system approach to solve flow congestions in power grids
+import logging
+
 from alphaDeesp.core.alphadeesp import AlphaDeesp
 import pandas as pd
 import os
 from alphaDeesp.core.graphsAndPaths import OverFlowGraph,PowerFlowGraph
+
+logger = logging.getLogger(__name__)
 
 
 def expert_operator(sim, plot=False, debug=False):
@@ -40,7 +44,7 @@ def expert_operator(sim, plot=False, debug=False):
     isAntenna_Sub=sim.isAntenna()
     isDoubleLine = sim.isDoubleLine()
     if isDoubleLine is not None:
-        print("check")
+        logger.debug("double line detected: %s", isDoubleLine)
 
     # Launch alphadeesp core
     if isAntenna_Sub is None:
@@ -57,10 +61,10 @@ def expert_operator(sim, plot=False, debug=False):
 
     # Expert results --> end dataframe
     expert_system_results, actions = sim.compute_new_network_changes(ranked_combinations)
-    print("--------------------------------------------------------------------------------------------")
-    print("----------------------------------- END RESULT DATAFRAME -----------------------------------")
-    print("--------------------------------------------------------------------------------------------")
-    print(expert_system_results)
+    logger.info("--------------------------------------------------------------------------------------------")
+    logger.info("----------------------------------- END RESULT DATAFRAME -----------------------------------")
+    logger.info("--------------------------------------------------------------------------------------------")
+    logger.info("%s", expert_system_results)
 
     # Plot option
     if plot:

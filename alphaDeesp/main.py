@@ -8,6 +8,7 @@
 # This file is part of ExpertOp4Grid, an expert system approach to solve flow congestions in power grids
 __author__ = "MarcM, NMegel, mjothy"
 
+import logging
 import os
 import argparse
 import configparser
@@ -15,7 +16,20 @@ import configparser
 from alphaDeesp.core.printer import shell_print_project_header
 from alphaDeesp.expert_operator import expert_operator
 
+logger = logging.getLogger(__name__)
+
+
 def main():
+    # CLI entry point: configure a basic handler so `logger.info` reaches
+    # stdout with a readable format when running `expertop4grid ...` directly.
+    # Embedders importing `alphaDeesp.main` programmatically get whatever
+    # handlers they configured on the root logger.
+    if not logging.getLogger().handlers:
+        logging.basicConfig(
+            level=logging.INFO,
+            format="%(message)s",
+        )
+
     # ###############################################################################################################
     # Read parameters provided by manual mode (Shell - config.ini - param_folder for the grid)
     shell_print_project_header()
@@ -43,7 +57,7 @@ def main():
     args = parser.parse_args()
 
     if args.fileconfig is None:
-        print("Getting default package config.ini")
+        logger.info("Getting default package config.ini")
         fileconfig = os.path.join(os.path.dirname(os.path.realpath(__file__)), "ressources",'config', "config.ini")
     else:
         fileconfig = args.fileconfig
@@ -52,10 +66,10 @@ def main():
 
     config = configparser.ConfigParser()
     config.read(fileconfig)
-    print("#### PARAMETERS #####")
+    logger.info("#### PARAMETERS #####")
     for key in config["DEFAULT"]:
-        print("key: {} = {}".format(key, config['DEFAULT'][key]))
-    print("#### ########## #####\n")
+        logger.info("key: %s = %s", key, config['DEFAULT'][key])
+    logger.info("#### ########## #####\n")
 
     if args.ltc is None or len(args.ltc) != 1:
         raise ValueError("Input arg error, --ltc, for the moment, we allow cutting only one line.\n\nPlease select"
@@ -68,9 +82,9 @@ def main():
         raise ValueError("Input arg error, --debug, options are 0 or 1")
 
 
-    print("-------------------------------------")
-    print(f"Working on lines: {args.ltc} ")
-    print("-------------------------------------\n")
+    logger.info("-------------------------------------")
+    logger.info("Working on lines: %s ", args.ltc)
+    logger.info("-------------------------------------\n")
 
 
     # ###############################################################################################################
@@ -81,7 +95,7 @@ def main():
 
 
     if config["DEFAULT"]["simulatorType"] == "Pypownet":
-        print("We init Pypownet Simulation")
+        logger.info("We init Pypownet Simulation")
         from alphaDeesp.core.pypownet.PypownetSimulation import PypownetSimulation
         from alphaDeesp.core.pypownet.PypownetObservationLoader import PypownetObservationLoader
 
@@ -91,21 +105,21 @@ def main():
         sim = PypownetSimulation(env, obs, action_space, param_options=config["DEFAULT"], debug=args.debug,
                                  ltc=args.ltc)
     elif config["DEFAULT"]["simulatorType"] == "Grid2OP":
-        print("We init Grid2OP Simulation")
+        logger.info("We init Grid2OP Simulation")
         from alphaDeesp.core.grid2op.Grid2opSimulation import Grid2opSimulation
         from alphaDeesp.core.grid2op.Grid2opObservationLoader import Grid2opObservationLoader
 
         try:
             parameters_folder = config["DEFAULT"]["gridPath"] # Case there is a grid path given in config.ini
         except KeyError: # Default load l2rpn_2019 in packages data
-            print("Getting default package grid l2rpn_2019")
+            logger.info("Getting default package grid l2rpn_2019")
             parameters_folder = os.path.join(os.path.dirname(os.path.realpath(__file__)), "ressources",
                                                                                             'parameters', "l2rpn_2019")
             config["DEFAULT"]["gridPath"] = parameters_folder
         try:
             difficulty = str(config["DEFAULT"]["grid2opDifficulty"])
         except KeyError:
-            print("Default difficulty level has been set to None")
+            logger.info("Default difficulty level has been set to None")
             difficulty = None
         loader = Grid2opObservationLoader(parameters_folder, difficulty = difficulty)
         env, obs, action_space = loader.get_observation(chronic_scenario= args.chronicscenario, timestep=args.timestep)
@@ -121,7 +135,7 @@ def main():
             try:
                 plot_base_folder = config["DEFAULT"]["outputPath"] # Case there is a grid path given in config.ini
             except KeyError: # No outputPath: write to ./output
-                print("No outputPath in config.ini: generating outputs in current folder")
+                logger.info("No outputPath in config.ini: generating outputs in current folder")
                 plot_base_folder = "output"
             plot_folder = generate_plot_folders(plot_base_folder, args.ltc,args.chronicscenario,args.timestep, config)
         else:
@@ -131,11 +145,11 @@ def main():
                                  ltc=args.ltc, plot=args.snapshot, plot_folder = plot_folder)
 
     elif config["DEFAULT"]["simulatorType"] == "RTE":
-        print("We init RTE Simulation")
+        logger.info("We init RTE Simulation")
         # sim = RTESimulation()
         return
     else:
-        print("Error simulator Type in config.ini not recognized...")
+        logger.error("Error simulator Type in config.ini not recognized...")
 
     # ###############################################################################################################
     # Call agent mode with possible plot and debug fonctionalities

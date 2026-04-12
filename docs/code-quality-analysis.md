@@ -1,6 +1,8 @@
 # Code Quality & Maintainability Analysis
 
-_Last updated: 2026-04-12 — branch `claude/code-quality-analysis-8Ftgi`_
+_Last updated: 2026-04-12 — short-term action plan landed on branch
+`claude/code-quality-short-term-tnydm`; original immediate-cleanup pass on
+`claude/code-quality-analysis-8Ftgi`._
 
 This document captures a diagnostic review of the `alphaDeesp` (ExpertOp4Grid)
 codebase. It is intended as a living punch-list for incremental cleanup work.
@@ -9,18 +11,24 @@ audits over the entire `alphaDeesp/` package.
 
 ## Cleanup progress
 
-The "Immediate" items from the action plan have been addressed. The pyflakes
-CI scope (`alphaDeesp/core/**`, `expert_operator.py`, `main.py`, excluding the
-legacy Pypownet backend) is now clean, and 98/98 tests in
-`test_graphs_and_paths_unit.py` pass locally after the edits.
+Both the "Immediate" and the "Short-term" items from the action plan have
+been addressed. The pyflakes CI scope (`alphaDeesp/core/**`,
+`expert_operator.py`, `main.py`, excluding the legacy Pypownet backend) is
+still clean, and 98/98 tests in `test_graphs_and_paths_unit.py` pass
+locally after the short-term edits.
 
 | Status | Item | Notes |
 |---|---|---|
 | done | Replace all 9 bare `except:` with specific exceptions | See "Bare except cleanup" below |
 | done | Delete 15+ unused locals/imports flagged by pyflakes | Extended to star-import cleanup where necessary |
 | done | Fix mutable defaults in `alphadeesp.py` | `__init__` + `rank_current_topo_at_node_x` |
-| done | Drop unconditional `print(df)` from `Simulation.create_df` | Now gated on `self.debug` |
+| done | Drop unconditional `print(df)` from `Simulation.create_df` | Now gated on `self.debug`; now routed through `logger.debug` |
 | done | Enable `pyflakes` in CI | New lint step in `.circleci/config.yml` before tests |
+| done | Replace `from elements import *` with explicit imports | Completed in the immediate pass — `alphadeesp.py`, `network.py`, `PypownetSimulation.py` |
+| done | Introduce module-level `logger` and convert `print()` to `logging` | See "Logging migration" below |
+| done | Write real docstrings for every abstract method in `core/simulation.py` | Replaced 9 `"""TODO"""` stubs with full contract documentation |
+| done | Re-enable the three excluded test modules in CI (or document why) | Tests now self-skip via `pytest.importorskip`; `--ignore` flags removed |
+| done | Unify `LICENSE`/`LICENSE.md`; refresh `setup.py` classifiers and version pins | See "Packaging cleanup" below |
 
 ### Bare except cleanup
 
@@ -140,15 +148,127 @@ on the (slow) Grid2op simulation tests. The scope deliberately excludes:
 choice for an existing untyped codebase. Switching to ruff becomes more
 attractive once the short-term type-hint work starts.
 
+### Logging migration
+
+A module-level `logger = logging.getLogger(__name__)` is now present in
+every first-party module that previously printed to stdout (excluding the
+legacy Pypownet backend and the `ressources/parameters/*.py` ad-hoc grid
+builder scripts). `print()` calls were converted to the appropriate
+`logger.info` / `logger.warning` / `logger.debug` based on the message
+intent:
+
+- `alphaDeesp/main.py` — 11 prints → `logger.info` / `logger.error`; the
+  CLI entry point now installs a default `logging.basicConfig(level=INFO)`
+  iff the root logger has no handlers (so embedders keep control).
+- `alphaDeesp/expert_operator.py` — 5 prints → `logger.info` /
+  `logger.debug`.
+- `alphaDeesp/core/simulation.py` — the two debug `print(df)` calls that
+  used to fire unconditionally now route through `logger.debug`.
+- `alphaDeesp/core/alphadeesp.py` — 39 prints → `logger.debug` (every
+  branch was already gated on `self.debug`, so the intent is trace-level)
+  with one `logger.info` for the "substation X is in cooldown" message.
+- `alphaDeesp/core/graphsAndPaths.py` — 4 prints → `logger.debug`.
+- `alphaDeesp/core/network.py` — 18 prints (including a pile of
+  `pprint.pprint` statements that used to fire on every `Network(...)`
+  construction) → `logger.debug`, guarded with
+  `logger.isEnabledFor(logging.DEBUG)` before calling `pprint.pformat` to
+  keep the formatting cost out of the hot path when debug is off.
+- `alphaDeesp/core/printer.py` — 5 prints → `logger.debug`.
+- `alphaDeesp/core/elements.py` — 1 print → `logger.debug`.
+- `alphaDeesp/core/grid2op/Grid2opSimulation.py` — 12 prints → a mix of
+  `logger.info` (for the `__init__` announcements and
+  `compute_new_network_changes` banners) and `logger.warning` (for the
+  three layout fallback messages). The module-level `logger` that was
+  introduced in the immediate pass for the `compute_layout` handlers is
+  now used throughout the file.
+- `alphaDeesp/core/grid2op/Grid2opObservationLoader.py` — 5 prints → 4
+  `logger.info` and 1 `logger.warning` (LightSimBackend fallback).
+
+Total: **101** `print()` calls across the ten CI-scoped modules replaced
+with module-namespaced loggers. Embedders (for example
+`l2rpn-baselines.ExpertAgent`) can now silence the expert system with a
+single `logging.getLogger("alphaDeesp").setLevel(logging.WARNING)` — or
+bring the trace back by switching to `DEBUG`.
+
+The ad-hoc scripts under `alphaDeesp/ressources/parameters/` (≈6 prints
+across `build_new_parameters_environment.py` and `make_reference_grid.py`)
+and the four tests listed in the metrics table were intentionally left as
+`print()` — they are one-off CLI utilities / test harness output, not
+library code. The legacy Pypownet backend was also skipped for the same
+reason it is skipped from the pyflakes CI scope and the test matrix.
+
+### Abstract-method docstrings
+
+All 9 `"""TODO"""` stubs on `Simulation` (`isAntenna`, `isDoubleLine`,
+`getLinesAtSubAndBusbar`, `get_substation_in_cooldown`,
+`get_substation_elements`, `get_substation_to_node_mapping`,
+`get_internal_to_external_mapping`, `get_dataframe`,
+`get_reference_topovec_sub`, `get_overload_disconnection_topovec_subor`)
+now carry full Sphinx-style docstrings describing the contract expected
+from every backend: what the method receives, what it must return, and
+how AlphaDeesp consumes the result. The `cut_lines_and_recomputes_flows`
+and `get_layout` methods — which already had one-line docstrings — were
+expanded with the same level of detail. The signatures of
+`get_reference_topovec_sub` and `get_overload_disconnection_topovec_subor`
+on the abstract base also picked up the `sub` / `l` parameters they were
+already taking in both concrete backends (`Grid2opSimulation` and
+`PypownetSimulation`); the abstract base had silently diverged.
+
+### CI re-enablement
+
+The three previously excluded test modules are now handled via
+`pytest.importorskip` at module top rather than a `--ignore` flag:
+
+- `alphaDeesp/tests/test_expert_rules.py` — self-skips when
+  `make_training_env`, `load_evaluation_data`, or
+  `Expert_rule_action_verification` cannot be imported (the Dijon eval
+  toolbox lives in a sibling project and is not installed in CI).
+- `alphaDeesp/tests/pypownet/test_integrations.py` and
+  `alphaDeesp/tests/pypownet/grid_test.py` — self-skip when `pypownet`
+  cannot be imported.
+- `alphaDeesp/tests/test_cli.py` — stays in its own CI step (it was never
+  actually excluded from CI, just split out because it shells out to the
+  installed `expertop4grid` binary).
+
+`.circleci/config.yml` now runs `pytest --ignore=alphaDeesp/tests/test_cli.py`
+(down from three `--ignore` flags). The net effect is that if someone
+actually installs pypownet or the Dijon toolbox on the CI image, the
+corresponding tests will run automatically instead of needing a
+CI-config change.
+
+### Packaging cleanup
+
+- `LICENSE.md` was deleted — it was byte-identical to `LICENSE`. The
+  `MANIFEST.in` reference was updated accordingly (`include LICENSE`).
+- `setup.py`:
+  - `python_requires=">=3.9"` added (previously nothing; classifiers
+    advertised 3.6 / 3.7, both past EOL and no longer tested).
+  - Classifiers refreshed to `3.9`, `3.10`, `3.11`, `3.12` plus the
+    umbrella `Programming Language :: Python :: 3` and
+    `Operating System :: OS Independent`.
+  - `Grid2Op>=1.6.4` → `>=1.12.1` and `lightsim2grid>=0.5.5` → `>=0.10.3`
+    to match `requirements.txt`.
+  - Removed the stale `pathlib>=1.0.1` dependency — `pathlib` has been in
+    the stdlib since Python 3.4, and the PyPI package of the same name
+    is an ancient backport that collides with the stdlib on modern
+    Python.
+  - Dropped the `#"pygame==1.9.6"` / `#numba==0.49.1` inline-commented
+    dependencies that had been dead for years.
+
 ### Verification
 
-- `python -m pyflakes <CI scope>` → 0 findings.
+- `python -m pyflakes <CI scope>` → 0 findings (both after the immediate
+  pass and after the short-term pass).
 - `python -m pytest alphaDeesp/tests/test_graphs_and_paths_unit.py` →
-  **98 passed**.
-- `AlphaDeesp` and all touched modules import cleanly under Python 3.12 with
-  numpy / pandas / networkx / rustworkx installed.
-- Full Grid2op integration tests require a full Grid2Op install and were not
-  re-run in this pass; CI on push will exercise them.
+  **98 passed** after the short-term edits.
+- `python -m pytest alphaDeesp/tests/test_expert_rules.py --collect-only`
+  → collected 0 / skipped 1 (module-level `importorskip`).
+- `python -m pytest alphaDeesp/tests/pypownet/ --collect-only` → collected
+  0 / skipped 2 (module-level `importorskip`).
+- `AlphaDeesp` and all touched modules import cleanly under Python 3.11 /
+  3.12 with numpy / pandas / networkx / rustworkx installed.
+- Full Grid2op integration tests require a full Grid2Op install and were
+  not re-run in this pass; CI on push will exercise them.
 
 ## Metrics at a glance
 
@@ -160,14 +280,18 @@ attractive once the short-term type-hint work starts.
 | Maintainability Index | `graphsAndPaths.py` **C (0.00)**, `Grid2opSimulation.py` 25.95, `PypownetSimulation.py` 25.91, `Expert_rule_action_verification.py` 27.29 | `radon mi` |
 | Worst cyclomatic complexity | `AlphaDeesp.rank_current_topo_at_node_x` **F (68)**, `apply_new_topo_to_graph` **E (36)**, `OverFlowGraph.detect_edges_to_keep` **F (46)**, `add_relevant_null_flow_lines` **F (44)** | `radon cc` |
 | Average complexity | **B (5.72)** across 163 functions/classes | `radon cc` |
-| `print()` calls | **247** across 20 files (no logging framework) | grep |
-| Bare `except:` clauses | **9** across 5 files | grep |
+| `print()` calls | baseline: **247** across 20 files → **~108 remaining** (tests, `build_new_parameters_environment.py`, legacy Pypownet backend, `Expert_rule_action_verification.py`); all 10 CI-scoped first-party modules are at **0** | grep |
+| Bare `except:` clauses | baseline: 9 → **0** | grep |
 | Type-annotated functions | **1** across the entire codebase | grep `-> ` |
-| Pyflakes findings | 59 (unused imports, unreachable locals, `from X import *` hiding symbols) | `pyflakes` |
+| Pyflakes findings | baseline: 59 → **0** in CI scope | `pyflakes` |
 | TODO/FIXME markers | 25 across 7 files | grep |
-| Test functions | 164 across 9 files; CI excludes `pypownet/`, `test_cli.py`, `test_expert_rules.py` | `.circleci/config.yml` |
+| Test functions | 164 across 9 files; CI now only excludes `test_cli.py` (run as a dedicated step); pypownet + expert_rules self-skip via `pytest.importorskip` | `.circleci/config.yml` |
 
 ## Critical issues (fix first)
+
+> Items 1, 2, 4 and 8 below are now resolved and are kept for historical
+> context — see the "Cleanup progress" section at the top. Items 3, 5, 6,
+> 7, 9, 10+ remain as targets for the longer-term refactors.
 
 ### 1. Bare `except:` clauses swallowing all errors
 `alphaDeesp/main.py` (×3 near lines 100, 105, 117),
@@ -329,15 +453,21 @@ and is excluded from CI. It should either be marked deprecated in
 See the "Cleanup progress" section at the top of this document for the
 details of each change.
 
-### Short-term
-6. Replace `from elements import *` with explicit imports.
-7. Introduce a module-level `logger = logging.getLogger(__name__)` and
-   convert `print()` → `logger.info/debug`.
-8. Write real docstrings for every abstract method in `core/simulation.py`.
-9. Re-enable the three excluded test modules in CI (or document *why* they
-   are skipped).
-10. Unify `LICENSE`/`LICENSE.md`; refresh `setup.py` classifiers and version
-    pins to match `requirements.txt`.
+### Short-term — ✅ done
+
+6. ~~Replace `from elements import *` with explicit imports.~~ (landed in
+   the immediate pass alongside the pyflakes cleanup.)
+7. ~~Introduce a module-level `logger = logging.getLogger(__name__)` and
+   convert `print()` → `logger.info/debug`.~~
+8. ~~Write real docstrings for every abstract method in
+   `core/simulation.py`.~~
+9. ~~Re-enable the three excluded test modules in CI (or document *why*
+   they are skipped).~~
+10. ~~Unify `LICENSE`/`LICENSE.md`; refresh `setup.py` classifiers and
+    version pins to match `requirements.txt`.~~
+
+See the "Cleanup progress" section at the top of this document for the
+details of each change.
 
 ### Longer-term refactors
 11. Decompose `rank_current_topo_at_node_x` (CC 68) into ≤5 helpers, each

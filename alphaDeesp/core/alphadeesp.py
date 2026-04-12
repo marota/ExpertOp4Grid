@@ -7,6 +7,8 @@
 # This file is part of ExpertOp4Grid, an expert system approach to solve flow congestions in power grids
 
 """ This file is the main file for the Expert Agent called AlphaDeesp """
+import logging
+
 import networkx as nx
 import pandas as pd
 import itertools
@@ -20,6 +22,8 @@ from alphaDeesp.core.elements import (
     Production,
 )
 from math import fabs
+
+logger = logging.getLogger(__name__)
 
 
 class AlphaDeesp:  # AKA SOLVER
@@ -97,7 +101,7 @@ class AlphaDeesp:  # AKA SOLVER
         res_container = []
         for node in selected_ranked_nodes:
             if node in self.substation_in_cooldown:
-                print("substation " + str(node) + " is in cooldown and no action can be performed on it for now")
+                logger.info("substation %s is in cooldown and no action can be performed on it for now", node)
                 continue
 
             all_combinations = self.compute_all_combinations(node)
@@ -206,7 +210,7 @@ class AlphaDeesp:  # AKA SOLVER
             isSingleNodeTopo = ((np.all(np.array(topo) == 0)) or (np.all(np.array(topo) == 1)))
             score = self.rank_current_topo_at_node_x(self.g, node_to_change, isSingleNodeTopo, topo)
             if self.debug:
-                print("\n** RESULTS ** new topo [{}] on node [{}] has a score: [{}]\n".format(topo, node_to_change, score))
+                logger.debug("** RESULTS ** new topo [%s] on node [%s] has a score: [%s]", topo, node_to_change, score)
             scores_data.append([score, topo, node_to_change])
 
             # =======================================================
@@ -224,9 +228,9 @@ class AlphaDeesp:  # AKA SOLVER
         """given  a graph, a node_topoly and a node_id, this function applies the change to the graph
         :return new_graph, internal_repr_dict"""
         if self.debug:
-            print("\n====================================== apply new topo to graph ======================================")
-            print(" new topology applied = [{}] to node: [{}]".format(new_topology, node_to_change))
-            print("======================================================================================================\n")
+            logger.debug("====================================== apply new topo to graph ======================================")
+            logger.debug(" new topology applied = [%s] to node: [%s]", new_topology, node_to_change)
+            logger.debug("======================================================================================================")
 
         # check if there are two nodes, there are 2 different values in new topo 0 and 1
         bus_ids = set(new_topology)
@@ -392,7 +396,7 @@ class AlphaDeesp:  # AKA SOLVER
             # ======================================
             #print("AMONT")
             if self.debug:
-                print("||||||||||||||||||||||||||| node [{}] is in_Amont of constrained_edge".format(node))
+                logger.debug("||||||||||||||||||||||||||| node [%s] is in_Amont of constrained_edge", node)
 
             interesting_bus_id = 0
             if is_score_specific_substation:#when comparing all combinations at a substation, you don't need to figure out for which of the two splitted nodes you compute the score, as the two symetrical combinations on the 2 nodes exist
@@ -448,21 +452,21 @@ class AlphaDeesp:  # AKA SOLVER
                     sum(in_negative_flows) - np.around(sum(out_negative_flows)) + sum(out_positive_flows),# + diff_sums,
                     decimals=2)  # + diff_sums, it is not very clear its impact
             if self.debug:
-                print("AMONT")
-                print("diff_sums = ", diff_sums)
-                print(type(diff_sums))
-                print("max_pos_in_or_out_flows = ", max_pos_in_or_out_flows)
-                print("in negative flows = ", in_negative_flows)
-                print("out negative flows = ", out_negative_flows)
-                print("out positive flow = ", out_positive_flows)
-                print("Final score = ", final_score)
+                logger.debug("AMONT")
+                logger.debug("diff_sums = %s", diff_sums)
+                logger.debug("type(diff_sums) = %s", type(diff_sums))
+                logger.debug("max_pos_in_or_out_flows = %s", max_pos_in_or_out_flows)
+                logger.debug("in negative flows = %s", in_negative_flows)
+                logger.debug("out negative flows = %s", out_negative_flows)
+                logger.debug("out positive flow = %s", out_positive_flows)
+                logger.debug("Final score = %s", final_score)
 
         #  ########## IS IN AVAL ##########
         elif node in constrained_path.n_aval():
             # =============================================================
             #print("AVAL")
             if self.debug:
-                print("||||||||||||||||||||||||||| node [{}] is in_Aval of constrained_edge".format(node))
+                logger.debug("||||||||||||||||||||||||||| node [%s] is in_Aval of constrained_edge", node)
 
             interesting_bus_id = 0
 
@@ -510,15 +514,15 @@ class AlphaDeesp:  # AKA SOLVER
             max_pos_in_or_out_flows = max(sum(out_positive_flows), sum(in_positive_flows))
 
             if self.debug:
-                print("out_negative_flows = ", out_negative_flows)
-                print("in_negative_flows = ", in_negative_flows)
-                print("out_positive_flows = ", out_positive_flows)
-                print("in_positive_flows = ", in_positive_flows)
-                print("sum out neg = ", sum(out_negative_flows))
-                print("sum out neg = ", sum(in_negative_flows))
-                print("sum out pos = ", sum(out_positive_flows))
-                print("sum in  pos = ", sum(in_positive_flows))
-                print("max_pos_in_or_out_flows = ", max_pos_in_or_out_flows)
+                logger.debug("out_negative_flows = %s", out_negative_flows)
+                logger.debug("in_negative_flows = %s", in_negative_flows)
+                logger.debug("out_positive_flows = %s", out_positive_flows)
+                logger.debug("in_positive_flows = %s", in_positive_flows)
+                logger.debug("sum out neg = %s", sum(out_negative_flows))
+                logger.debug("sum in  neg = %s", sum(in_negative_flows))
+                logger.debug("sum out pos = %s", sum(out_positive_flows))
+                logger.debug("sum in  pos = %s", sum(in_positive_flows))
+                logger.debug("max_pos_in_or_out_flows = %s", max_pos_in_or_out_flows)
             # sur le noeud choisi (non connecté au cpath) on souhaite y connecter des consommations et pas des
             # productions pour l'aval.
             diff_sums = -(self.get_prod_conso_sum(node, interesting_bus_id, topo_vect)) #- self.get_prod_conso_sum(node,not_interesting_bus_id,topo_vect))
@@ -530,10 +534,10 @@ class AlphaDeesp:  # AKA SOLVER
                 decimals=2)
 
             if self.debug:
-                print("AVAL")
-                print("diff_sums = ", diff_sums)
-                print("Final score = ", final_score)
-                print(type(final_score))
+                logger.debug("AVAL")
+                logger.debug("diff_sums = %s", diff_sums)
+                logger.debug("Final score = %s", final_score)
+                logger.debug("type(final_score) = %s", type(final_score))
 
         #  ########## IS IN Loop ##########
         # you want a node with the maximum output lines connected to the ingoing red loop edges, not connected to other ingoing edges
@@ -577,7 +581,7 @@ class AlphaDeesp:  # AKA SOLVER
                 injection = -self.get_prod_conso_sum(node, Bus_BiggestInputDeltaFlow, topo_vect)
                 final_score = np.around(min_pos_in_or_out_flows + injection, decimals=2)
         else:
-            print("||||||||||||||||||||||||||| node [{}] is not connected to a path to the constrained_edge.".format(node))
+            logger.debug("||||||||||||||||||||||||||| node [%s] is not connected to a path to the constrained_edge.", node)
             in_negative_flows_node_1 = []
             out_negative_flows_node_1 = []
             in_negative_flows_node_2 = []
@@ -608,11 +612,11 @@ class AlphaDeesp:  # AKA SOLVER
             final_score = np.around(min(score_1,score_2),
                 decimals=2)  # + diff_sums, it is not very clear its impact
             if self.debug:
-                print("in negative flows node 1 = ", in_negative_flows_node_1)
-                print("out negative flows node 1 = ", out_negative_flows_node_1)
-                print("in negative flows node 2 = ", in_negative_flows_node_2)
-                print("out negative flows node 2 = ", out_negative_flows_node_2)
-                print("Final score = ", final_score)
+                logger.debug("in negative flows node 1 = %s", in_negative_flows_node_1)
+                logger.debug("out negative flows node 1 = %s", out_negative_flows_node_1)
+                logger.debug("in negative flows node 2 = %s", in_negative_flows_node_2)
+                logger.debug("out negative flows node 2 = %s", out_negative_flows_node_2)
+                logger.debug("Final score = %s", final_score)
 
         #=====================================================================
         # print("SCORE   ---  "+str(final_score))
@@ -671,9 +675,9 @@ class AlphaDeesp:  # AKA SOLVER
         # therefore change to bus ID 1
         bool = (float(edge_value) < 0 and (edge_color == "blue" or edge_color == "black") and not isSingleNode)
         if bool and self.debug:
-            print("\n######################################################")
-            print("Node [{}] is not connected to cpath. Twin node selected...".format(node))
-            print("######################################################")
+            logger.debug("######################################################")
+            logger.debug("Node [%s] is not connected to cpath. Twin node selected...", node)
+            logger.debug("######################################################")
         return bool
 
     def sort_hubs(self, hubs):
@@ -844,9 +848,9 @@ class AlphaDeesp:  # AKA SOLVER
         self.data["constrained_path"] = self.get_constrained_path()
 
     def get_adjacency_matrix(self, g):
-        print("adjacency matrix full = ")
+        logger.debug("adjacency matrix full = ")
         for line in nx.generate_adjlist(g):
-            print(line)
+            logger.debug("%s", line)
 
     def get_loop_paths(self):
         pass

@@ -1,10 +1,14 @@
 
+import logging
+
 import pandas as pd
 import networkx as nx
 from math import fabs
 from alphaDeesp.core.printer import Printer
 import numpy as np
 import rustworkx as rx
+
+logger = logging.getLogger(__name__)
 
 default_voltage_colors={400:"red",225:"darkgreen",90:"gold",63:"purple",20:"pink",24:"pink",15:"pink",10:"pink",33:"pink",}#[400., 225.,  63.,  24.,  20.,  33.,  10.]
 
@@ -93,7 +97,7 @@ class PowerFlowGraph:
             load = next(loads_iter) if is_load else 0.
             prod_minus_load = prod - load
             if debug:
-                print(f"Node n°[{i}] : Production value: [{prod}] - Load value: [{load}] ")
+                logger.debug("Node n°[%s] : Production value: [%s] - Load value: [%s]", i, prod, load)
             if prod_minus_load > 0:  # PROD
                 g.add_node(i, pin=True, prod_or_load="prod", value=str(prod_minus_load), style="filled",
                            fillcolor="coral")#orange#ff8000 #f30000")  # red color
@@ -1378,7 +1382,7 @@ class ConstrainedPath:
     """
 
     def __init__(self, amont_edges, constrained_edge, aval_edges):
-        print("Constrained path created")
+        logger.debug("Constrained path created")
         self.amont_edges = amont_edges #lines which flow goes into the overloaded lines
         self.constrained_edge = constrained_edge #overloaded lines
         self.aval_edges = aval_edges #lines which flow comes from the overloaded lines
@@ -1536,8 +1540,7 @@ class Structured_Overload_Distribution_Graph:
         hubs = []
 
         if self.constrained_path is not None:
-            print("In get_hubs(): c = ")
-            print(self.constrained_path)
+            logger.debug("In get_hubs(): constrained_path = %s", self.constrained_path)
         else:
             e_amont, constrained_edge, e_aval = self.get_constrained_path()
             self.constrained_path = ConstrainedPath(e_amont, constrained_edge, e_aval)
