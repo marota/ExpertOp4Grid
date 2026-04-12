@@ -7,6 +7,149 @@ codebase. It is intended as a living punch-list for incremental cleanup work.
 Numbers were produced with `pyflakes`, `radon cc/mi/raw`, and targeted `grep`
 audits over the entire `alphaDeesp/` package.
 
+## Cleanup progress
+
+The "Immediate" items from the action plan have been addressed. The pyflakes
+CI scope (`alphaDeesp/core/**`, `expert_operator.py`, `main.py`, excluding the
+legacy Pypownet backend) is now clean, and 98/98 tests in
+`test_graphs_and_paths_unit.py` pass locally after the edits.
+
+| Status | Item | Notes |
+|---|---|---|
+| done | Replace all 9 bare `except:` with specific exceptions | See "Bare except cleanup" below |
+| done | Delete 15+ unused locals/imports flagged by pyflakes | Extended to star-import cleanup where necessary |
+| done | Fix mutable defaults in `alphadeesp.py` | `__init__` + `rank_current_topo_at_node_x` |
+| done | Drop unconditional `print(df)` from `Simulation.create_df` | Now gated on `self.debug` |
+| done | Enable `pyflakes` in CI | New lint step in `.circleci/config.yml` before tests |
+
+### Bare except cleanup
+
+All 9 bare `except:` clauses are replaced with narrow exception types. The
+fallbacks in these locations are *expected control flow* (missing config key,
+optional backend, alternate observation shape), so they are narrowed to
+specific exceptions instead of reaching for `logging.exception()` — the latter
+is for unexpected errors and would add misleading stack traces for the
+config-fallback paths.
+
+| File | Line(s) | Was | Now |
+|---|---|---|---|
+| `alphaDeesp/main.py` | 100, 107, 123 | `except:` | `except KeyError:` (missing config key) |
+| `alphaDeesp/tests/test_expert_op.py` | 25 | `except:` | `except KeyError:` (missing config key) |
+| `alphaDeesp/core/pypownet/PypownetSimulation.py` | 68 | `except:` | `except (KeyError, ValueError, SyntaxError):` (missing or malformed `CustomLayout`) |
+| `alphaDeesp/core/grid2op/Grid2opSimulation.py` | 34 | `except:` | `except (KeyError, ValueError, SyntaxError):` + `logger.debug` on the fallback |
+| `alphaDeesp/core/grid2op/Grid2opSimulation.py` | 39 | `except:` | `except AttributeError:` + `logger.debug` (no `grid_layout` on obs) |
+| `alphaDeesp/core/grid2op/Grid2opObservationLoader.py` | 24 | `except:` | `except ImportError:` (lightsim2grid not installed) |
+| `alphaDeesp/core/grid2op/Grid2opObservationLoader.py` | 47 | `except:` | `except (TypeError, ValueError):` (non-int chronic_scenario argument) |
+
+`Grid2opSimulation.compute_layout` was additionally restructured from two
+nested `try/except` blocks (which trapped exceptions from the *inner* try
+inside the outer) into a sequence of early `return`s, so that an
+`AttributeError` from `self.obs.grid_layout.values()` no longer leaks into the
+outer `(KeyError, ValueError, SyntaxError)` handler. A module-level
+`logger = logging.getLogger(__name__)` was introduced in that file as the
+first toehold for the short-term logging migration.
+
+### Pyflakes cleanup
+
+After the edits, pyflakes reports **0 findings** for all files in the CI lint
+scope. Concretely removed (mechanical, no behavior changes):
+
+- `alphaDeesp/core/alphadeesp.py` — dropped unused `pprint`, `math.ceil`, `os`
+  imports; dead locals `ranked_combinations` (line ~48), `current_node` +
+  `new_node` (~262-263), `edge_color` (~325), two copies of
+  `all_nodes_value_attributes` (~373, ~744), `not_interesting_bus_id` (~417),
+  `node2` (~542), `indexEdge_inDf` (~786-790), `p` (~808). Replaced
+  `from alphaDeesp.core.elements import *` with an explicit import of
+  `Consumption`, `ExtremityLine`, `OriginLine`, `Production`.
+- `alphaDeesp/core/graphsAndPaths.py` — dropped unused `NetworkXNoPath` and
+  `itertools` imports; dead locals `edges_to_add_data` (~762),
+  `nodes_interest` (~1052), `g_c_names_edge_dict` (~1205), `target_set`
+  (~1258), `tmp_constrained_path` (~1661).
+- `alphaDeesp/core/network.py` — replaced `from alphaDeesp.core.elements
+  import *` with the same explicit import; this also clears the star-import
+  "may be undefined" warnings that previously appeared for every
+  `isinstance(element, Production)` / `Consumption` / `OriginLine` /
+  `ExtremityLine` call in the file.
+- `alphaDeesp/core/printer.py` — dropped unused `pprint`, `pydot`,
+  `pathlib.Path` imports; simplified `execute_command` to only bind the
+  variables it actually uses (`_stdout`, `stderr`, `error`).
+- `alphaDeesp/core/grid2op/Grid2opSimulation.py` — dropped unused `pprint`,
+  `grid2op.dtypes.dt_int`, and the `OverFlowGraph` re-export from
+  `graphsAndPaths`; removed dead local `redistribution_prod` (~816).
+- `alphaDeesp/core/pypownet/PypownetSimulation.py` — dropped
+  `import pypownet.environment` (the module is imported *and* star-imported
+  below, so this top-level import was unused); removed unused local
+  `observation_space` in `__init__` and `redistribution_prod` in
+  `compute_new_network_changes`; replaced `from alphaDeesp.core.elements
+  import *` with an explicit import (the pypownet.agent star import is still
+  there — see CI scope caveat below). This file is *not* in the pyflakes CI
+  scope.
+- `alphaDeesp/Expert_rule_action_verification.py` — dropped unused
+  `configparser`, `Grid2opObservationLoader` imports, and the duplicate
+  `version_packaging` import. This file is *not* in the pyflakes CI scope
+  (it imports several project-external modules — `make_evaluation_env`,
+  `pypowsybl`, `load_training_data` — that may not be installed in CI).
+
+Where the dead local was the only reason a statement existed (e.g.
+`target_set = set(target_nodes_in_gc)` in `graphsAndPaths.py` when
+`target_set` was never read), the statement was deleted entirely rather than
+renamed to `_`.
+
+### Mutable defaults
+
+Two mutable defaults in `alphaDeesp/core/alphadeesp.py`:
+
+- `AlphaDeesp.__init__(self, ..., substation_in_cooldown=[], debug=False)` →
+  `substation_in_cooldown=None`, normalized inside the body to `[]` when
+  `None`.
+- `rank_current_topo_at_node_x(..., topo_vect=[0, 0, 1, 1, 1], ...)` →
+  `topo_vect=None`, normalized inside the body to `[0, 0, 1, 1, 1]` when
+  `None`.
+
+The `ltc=[9]` / `other_ltc=[]` defaults on `Grid2opSimulation.__init__` and
+`PypownetSimulation.__init__` are **not** fixed yet — they are part of the
+simulator public API and fixing them cleanly needs a careful scan of the
+call sites. Tracked under the short-term action plan below.
+
+### `Simulation.create_df` stdout spam
+
+The `print(df)` at the tail of `alphaDeesp/core/simulation.py::create_df` used
+to fire on every invocation because the surrounding `if self.debug:` had been
+commented out. It now fires only when `self.debug` is truthy (using
+`getattr(self, "debug", False)` since `Simulation.__init__` on the base class
+never sets `self.debug`; only the concrete subclasses do).
+
+### Pyflakes in CI
+
+`.circleci/config.yml` now installs `pyflakes` and runs it as a dedicated
+step **before** the test suite, so lint regressions fail fast without waiting
+on the (slow) Grid2op simulation tests. The scope deliberately excludes:
+
+- `alphaDeesp/core/pypownet/` — the legacy backend uses
+  `from pypownet.agent import *`, which pyflakes cannot statically resolve
+  without pypownet installed. This matches the existing CI policy, which
+  already excludes `alphaDeesp/tests/pypownet/` from pytest.
+- `alphaDeesp/Expert_rule_action_verification.py` — imports
+  `make_evaluation_env`, `pypowsybl`, `load_training_data`, and other
+  first-run-time dependencies that are not part of `requirements.txt`.
+  Re-including this file is blocked on first re-enabling its test module in
+  CI.
+
+`ruff` was *not* wired up in this pass — the action item mentioned
+`pyflakes/ruff` as alternatives, and pyflakes is already the lower-friction
+choice for an existing untyped codebase. Switching to ruff becomes more
+attractive once the short-term type-hint work starts.
+
+### Verification
+
+- `python -m pyflakes <CI scope>` → 0 findings.
+- `python -m pytest alphaDeesp/tests/test_graphs_and_paths_unit.py` →
+  **98 passed**.
+- `AlphaDeesp` and all touched modules import cleanly under Python 3.12 with
+  numpy / pandas / networkx / rustworkx installed.
+- Full Grid2op integration tests require a full Grid2Op install and were not
+  re-run in this pass; CI on push will exercise them.
+
 ## Metrics at a glance
 
 | Metric | Value | Tool |
@@ -175,12 +318,16 @@ and is excluded from CI. It should either be marked deprecated in
 
 ## Recommended action plan
 
-### Immediate (low-effort, high-value)
-1. Replace all 9 bare `except:` with specific exceptions + `logging.exception(...)`.
-2. Delete the 15 unused locals/imports flagged by pyflakes (fully mechanical).
-3. Fix the mutable defaults in `alphadeesp.py`.
-4. Drop `print(df)` from `Simulation.create_df`.
-5. Enable `pyflakes`/`ruff` in CI to stop regressions.
+### Immediate (low-effort, high-value) — ✅ done
+
+1. ~~Replace all 9 bare `except:` with specific exceptions + `logging.exception(...)`.~~
+2. ~~Delete the 15 unused locals/imports flagged by pyflakes (fully mechanical).~~
+3. ~~Fix the mutable defaults in `alphadeesp.py`.~~
+4. ~~Drop `print(df)` from `Simulation.create_df`.~~
+5. ~~Enable `pyflakes`/`ruff` in CI to stop regressions.~~
+
+See the "Cleanup progress" section at the top of this document for the
+details of each change.
 
 ### Short-term
 6. Replace `from elements import *` with explicit imports.

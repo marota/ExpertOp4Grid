@@ -6,14 +6,13 @@
 # SPDX-License-Identifier: MPL-2.0
 # This file is part of ExpertOp4Grid, an expert system approach to solve flow congestions in power grids
 
-from pprint import pprint
 import ast
+import logging
 
 import numpy as np
 import pandas as pd
 from math import fabs
 import networkx as nx
-from grid2op.dtypes import dt_int
 
 from grid2op.PlotGrid import PlotMatplot
 
@@ -21,7 +20,9 @@ from alphaDeesp.core.simulation import Simulation
 from alphaDeesp.core.network import Network
 from alphaDeesp.core.elements import OriginLine, Consumption, Production, ExtremityLine
 from alphaDeesp.core.printer import Printer
-from alphaDeesp.core.graphsAndPaths import OverFlowGraph,PowerFlowGraph
+from alphaDeesp.core.graphsAndPaths import PowerFlowGraph
+
+logger = logging.getLogger(__name__)
 
 
 class Grid2opSimulation(Simulation):
@@ -31,17 +32,25 @@ class Grid2opSimulation(Simulation):
             # Conversion from string to list
             layout = ast.literal_eval(layout)
             print("WARNING : A CustomLayout has been given in config.ini. This layout will be set for the simulator")
-        except:
-            try:
-                # Grid2op Layout if exists
-                layout = list(self.obs.grid_layout.values())
-                print("WARNING : No CustomLayout has been given in config.ini. The grid_layout in Grid2Op structure will be set for the simulator")
-            except:
-                layout = [(-280, -81), (-100, -270), (366, -270), (366, -54), (-64, -54), (-64, 54), (366, 0),
-                          (438, 0), (326, 54), (222, 108), (79, 162), (-152, 270), (-64, 270), (222, 216),
-                          (-280, -151), (-100, -340), (366, -340), (390, -110), (-14, -104), (-184, 54), (400, -80),
-                          (438, 100), (326, 140), (200, 8), (79, 12), (-152, 170), (-70, 200), (222, 200)]
-                print("WARNING : No CustomLayout has been given in config.ini and no grid_layout has been found in Grid2op data. Default layout is set and might cause plotting errors : "+str(layout))
+            return layout
+        except (KeyError, ValueError, SyntaxError) as exc:
+            logger.debug("No usable CustomLayout in param_options (%s); "
+                         "falling back to Grid2Op grid_layout", exc)
+
+        try:
+            # Grid2op Layout if exists
+            layout = list(self.obs.grid_layout.values())
+            print("WARNING : No CustomLayout has been given in config.ini. The grid_layout in Grid2Op structure will be set for the simulator")
+            return layout
+        except AttributeError as exc:
+            logger.debug("Observation has no grid_layout (%s); "
+                         "falling back to hardcoded default layout", exc)
+
+        layout = [(-280, -81), (-100, -270), (366, -270), (366, -54), (-64, -54), (-64, 54), (366, 0),
+                  (438, 0), (326, 54), (222, 108), (79, 162), (-152, 270), (-64, 270), (222, 216),
+                  (-280, -151), (-100, -340), (366, -340), (390, -110), (-14, -104), (-184, 54), (400, -80),
+                  (438, 100), (326, 140), (200, 8), (79, 12), (-152, 170), (-70, 200), (222, 200)]
+        print("WARNING : No CustomLayout has been given in config.ini and no grid_layout has been found in Grid2op data. Default layout is set and might cause plotting errors : "+str(layout))
         return layout
 
     def get_layout(self):
@@ -804,7 +813,6 @@ def score_changes_between_two_observations(ltc, old_obs, new_obs,nb_timestep_coo
     boolean_constraint_relieved = np.array(boolean_constraint_relieved)
     boolean_overload_created = np.array(boolean_overload_created)
 
-    redistribution_prod = np.sum(np.absolute(new_obs.prod_p - old_obs.prod_p))
     #redistribution_load = np.sum(np.absolute(new_obs.load_p - old_obs.load_p))#not exact in Grid2op if load are disconnected
 
     TotalProd=np.nansum(new_obs.prod_p)

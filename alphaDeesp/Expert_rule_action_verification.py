@@ -14,10 +14,8 @@ from datetime import datetime
 from data_utils import StateInfo
 import sys
 
-import configparser
 import numpy as np
 import os
-from alphaDeesp.core.grid2op.Grid2opObservationLoader import Grid2opObservationLoader
 from alphaDeesp.core.grid2op.Grid2opSimulation import Grid2opSimulation
 from alphaDeesp.core.graphsAndPaths import OverFlowGraph,Structured_Overload_Distribution_Graph
 import networkx as nx
@@ -29,8 +27,6 @@ from load_training_data import aux_prevent_asset_reconnection,load_interesting_l
 import glob
 import shutil
 import json
-from packaging.version import Version as version_packaging
-
 from packaging.version import Version as version_packaging
 from importlib.metadata import version
 EXOP_MIN_VERSION = version_packaging("0.2.6")

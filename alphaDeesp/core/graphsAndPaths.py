@@ -1,12 +1,10 @@
 
 import pandas as pd
 import networkx as nx
-from networkx.exception import NetworkXNoPath
 from math import fabs
 from alphaDeesp.core.printer import Printer
 import numpy as np
 import rustworkx as rx
-import itertools
 
 default_voltage_colors={400:"red",225:"darkgreen",90:"gold",63:"purple",20:"pink",24:"pink",15:"pink",10:"pink",33:"pink",}#[400., 225.,  63.,  24.,  20.,  33.,  10.]
 
@@ -760,9 +758,6 @@ class OverFlowGraph(PowerFlowGraph):
         self.consolidate_loop_path(hubs_paths.Source, hubs_paths.Target)
 
         #add back removed edges
-        edges_to_double_data=[ (edge_or, edge_ex, edge_properties) for edge_or,edge_ex,edge_properties in self.g.edges(data=True) if edge_properties["color"]=="gray" and edge_properties["capacity"]==0.]
-        edges_to_add_data=[(edge_ex, edge_or, edge_properties) for edge_or,edge_ex,edge_properties in edges_to_double_data]
-
         self.g.add_edges_from(edges_to_remove_data)
 
     def identify_ambiguous_paths(self, structured_graph):
@@ -1054,8 +1049,6 @@ class OverFlowGraph(PowerFlowGraph):
             if len(non_connected_edges) >= 1:
 
                 if target_path=="blue_only":
-                    nodes_interest=structured_graph.constrained_path.full_n_constrained_path()
-
                     # remove positive edges in gray components first in that case as we are looking for blue negative edge paths
                     edges_to_remove = [edge for edge, capacity in
                                        nx.get_edge_attributes(g_c, "capacity").items()
@@ -1209,8 +1202,6 @@ class OverFlowGraph(PowerFlowGraph):
         if not edges_of_interest_in_gc:
             return set(), set()
 
-        g_c_names_edge_dict = {v: k for k, v in g_c_edge_names_dict.items()}
-
         edge_names_of_interest = set(g_c_edge_names_dict[edge] for edge in edges_of_interest_in_gc)
         non_reconnectable_edges_names = set(g_c_edge_names_dict[edge] for edge in non_reconnectable_edges if edge in g_c_edge_names_dict)
 
@@ -1264,7 +1255,6 @@ class OverFlowGraph(PowerFlowGraph):
             return (real_weight * HUGE_MULTIPLIER) + hop_cost
 
         # Run single-source Dijkstra per unique source (O(S) instead of O(S*T) Dijkstra calls)
-        target_set = set(target_nodes_in_gc)
         sssp_paths_cache = {}
         for source_node in set(source_nodes_in_gc):
             # Quick check: does this source have at least one valid target?
@@ -1668,7 +1658,6 @@ class Structured_Overload_Distribution_Graph:
             a constrained path object
         """
         constrained_edge = None
-        tmp_constrained_path = []
         edge_list = nx.get_edge_attributes(self.g_only_blue_components, "color")
         for edge, color in edge_list.items():
             if "black" in color:

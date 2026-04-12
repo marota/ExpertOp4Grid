@@ -10,22 +10,20 @@
 import networkx as nx
 import pandas as pd
 import itertools
-import pprint
 import numpy as np
 
 from alphaDeesp.core.graphsAndPaths import Structured_Overload_Distribution_Graph
-from alphaDeesp.core.elements import *
-from math import fabs, ceil
-
-
-import os
-
-
-# os.environ['PATH'] += os.pathsep + r'C:\Users\nmegel\graphviz-2.38\release\bin'
+from alphaDeesp.core.elements import (
+    Consumption,
+    ExtremityLine,
+    OriginLine,
+    Production,
+)
+from math import fabs
 
 
 class AlphaDeesp:  # AKA SOLVER
-    def __init__(self, _g, df_of_g, simulator_data=None, substation_in_cooldown=[], debug=False):
+    def __init__(self, _g, df_of_g, simulator_data=None, substation_in_cooldown=None, debug=False):
         # used for postprocessing
         self.bag_of_graphs = {}
         self.debug = debug
@@ -38,16 +36,10 @@ class AlphaDeesp:  # AKA SOLVER
         self.g = _g  # here the g is the overflow graph
         self.df = df_of_g
         self.initial_graph = self.g.copy()
-        self.substation_in_cooldown = substation_in_cooldown  # we cannot play with those substations so no need to compute simulations
+        # we cannot play with those substations so no need to compute simulations
+        self.substation_in_cooldown = substation_in_cooldown if substation_in_cooldown is not None else []
 
         # check that line extemity does not have only load or productions: otherwise there is either node merging to do or nothing else
-
-        ranked_combinations_structure_initiation = {
-            "score": ["XX"],
-            "topology": [["X", "X", "X"]],
-            "node": ["X"]
-        }
-        ranked_combinations = pd.DataFrame(ranked_combinations_structure_initiation)
 
         #Compute the overload distribution graph (constrained path, loops, hubs)
         self.g_distribution_graph=Structured_Overload_Distribution_Graph(self.g)
@@ -268,8 +260,6 @@ class AlphaDeesp:  # AKA SOLVER
 
         # ################ PREPROCESSING NODE RECONSTRUCTION PART, IMPORTANT TO GET COLORS RIGHT
         i = 0
-        current_node = []  # Busbar 0
-        new_node = []  # Busbar 1
         # then, parsing element by element, reconnect the graph.
         for internal_elem, element, element_type in zip(internal_repr_dict[node_to_change], new_topology, element_types):
             internal_elem.busbar_id = element
@@ -333,7 +323,6 @@ class AlphaDeesp:  # AKA SOLVER
             # print("element = ", element)
             # print("element type = ", element_type)
             reported_flow = None
-            edge_color = None
             penwidth = None
             if isinstance(element_type, OriginLine) or isinstance(element_type, ExtremityLine):
                 # # print("element_type.flow_value=", element_type.flow_value)
@@ -379,10 +368,11 @@ class AlphaDeesp:  # AKA SOLVER
         self.bag_of_graphs[name] = graph
         return graph, internal_repr_dict
 
-    def rank_current_topo_at_node_x(self, graph, node: int, isSingleNode=False, topo_vect=[0, 0, 1, 1, 1],is_score_specific_substation=True):
+    def rank_current_topo_at_node_x(self, graph, node: int, isSingleNode=False, topo_vect=None, is_score_specific_substation=True):
         """This function ranks current topology at node X"""
+        if topo_vect is None:
+            topo_vect = [0, 0, 1, 1, 1]
         final_score = 0.0
-        all_nodes_value_attributes = nx.get_node_attributes(graph, "value")  # dict[node]
         all_edges_color_attributes = nx.get_edge_attributes(graph, "color")  # dict[edge]
         all_edges_xlabel_attributes = nx.get_edge_attributes(graph, "label")  # dict[edge]
 
@@ -424,8 +414,6 @@ class AlphaDeesp:  # AKA SOLVER
 
                 if in_edge_negative_capacities_bus1>in_edge_negative_capacities_bus0:
                     interesting_bus_id=1
-
-            not_interesting_bus_id=fabs(interesting_bus_id-1)
 
             # somme des reports négatifs entrants + sommes des reports positifs entrants
             for edge in graph.in_edges(node,keys=True):
@@ -552,7 +540,6 @@ class AlphaDeesp:  # AKA SOLVER
         elif node in set([x for loop in range(len(red_loops.Path)) for x in red_loops.Path[loop]]):
             # ========================================================================
             # print("AUTRE")
-            node2 = int("666" + str(node))
 
             if 1 in topo_vect and 0 in topo_vect:  # need to be a 2 node topology
                 # we find the node with the biggest red ingoing delta flow
@@ -755,7 +742,6 @@ class AlphaDeesp:  # AKA SOLVER
 
     def rank_loop_buses(self, graph, df_initial_flows):
         # self.g => overflow graph
-        all_nodes_value_attributes = nx.get_node_attributes(graph, "value")
         all_edges_color_attributes = nx.get_edge_attributes(graph, "color")  # dict[edge]
         all_edges_xlabel_attributes = nx.get_edge_attributes(graph, "label")
 
@@ -798,11 +784,9 @@ class AlphaDeesp:  # AKA SOLVER
                                 for i in range(len(nodes_or)):
                                     flowValue = df_initial_flows["init_flows"][i]
                                     if ((flowValue >= 0) & (nodes_or[i] == otherBus) & (nodes_ex[i] == bus)):  # we are only looking for input flows
-                                        indexEdge_inDf = i
                                         sumInFlowsNotRed += np.abs(flowValue)
                                         break
                                     elif ((flowValue <= 0) & (nodes_or[i] == bus) & (nodes_ex[i] == otherBus)):
-                                        indexEdge_inDf = i
                                         sumInFlowsNotRed += np.abs(flowValue)
                                         break
 
@@ -820,7 +804,6 @@ class AlphaDeesp:  # AKA SOLVER
         for i, row in red_loops.iterrows():#red_loops.iterrows():
             source = row["Source"]
             target = row["Target"]
-            p = row["Path"]
 
             # print("=============== source: {}, target: {}".format(source, target))
 

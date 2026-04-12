@@ -6,7 +6,12 @@
 # SPDX-License-Identifier: MPL-2.0
 # This file is part of ExpertOp4Grid, an expert system approach to solve flow congestions in power grids
 
-from alphaDeesp.core.elements import *
+from alphaDeesp.core.elements import (
+    Consumption,
+    ExtremityLine,
+    OriginLine,
+    Production,
+)
 import pprint
 import numpy as np
 

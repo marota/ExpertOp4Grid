@@ -175,9 +175,9 @@ class Simulation(ABC):
         # print("gray edges = ", gray_edges)
         df["gray_edges"] = gray_edges
 
-        # if self.debug:
-        # print("==== After gray_edges added IN FUNCTION CREATE DF ====")
-        print(df)
+        if getattr(self, "debug", False):
+            print("==== After gray_edges added IN FUNCTION CREATE DF ====")
+            print(df)
 
         return df
 
