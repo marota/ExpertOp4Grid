@@ -32,7 +32,25 @@ jobs:
       - run: sudo apt-get update
       - run: sudo apt-get install graphviz
       - run: pip install -r requirements.txt
+      - run: pip install pyflakes
       - run: pip install .
+      - run:
+          name: Run pyflakes (lint)
+          # Skip the legacy Pypownet backend (excluded from CI tests as well
+          # because `pypownet.agent` star-imports names we cannot statically
+          # resolve without pypownet installed).
+          command: |
+            python -m pyflakes \
+              alphaDeesp/core/alphadeesp.py \
+              alphaDeesp/core/graphsAndPaths.py \
+              alphaDeesp/core/simulation.py \
+              alphaDeesp/core/network.py \
+              alphaDeesp/core/printer.py \
+              alphaDeesp/core/elements.py \
+              alphaDeesp/core/grid2op/Grid2opSimulation.py \
+              alphaDeesp/core/grid2op/Grid2opObservationLoader.py \
+              alphaDeesp/expert_operator.py \
+              alphaDeesp/main.py
       - run:
           name: Run tests
           # This assumes pytest is installed via the install-package step above

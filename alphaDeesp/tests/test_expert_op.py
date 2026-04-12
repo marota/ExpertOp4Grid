@@ -22,7 +22,7 @@ def build_sim():
 
     try:
         plot_base_folder = config["DEFAULT"]["outputPath"]  # Case there is a grid path given in config.ini
-    except:  # Default load l2rpn_2019 in packages data
+    except KeyError:  # No outputPath: write to ./output
         print("No outputPath in config.ini: generating outputs in current folder")
         plot_base_folder = "output"
     plot_folder = generate_plot_folders(plot_base_folder, ltc,chronicscenario,timestep, config)

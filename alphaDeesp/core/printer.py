@@ -9,14 +9,10 @@
 """This file contains all the possible displays for graph from NetworkX"""
 
 import os
-import pprint
 import datetime
 import networkx as nx
-import pydot
 
 import subprocess
-
-from pathlib import Path
 
 
 class Printer:
@@ -199,17 +195,10 @@ def execute_command(command: str):
 
     # # print("command = ", command)
     sub_p = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
-    stdout, stderr = sub_p.communicate()
-    exit_code = sub_p.returncode
-    # pid = sub_p.pid
-
-    output = stdout.decode()
+    _stdout, stderr = sub_p.communicate()
     error = stderr.decode()
 
-    # print("--------------------\n output is:", output)
-    # print("--------------------\n stderr is:", error)
-    # print("--------------------\n exit code is:", exit_code)
-    # # print("--------------------\n pid is:", pid)
+    # print("--------------------\n exit code is:", sub_p.returncode)
 
     if not error:
         # string error is empty

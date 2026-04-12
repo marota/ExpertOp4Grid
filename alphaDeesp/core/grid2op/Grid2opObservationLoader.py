@@ -21,7 +21,7 @@ class Grid2opObservationLoader:
         try:
             from lightsim2grid.LightSimBackend import LightSimBackend
             backend = LightSimBackend()
-        except:
+        except ImportError:
             from grid2op.Backend import PandaPowerBackend
             backend = PandaPowerBackend()
             print("You might need to install the LightSimBackend (provisory name) to gain massive speed up")
@@ -44,7 +44,7 @@ class Grid2opObservationLoader:
         try:
             chronic_scenario = int(chronic_scenario)
             print("INFO - An integer has been provided as chronic scenario - looking for the chronic folder in this position")
-        except:
+        except (TypeError, ValueError):
             if chronic_scenario is None:
                 print("INFO - No value has been provided for chronic scenario - the first chronic folder will be chosen")
             else:

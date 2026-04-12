@@ -97,14 +97,14 @@ def main():
 
         try:
             parameters_folder = config["DEFAULT"]["gridPath"] # Case there is a grid path given in config.ini
-        except: # Default load l2rpn_2019 in packages data
+        except KeyError: # Default load l2rpn_2019 in packages data
             print("Getting default package grid l2rpn_2019")
             parameters_folder = os.path.join(os.path.dirname(os.path.realpath(__file__)), "ressources",
                                                                                             'parameters', "l2rpn_2019")
             config["DEFAULT"]["gridPath"] = parameters_folder
         try:
             difficulty = str(config["DEFAULT"]["grid2opDifficulty"])
-        except:
+        except KeyError:
             print("Default difficulty level has been set to None")
             difficulty = None
         loader = Grid2opObservationLoader(parameters_folder, difficulty = difficulty)
@@ -120,7 +120,7 @@ def main():
         if args.snapshot:
             try:
                 plot_base_folder = config["DEFAULT"]["outputPath"] # Case there is a grid path given in config.ini
-            except: # Default load l2rpn_2019 in packages data
+            except KeyError: # No outputPath: write to ./output
                 print("No outputPath in config.ini: generating outputs in current folder")
                 plot_base_folder = "output"
             plot_folder = generate_plot_folders(plot_base_folder, args.ltc,args.chronicscenario,args.timestep, config)
