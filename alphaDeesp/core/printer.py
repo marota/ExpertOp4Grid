@@ -15,6 +15,8 @@ import subprocess
 
 import networkx as nx
 
+from alphaDeesp.core.twin_nodes import twin_node_id
+
 logger = logging.getLogger(__name__)
 
 
@@ -50,7 +52,7 @@ class Printer:
                 if i < len(custom_layout):
                     dic_pos_attributes[node] = {"pos": (str(value[0]) + ", " + str(value[1]) + "!")}
                 else:
-                    node = int("666" + str(ii))
+                    node = twin_node_id(ii)
                     dic_pos_attributes[node] = {"pos": (str(value[0]) + ", " + str(value[1]) + "!")}
                     ii += 1
 
@@ -104,7 +106,7 @@ class Printer:
                 if i < len(custom_layout):
                     dic_pos_attributes[node] = {"pos": (str(value[0]) + ", " + str(value[1]) + "!")}
                 else:
-                    node = int("666" + str(ii))
+                    node = twin_node_id(ii)
                     dic_pos_attributes[node] = {"pos": (str(value[0]) + ", " + str(value[1]) + "!")}
                     ii += 1
 

@@ -967,6 +967,10 @@ class _FakeOverFlowGraph:
         self.g = nx.MultiDiGraph()
 
     detect_edges_to_keep = OverFlowGraph.detect_edges_to_keep
+    _prepare_detect_edges_inputs = OverFlowGraph._prepare_detect_edges_inputs
+    _compute_sssp_paths = OverFlowGraph._compute_sssp_paths
+    _collect_paths_of_interest = OverFlowGraph._collect_paths_of_interest
+    _classify_paths_by_reconnectability = OverFlowGraph._classify_paths_by_reconnectability
 
 
 class TestDetectEdgesToKeep:
@@ -1202,3 +1206,185 @@ class TestAddRelevantNullFlowLinesSetupIntegration:
 
         assert "line1" in result
         assert "line2" in result
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Unit tests for detect_edges_to_keep internal helpers
+# ──────────────────────────────────────────────────────────────────────
+
+
+class _DetectEdgesHelperHost:
+    """Mock that exposes detect_edges_to_keep helpers without invoking __init__."""
+    _prepare_detect_edges_inputs = OverFlowGraph._prepare_detect_edges_inputs
+    _compute_sssp_paths = OverFlowGraph._compute_sssp_paths
+    _collect_paths_of_interest = OverFlowGraph._collect_paths_of_interest
+    _classify_paths_by_reconnectability = OverFlowGraph._classify_paths_by_reconnectability
+
+
+class TestDetectEdgesHelpers:
+
+    def test_prepare_returns_none_when_no_edges_of_interest_in_gc(self):
+        obj = _DetectEdgesHelperHost()
+        g_c = nx.MultiDiGraph()
+        g_c.add_edge("A", "B", name="l1", capacity=0.)
+        prepared = obj._prepare_detect_edges_inputs(
+            g_c, ["A"], ["B"], edges_of_interest={("X", "Y", 0)},
+            non_reconnectable_edges=[], depth_edges_search=2)
+        assert prepared is None
+
+    def test_prepare_flips_negative_capacities(self):
+        obj = _DetectEdgesHelperHost()
+        g_c = nx.MultiDiGraph()
+        g_c.add_edge("A", "B", name="l1", capacity=-4.)
+        prepared = obj._prepare_detect_edges_inputs(
+            g_c, ["A"], ["B"], edges_of_interest={("A", "B", 0)},
+            non_reconnectable_edges=[], depth_edges_search=2)
+        assert prepared is not None
+        assert g_c.edges[("A", "B", 0)]["capacity"] == 4.
+
+    def test_prepare_returns_none_when_source_or_target_missing(self):
+        obj = _DetectEdgesHelperHost()
+        g_c = nx.MultiDiGraph()
+        g_c.add_edge("A", "B", name="l1", capacity=0.)
+        prepared = obj._prepare_detect_edges_inputs(
+            g_c, ["Z"], ["B"], edges_of_interest={("A", "B", 0)},
+            non_reconnectable_edges=[], depth_edges_search=2)
+        assert prepared is None
+
+    def test_compute_sssp_paths_caches_per_source(self):
+        obj = _DetectEdgesHelperHost()
+        g_c = nx.MultiDiGraph()
+        g_c.add_edge("S", "M", name="sm", capacity=0.)
+        g_c.add_edge("M", "T", name="mt", capacity=0.)
+        prepared = obj._prepare_detect_edges_inputs(
+            g_c, ["S"], ["T"], edges_of_interest={("M", "T", 0)},
+            non_reconnectable_edges=[], depth_edges_search=2)
+        assert prepared is not None
+        sssp = obj._compute_sssp_paths(g_c, prepared, {("M", "T", 0)})
+        assert "S" in sssp
+        assert "T" in sssp["S"]
+        assert sssp["S"]["T"] == ["S", "M", "T"]
+
+    def test_collect_paths_filters_by_max_length(self):
+        obj = _DetectEdgesHelperHost()
+        g_c = nx.MultiDiGraph()
+        for i in range(1, 9):
+            g_c.add_edge(str(i), str(i + 1), name=f"l{i}", capacity=0.)
+        prepared = obj._prepare_detect_edges_inputs(
+            g_c, ["1"], ["9"], edges_of_interest={("8", "9", 0)},
+            non_reconnectable_edges=[], depth_edges_search=10)
+        sssp = obj._compute_sssp_paths(g_c, prepared, {("8", "9", 0)})
+        paths = obj._collect_paths_of_interest(g_c, prepared, sssp, max_null_flow_path_length=3)
+        assert paths == []
+
+    def test_classify_routes_non_reconnectable_to_the_right_set(self):
+        obj = _DetectEdgesHelperHost()
+        g_c = nx.MultiDiGraph()
+        g_c.add_edge("S", "M", name="sm", capacity=0.)
+        g_c.add_edge("M", "T", name="mt", capacity=0.)
+        edge_mt = ("M", "T", 0)
+        prepared = obj._prepare_detect_edges_inputs(
+            g_c, ["S"], ["T"], edges_of_interest={edge_mt},
+            non_reconnectable_edges=[edge_mt], depth_edges_search=2)
+        sssp = obj._compute_sssp_paths(g_c, prepared, {edge_mt})
+        paths = obj._collect_paths_of_interest(g_c, prepared, sssp, max_null_flow_path_length=7)
+        rec, non_rec = obj._classify_paths_by_reconnectability(prepared, paths)
+        assert edge_mt in non_rec
+        assert edge_mt not in rec
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Unit tests for add_relevant_null_flow_lines internal helpers
+# ──────────────────────────────────────────────────────────────────────
+
+
+class _NullFlowHelperHost:
+    """Mock that exposes the add_relevant_null_flow_lines helpers."""
+    _prepare_null_flow_edge_sets = OverFlowGraph._prepare_null_flow_edge_sets
+    _build_gray_components = OverFlowGraph._build_gray_components
+    _structural_info_for_null_flow = OverFlowGraph._structural_info_for_null_flow
+    _apply_null_flow_recoloring = OverFlowGraph._apply_null_flow_recoloring
+
+
+class TestNullFlowHelpers:
+
+    def test_prepare_edge_sets_keeps_connex_lines(self):
+        obj = _NullFlowHelperHost()
+        obj.g = nx.MultiDiGraph()
+        # A non-gray edge so some node is coloured
+        obj.g.add_edge("A", "B", color="coral", capacity=1., name="coloured_line")
+        # Gray edge touching coloured node B
+        obj.g.add_edge("B", "C", color="gray", capacity=0., name="connex_line")
+        # Gray edge far from any coloured node
+        obj.g.add_edge("X", "Y", color="gray", capacity=0., name="far_line")
+
+        sets = obj._prepare_null_flow_edge_sets(["connex_line", "far_line"], [])
+        considered_edges = sets["edges_non_connected_lines_to_consider"]
+        considered_names = {obj.g.edges[e]["name"] for e in considered_edges}
+        assert "connex_line" in considered_names
+        assert "far_line" not in considered_names
+
+    def test_build_gray_components_drops_coloured_edges(self):
+        obj = _NullFlowHelperHost()
+        obj.g = nx.MultiDiGraph()
+        obj.g.add_edge("A", "B", color="coral", capacity=1., name="red")
+        obj.g.add_edge("C", "D", color="gray", capacity=0., name="gray_line1")
+        obj.g.add_edge("D", "E", color="gray", capacity=0., name="gray_line2")
+
+        components = obj._build_gray_components()
+        # Only one connected component of gray edges (C-D-E), coral is excluded
+        assert len(components) == 1
+        comp_edges = {data["name"] for _, _, data in components[0].edges(data=True)}
+        assert comp_edges == {"gray_line1", "gray_line2"}
+
+    def test_structural_info_extracts_red_and_cpath_nodes(self):
+        class _FakeCP:
+            def n_amont(self):
+                return ["A", "B"]
+
+            def n_aval(self):
+                return ["C"]
+
+        class _FakeRedLoops:
+            class Path:
+                shape = (0,)  # empty
+
+        class _FakeStructured:
+            constrained_path = _FakeCP()
+            red_loops = _FakeRedLoops()
+
+        info = OverFlowGraph._structural_info_for_null_flow(_FakeStructured())
+        assert info["node_red_paths"] == []
+        assert info["node_amont_constrained_path"] == ["A", "B"]
+        assert info["node_aval_constrained_path"] == ["C"]
+
+    def test_apply_recoloring_paints_blue_for_blue_only(self):
+        obj = _NullFlowHelperHost()
+        obj.g = nx.MultiDiGraph()
+        obj.g.add_edge("A", "B", color="gray", capacity=0., name="l1")
+        edge = ("A", "B", 0)
+        obj._apply_null_flow_recoloring(
+            target_path="blue_only",
+            edges_to_keep={edge},
+            edges_non_reconnectable=set(),
+            edges_to_double={},
+            edges_double_added={},
+        )
+        assert obj.g.edges[edge]["color"] == "blue"
+
+    def test_apply_recoloring_blue_to_red_respects_sign(self):
+        obj = _NullFlowHelperHost()
+        obj.g = nx.MultiDiGraph()
+        obj.g.add_edge("A", "B", color="gray", capacity=-1., name="neg")
+        obj.g.add_edge("C", "D", color="gray", capacity=1., name="pos")
+        edge_neg = ("A", "B", 0)
+        edge_pos = ("C", "D", 0)
+        obj._apply_null_flow_recoloring(
+            target_path="blue_to_red",
+            edges_to_keep={edge_neg, edge_pos},
+            edges_non_reconnectable=set(),
+            edges_to_double={},
+            edges_double_added={},
+        )
+        assert obj.g.edges[edge_neg]["color"] == "blue"
+        assert obj.g.edges[edge_pos]["color"] == "coral"
