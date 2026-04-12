@@ -17,6 +17,11 @@ from alphaDeesp.core.elements import (
     OriginLine,
     Production,
 )
+from alphaDeesp.core.twin_nodes import (
+    is_twin_node_id,
+    original_substation_id,
+    twin_node_id,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -105,9 +110,9 @@ class Network:
                     final_array_for_drawing_nodes.append((substation_id, value))
 
                 elif busbar == 1 and mapping_node_id_to_prod_minus_load[substation_id][busbar] is not None:
-                    twin_node_name = "666" + str(substation_id)
+                    twin_node_name = twin_node_id(substation_id)
                     value = mapping_node_id_to_prod_minus_load[substation_id][busbar]
-                    # nodes 666+ that are on busbar1 +
+                    # twin nodes for elements moved to busbar 1
                     save_for_complementary_nodes.append((twin_node_name, value))
 
         if logger.isEnabledFor(logging.DEBUG):
@@ -142,10 +147,10 @@ class Network:
             if substation_id not in list(substation_id_busbar_id_to_node_id_mapping.keys()):
                 substation_id_busbar_id_to_node_id_mapping[substation_id] = {0: None, 1: None}
 
-            # meaning there is a busbar 1 used on node X, from 666X
-            if "666" in str(substation_id):
-                initial_node_id = int(str(substation_id)[3:])  # we remove 666 and take the rest, from 6662, we get 2
-                logger.debug("REST = %s", initial_node_id)
+            # meaning there is a busbar 1 used on this substation, referenced by its twin-node id
+            if is_twin_node_id(substation_id):
+                initial_node_id = original_substation_id(substation_id)
+                logger.debug("twin node original substation id = %s", initial_node_id)
                 logger.debug("substation_id = %s", substation_id)
 
                 # create dict for initial_node_id if not exists

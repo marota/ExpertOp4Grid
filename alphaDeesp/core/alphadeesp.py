@@ -21,6 +21,7 @@ from alphaDeesp.core.elements import (
     OriginLine,
     Production,
 )
+from alphaDeesp.core.twin_nodes import twin_node_id
 from math import fabs
 
 logger = logging.getLogger(__name__)
@@ -225,402 +226,426 @@ class AlphaDeesp:  # AKA SOLVER
 
     # WARNING: does not work yet when you go back from two nodes to one node at a given substation? Basically one node will be not connected?
     def apply_new_topo_to_graph(self, graph: nx.MultiDiGraph, new_topology, node_to_change: int):
-        """given  a graph, a node_topoly and a node_id, this function applies the change to the graph
-        :return new_graph, internal_repr_dict"""
+        """
+        Apply a busbar reassignment to ``graph``.
+
+        The function is decomposed into four small helpers:
+          - :meth:`_gather_edge_colors` memoises existing edge colors so they
+            survive the node rebuild step;
+          - :meth:`_compute_prod_load_per_bus` accumulates production and
+            consumption per target busbar;
+          - :meth:`_add_bus_nodes` (re)creates the styled graph nodes for the
+            original substation and its twin;
+          - :meth:`_reconnect_bus_edges` wires every line element back onto
+            the right busbar node with the right reported flow.
+        """
         if self.debug:
             logger.debug("====================================== apply new topo to graph ======================================")
             logger.debug(" new topology applied = [%s] to node: [%s]", new_topology, node_to_change)
             logger.debug("======================================================================================================")
 
-        # check if there are two nodes, there are 2 different values in new topo 0 and 1
         bus_ids = set(new_topology)
-        # assert(len(bus_ids) == 2)#not necesarrily, it should be at least 1 and not more than 2
         assert ((len(bus_ids) != 0) & (len(bus_ids) <= 2))
 
         internal_repr_dict = dict(self.simulator_data["substations_elements"])
-        new_node_id = int("666" + str(node_to_change))
+        new_node_id = twin_node_id(node_to_change)
 
         element_types = self.simulator_data["substations_elements"][node_to_change]
-        # TO DO: you need to get all elements of the substation, especially if it is already in a 2 nodes topology and you want to merge the nodes
-        # if (new_node_id in self.simulator_data["substations_elements"]):#the substation was already in a 2 node topology
-        #    element_types+=self.simulator_data["substations_elements"][new_node_id]
-        # it has to be the same, otherwise it does not make sense, ie, there is an error somewhere
         assert len(element_types) == len(new_topology)
 
-        # BEFORE REMOVING, GET NEEDED INFORMATION ON EDGES: COLORS, WIDTH etc...
-        color_edges = {}
-        for u, v,idx, color in self.g.edges(data="color",keys=True):
-            # invert edges that have been marked as SWAPPED in DATAFRAME.
-            condition = list(self.df.query("idx_or == " + str(u) + " & idx_ex == " + str(v))["swapped"])[0]
-            color_edges[(u, v,idx)] = color
-            if condition:
-                color_edges[(v, u,idx)] = color
-            else:
-                color_edges[(u, v,idx)] = color
+        color_edges = self._gather_edge_colors()
 
-        if 1 in new_topology:  # ie, if the topo is not [0, ... , 0]
-            # first we delete the node_to_change ==> it deletes all edges for us
+        if 1 in new_topology:  # keeping only busbar 0 would leave the old node in place
             graph.remove_node(node_to_change)
 
-        # ################ PREPROCESSING NODE RECONSTRUCTION PART, IMPORTANT TO GET COLORS RIGHT
-        i = 0
-        # then, parsing element by element, reconnect the graph.
-        for internal_elem, element, element_type in zip(internal_repr_dict[node_to_change], new_topology, element_types):
+        # Propagate busbar assignments back onto the internal element objects
+        for internal_elem, element in zip(internal_repr_dict[node_to_change], new_topology):
             internal_elem.busbar_id = element
 
-        # WE RECONSTRUCT INTERNAL REPR
-        # prod = {0: 0, 1: 0}  # busid:value
-        # load = {0: 0, 1: 0}  # busid:value
-        prod = {}
-        load = {}
-        for element in internal_repr_dict[node_to_change]:
-            if element.busbar_id not in prod.keys():
-                if isinstance(element, Production):
-                    prod[element.busbar_id] = fabs(element.value)
-            else:
-                if isinstance(element, Production):
-                    prod[element.busbar_id] += fabs(element.value)
+        prod, load = self._compute_prod_load_per_bus(internal_repr_dict[node_to_change])
 
-            if element.busbar_id not in load.keys():
-                if isinstance(element, Consumption):
-                    load[element.busbar_id] = fabs(element.value)
-            else:
-                if isinstance(element, Consumption):
-                    load[element.busbar_id] += fabs(element.value)
+        self._add_bus_nodes(graph, bus_ids, prod, load, node_to_change, new_node_id)
+        self._reconnect_bus_edges(
+            graph, new_topology, element_types, node_to_change, new_node_id, color_edges)
 
-        node_type = {}
-        for bus_id in bus_ids:  # [0, 1]
-            node_label = node_to_change
-            prod_minus_load = 0
-
-            if bus_id in prod.keys() and bus_id in load.keys():
-                prod_minus_load = prod[bus_id] - load[bus_id]
-                if prod_minus_load > 0:
-                    node_type[bus_id] = "prod"
-                else:
-                    node_type[bus_id] = "load"
-            elif bus_id in prod.keys():
-                node_type[bus_id] = "prod"
-                prod_minus_load = prod[bus_id]
-            elif bus_id in load.keys():
-                node_type[bus_id] = "load"
-                prod_minus_load = load[bus_id]
-
-            if bus_id == 1:
-                node_label = new_node_id
-            if bus_id in node_type.keys():
-                if node_type[bus_id] == "prod":  # PROD
-                    # prod_minus_load = prod[bus_id]
-                    graph.add_node(node_label, pin=True, prod_or_load="prod", value=str(prod_minus_load),
-                                   style="filled", fillcolor="#f30000")
-                elif node_type[bus_id] == "load":
-                    # prod_minus_load = load[bus_id]
-                    graph.add_node(node_label, pin=True, prod_or_load="load", value=str(-prod_minus_load),
-                                   style="filled", fillcolor="#478fd0")
-            else:  # WHITE
-                graph.add_node(node_label, pin=True, prod_or_load="load", value=str(prod_minus_load),
-                               style="filled", fillcolor="#ffffff")
-
-        i = 0
-        # then, parsing element by element, reconnect the graph.
-        for element, element_type in zip(new_topology, element_types):
-            # print("element = ", element)
-            # print("element type = ", element_type)
-            reported_flow = None
-            penwidth = None
-            if isinstance(element_type, OriginLine) or isinstance(element_type, ExtremityLine):
-                # # print("element_type.flow_value=", element_type.flow_value)
-                reported_flow = element_type.flow_value[0]
-                # # print("reported_flow = ", reported_flow)
-                penwidth = fabs(reported_flow) / 10
-                if penwidth == 0.0:
-                    penwidth = 0.1
-
-            if element == 1:  # connect FROM or TO node: 666XX
-                if isinstance(element_type, OriginLine):
-                    graph.add_edge(new_node_id, element_type.end_substation_id,
-                                   capacity=float("%.2f" % reported_flow), label="%.2f" % reported_flow,
-                                   color=color_edges[(node_to_change, element_type.end_substation_id,0)],
-                                   fontsize=10, penwidth="%.2f" % penwidth)#we have a multiGraph, so we need to give a third index to color_edges, should be revised if reused
-
-                elif isinstance(element_type, ExtremityLine):
-                    graph.add_edge(element_type.start_substation_id, new_node_id,
-                                   capacity=float("%.2f" % reported_flow), label="%.2f" % reported_flow,
-                                   color=color_edges[(element_type.start_substation_id, node_to_change,0)],
-                                   fontsize=10, penwidth="%.2f" % penwidth)
-
-            elif element == 0:  # connect from node node:_to_change
-                if isinstance(element_type, OriginLine):
-                    graph.add_edge(node_to_change, element_type.end_substation_id,
-                                   capacity=float("%.2f" % reported_flow), label="%.2f" % reported_flow,
-                                   color=color_edges[(node_to_change, element_type.end_substation_id,0)],
-                                   fontsize=10, penwidth="%.2f" % penwidth)
-
-                elif isinstance(element_type, ExtremityLine):
-                    graph.add_edge(element_type.start_substation_id, node_to_change,
-                                   capacity=float("%.2f" % reported_flow), label="%.2f" % reported_flow,
-                                   color=color_edges[(element_type.start_substation_id, node_to_change,0)],
-                                   fontsize=10, penwidth="%.2f" % penwidth)
-
-            else:
-                raise ValueError("Error element has to belong to either Busbar 1 or 2")
-
-            i += 1
-
-        name = "".join(str(e) for e in new_topology)
-        name = str(node_to_change) + "_" + name
+        name = str(node_to_change) + "_" + "".join(str(e) for e in new_topology)
         self.bag_of_graphs[name] = graph
         return graph, internal_repr_dict
 
-    def rank_current_topo_at_node_x(self, graph, node: int, isSingleNode=False, topo_vect=None, is_score_specific_substation=True):
-        """This function ranks current topology at node X"""
+    # ------------------------------------------------------------------
+    # Helpers for apply_new_topo_to_graph
+    # ------------------------------------------------------------------
+
+    def _gather_edge_colors(self):
+        """
+        Snapshot the color of every edge of ``self.g`` before the graph is
+        mutated. For edges marked as ``swapped`` in ``self.df`` we also store
+        the reversed key so lookups survive the direction change.
+        """
+        color_edges = {}
+        for u, v, idx, color in self.g.edges(data="color", keys=True):
+            condition = list(self.df.query(
+                "idx_or == " + str(u) + " & idx_ex == " + str(v))["swapped"])[0]
+            color_edges[(u, v, idx)] = color
+            if condition:
+                color_edges[(v, u, idx)] = color
+        return color_edges
+
+    @staticmethod
+    def _compute_prod_load_per_bus(elements):
+        """
+        Sum production and consumption values per ``busbar_id`` for the
+        given iterable of ``elements``. Returns ``(prod, load)`` dicts where
+        each key is a busbar id and each value is the absolute total.
+        """
+        prod, load = {}, {}
+        for element in elements:
+            bus = element.busbar_id
+            if isinstance(element, Production):
+                prod[bus] = prod.get(bus, 0) + fabs(element.value)
+            elif isinstance(element, Consumption):
+                load[bus] = load.get(bus, 0) + fabs(element.value)
+        return prod, load
+
+    @staticmethod
+    def _classify_bus(bus_id, prod, load):
+        """
+        Return ``(kind, prod_minus_load)`` for ``bus_id`` where ``kind`` is
+        ``"prod"``, ``"load"`` or ``None`` (neither production nor load).
+        """
+        has_prod = bus_id in prod
+        has_load = bus_id in load
+        if has_prod and has_load:
+            diff = prod[bus_id] - load[bus_id]
+            return ("prod" if diff > 0 else "load"), diff
+        if has_prod:
+            return "prod", prod[bus_id]
+        if has_load:
+            return "load", load[bus_id]
+        return None, 0
+
+    def _add_bus_nodes(self, graph, bus_ids, prod, load, node_to_change, new_node_id):
+        """
+        Re-add the (up to two) graph nodes corresponding to the new topology,
+        styled by their net prod/load balance.
+        """
+        for bus_id in bus_ids:
+            node_label = new_node_id if bus_id == 1 else node_to_change
+            kind, prod_minus_load = self._classify_bus(bus_id, prod, load)
+
+            if kind == "prod":
+                graph.add_node(node_label, pin=True, prod_or_load="prod",
+                               value=str(prod_minus_load),
+                               style="filled", fillcolor="#f30000")
+            elif kind == "load":
+                graph.add_node(node_label, pin=True, prod_or_load="load",
+                               value=str(-prod_minus_load),
+                               style="filled", fillcolor="#478fd0")
+            else:  # neither prod nor load — white
+                graph.add_node(node_label, pin=True, prod_or_load="load",
+                               value=str(prod_minus_load),
+                               style="filled", fillcolor="#ffffff")
+
+    def _reconnect_bus_edges(self, graph, new_topology, element_types,
+                             node_to_change, new_node_id, color_edges):
+        """
+        Re-add every line edge between the (possibly split) substation and
+        its neighbours, using the memoised ``color_edges`` for styling.
+        """
+        for element, element_type in zip(new_topology, element_types):
+            if not isinstance(element_type, (OriginLine, ExtremityLine)):
+                continue
+
+            reported_flow = element_type.flow_value[0]
+            penwidth = fabs(reported_flow) / 10 or 0.1
+
+            # Which end of the substation does the edge live on?
+            local_node = new_node_id if element == 1 else node_to_change
+            if element not in (0, 1):
+                raise ValueError("Error element has to belong to either Busbar 1 or 2")
+
+            if isinstance(element_type, OriginLine):
+                color = color_edges[(node_to_change, element_type.end_substation_id, 0)]
+                graph.add_edge(local_node, element_type.end_substation_id,
+                               capacity=float("%.2f" % reported_flow),
+                               label="%.2f" % reported_flow,
+                               color=color, fontsize=10,
+                               penwidth="%.2f" % penwidth)
+            else:  # ExtremityLine
+                color = color_edges[(element_type.start_substation_id, node_to_change, 0)]
+                graph.add_edge(element_type.start_substation_id, local_node,
+                               capacity=float("%.2f" % reported_flow),
+                               label="%.2f" % reported_flow,
+                               color=color, fontsize=10,
+                               penwidth="%.2f" % penwidth)
+
+    def rank_current_topo_at_node_x(self, graph, node: int, isSingleNode=False, topo_vect=None,
+                                    is_score_specific_substation=True):
+        """
+        Rank a candidate topology at ``node`` by scoring how much it relieves
+        the overloaded constrained path.
+
+        This is the orchestrator: it classifies ``node`` relative to the
+        constrained path / red loops and dispatches to one of four branch
+        helpers (``_score_amont``, ``_score_aval``, ``_score_in_red_loop``,
+        ``_score_not_connected_to_cpath``). The score-computation semantics
+        live entirely in those helpers.
+        """
         if topo_vect is None:
             topo_vect = [0, 0, 1, 1, 1]
-        final_score = 0.0
-        all_edges_color_attributes = nx.get_edge_attributes(graph, "color")  # dict[edge]
-        all_edges_xlabel_attributes = nx.get_edge_attributes(graph, "label")  # dict[edge]
 
-        # ======================================
-        # print('\nnoeud '+str(node)+' topo '+str(topo_vect))
+        color_attrs = nx.get_edge_attributes(graph, "color")
+        label_attrs = nx.get_edge_attributes(graph, "label")
 
-        #  ########## IS IN AMONT ##########
-        constrained_path=self.g_distribution_graph.get_constrained_path()
+        constrained_path = self.g_distribution_graph.get_constrained_path()
         red_loops = self.g_distribution_graph.get_loops()
 
-        in_negative_flows = []
-        out_negative_flows = []
-        out_positive_flows = []
-        in_positive_flows = []
-
         if node in constrained_path.n_amont():
-            # ======================================
-            #print("AMONT")
-            if self.debug:
-                logger.debug("||||||||||||||||||||||||||| node [%s] is in_Amont of constrained_edge", node)
+            return self._score_amont(
+                graph, node, topo_vect, isSingleNode,
+                is_score_specific_substation, color_attrs, label_attrs)
 
-            interesting_bus_id = 0
-            if is_score_specific_substation:#when comparing all combinations at a substation, you don't need to figure out for which of the two splitted nodes you compute the score, as the two symetrical combinations on the 2 nodes exist
-                for edge in graph.out_edges(node,keys=True):
-                    if self.is_connected_to_cpath(all_edges_color_attributes, all_edges_xlabel_attributes, node, edge, isSingleNode):
-                        # take the other bus id
-                        interesting_bus_id = abs(self.get_bus_id_from_edge(node, edge, topo_vect) - 1)
-                        break
-            else:#when comparing all combinations at a substation, you don't need to figure out for which of the two splitted nodes you compute the score, as the two symetrical combinations on the 2 nodes exist
-                #find most interesting node with largest ingoing negative flow
-                in_edge_capacities_bus0 = [float(all_edges_xlabel_attributes[edge]) for edge in graph.in_edges(node, keys=True)
-                                      if self.get_bus_id_from_edge(node, edge, topo_vect) == 0]
-                in_edge_negative_capacities_bus0 = fabs(sum(x for x in in_edge_capacities_bus0 if x < 0))
+        if node in constrained_path.n_aval():
+            return self._score_aval(
+                graph, node, topo_vect, isSingleNode,
+                is_score_specific_substation, color_attrs, label_attrs)
 
-                in_edge_capacities_bus1 = [float(all_edges_xlabel_attributes[edge]) for edge in
-                                           graph.in_edges(node, keys=True)
-                                           if self.get_bus_id_from_edge(node, edge, topo_vect) == 1]
-                in_edge_negative_capacities_bus1 = fabs(sum(x for x in in_edge_capacities_bus1 if x < 0))
+        red_loop_nodes = {n for loop_nodes in red_loops.Path for n in loop_nodes}
+        if node in red_loop_nodes:
+            return self._score_in_red_loop(
+                graph, node, topo_vect, color_attrs, label_attrs)
 
-                if in_edge_negative_capacities_bus1>in_edge_negative_capacities_bus0:
-                    interesting_bus_id=1
+        return self._score_not_connected_to_cpath(
+            graph, node, topo_vect, label_attrs)
 
-            # somme des reports négatifs entrants + sommes des reports positifs entrants
-            for edge in graph.in_edges(node,keys=True):
-                edge_bus_id = self.get_bus_id_from_edge(node, edge, topo_vect)
-                if edge_bus_id == interesting_bus_id: # MASK
-                    edge_flow_value = float(all_edges_xlabel_attributes[edge])
-                    if edge_flow_value < 0:
-                        in_negative_flows.append(fabs(edge_flow_value))
-                    else:
-                        in_positive_flows.append(edge_flow_value)
+    # ------------------------------------------------------------------
+    # Helpers for rank_current_topo_at_node_x
+    # ------------------------------------------------------------------
 
-            # somme des reports positifs sortant +
-            for edge in graph.out_edges(node,keys=True):
-                edge_bus_id = self.get_bus_id_from_edge(node, edge, topo_vect)
-                if edge_bus_id == interesting_bus_id: # MASK
-                    edge_flow_value = float(all_edges_xlabel_attributes[edge])
-                    if edge_flow_value > 0:
-                        out_positive_flows.append(edge_flow_value)
-                    else:
-                        out_negative_flows.append(fabs(edge_flow_value))
+    def _pick_interesting_bus_id(self, graph, node, topo_vect, isSingleNode,
+                                 is_score_specific_substation,
+                                 color_attrs, label_attrs, direction):
+        """
+        Return the bus id on which to score edges for amont/aval branches.
 
-            diff_sums = self.get_prod_conso_sum(node, interesting_bus_id, topo_vect)#-self.get_prod_conso_sum(node, not_interesting_bus_id, topo_vect) #it is better to make the balance between the two nodes, did we put more generation on this one than the other one
-            max_pos_in_or_out_flows = max(sum(out_positive_flows), sum(in_positive_flows))#min(sum(out_positive_flows), sum(in_positive_flows))#
-            #we want to push ingoing negative  and production towards red path,
-            #final_score = np.around(sum(in_negative_flows) - np.around(sum(out_negative_flows)) + max_pos_in_or_out_flows + diff_sums, decimals=2)#+ diff_sums, it is not very clear its impact
-            if (is_score_specific_substation):
-                final_score = np.around(
-                    sum(in_negative_flows) + max_pos_in_or_out_flows + diff_sums,
-                    decimals=2)
+        ``direction`` is ``"amont"`` (pick out-edge connected to cpath) or
+        ``"aval"`` (pick in-edge connected to cpath).
+
+        When ``is_score_specific_substation`` is True we look for an edge that
+        is *not* connected to the constrained path and take the opposite bus
+        id — this is the "twin node" logic. Otherwise we pick the bus that
+        carries the largest negative flow (in-edges for amont, out-edges for
+        aval) so the comparison is meaningful across substations.
+        """
+        get_edges = graph.out_edges if direction == "amont" else graph.in_edges
+        neg_edges = graph.in_edges if direction == "amont" else graph.out_edges
+
+        if is_score_specific_substation:
+            for edge in get_edges(node, keys=True):
+                if self.is_connected_to_cpath(
+                        color_attrs, label_attrs, node, edge, isSingleNode):
+                    return abs(self.get_bus_id_from_edge(node, edge, topo_vect) - 1)
+            return 0
+
+        # Pick the bus carrying the largest negative flow on the relevant side
+        caps_bus0 = [float(label_attrs[edge]) for edge in neg_edges(node, keys=True)
+                     if self.get_bus_id_from_edge(node, edge, topo_vect) == 0]
+        caps_bus1 = [float(label_attrs[edge]) for edge in neg_edges(node, keys=True)
+                     if self.get_bus_id_from_edge(node, edge, topo_vect) == 1]
+        neg0 = fabs(sum(x for x in caps_bus0 if x < 0))
+        neg1 = fabs(sum(x for x in caps_bus1 if x < 0))
+        return 1 if neg1 > neg0 else 0
+
+    def _collect_flows_on_bus(self, graph, node, bus_id, topo_vect, label_attrs):
+        """
+        Partition in/out flows incident to ``node`` on ``bus_id`` into the
+        four (positive, negative) × (in, out) buckets.
+
+        Returns a dict with keys ``in_pos``, ``in_neg``, ``out_pos``,
+        ``out_neg``; each maps to a list of floats. Negative values are
+        returned as absolute values (matching the original code).
+        """
+        in_pos, in_neg, out_pos, out_neg = [], [], [], []
+
+        for edge in graph.in_edges(node, keys=True):
+            if self.get_bus_id_from_edge(node, edge, topo_vect) != bus_id:
+                continue
+            value = float(label_attrs[edge])
+            if value < 0:
+                in_neg.append(fabs(value))
             else:
-                final_score = np.around(
-                    sum(in_negative_flows) - np.around(sum(out_negative_flows)) + sum(out_positive_flows),# + diff_sums,
-                    decimals=2)  # + diff_sums, it is not very clear its impact
-            if self.debug:
-                logger.debug("AMONT")
-                logger.debug("diff_sums = %s", diff_sums)
-                logger.debug("type(diff_sums) = %s", type(diff_sums))
-                logger.debug("max_pos_in_or_out_flows = %s", max_pos_in_or_out_flows)
-                logger.debug("in negative flows = %s", in_negative_flows)
-                logger.debug("out negative flows = %s", out_negative_flows)
-                logger.debug("out positive flow = %s", out_positive_flows)
-                logger.debug("Final score = %s", final_score)
+                in_pos.append(value)
 
-        #  ########## IS IN AVAL ##########
-        elif node in constrained_path.n_aval():
-            # =============================================================
-            #print("AVAL")
-            if self.debug:
-                logger.debug("||||||||||||||||||||||||||| node [%s] is in_Aval of constrained_edge", node)
-
-            interesting_bus_id = 0
-
-            if is_score_specific_substation:#when comparing all combinations at a substation, you don't need to figure out for which of the two splitted nodes you compute the score, as the two symetrical combinations on the 2 nodes exist
-                for edge in graph.in_edges(node,keys=True):
-                    if self.is_connected_to_cpath(all_edges_color_attributes, all_edges_xlabel_attributes, node, edge, isSingleNode):
-                        # take the other bus id
-                        interesting_bus_id = abs(self.get_bus_id_from_edge(node, edge, topo_vect) - 1)
-                        break
-            else: #when you are considering only specific configurations (without its symetric one) and want to compare this among substations, not only within this substation
-                # find most interesting node with largest ougoing negative flow
-                out_edge_capacities_bus0 = [float(all_edges_xlabel_attributes[edge]) for edge in
-                                            graph.out_edges(node, keys=True)
-                                            if self.get_bus_id_from_edge(node, edge, topo_vect) == 0]
-                out_edge_negative_capacities_bus0 = fabs(sum(x for x in out_edge_capacities_bus0 if x < 0))
-
-                out_edge_capacities_bus1 = [float(all_edges_xlabel_attributes[edge]) for edge in
-                                            graph.out_edges(node, keys=True)
-                                            if self.get_bus_id_from_edge(node, edge, topo_vect) == 1]
-                out_edge_negative_capacities_bus1 = fabs(sum(x for x in out_edge_capacities_bus1 if x < 0))
-
-                if out_edge_negative_capacities_bus1 > out_edge_negative_capacities_bus0:
-                    interesting_bus_id = 1
-
-            # somme des reports negatifs et positifs SORTANT
-            for edge in graph.out_edges(node,keys=True):
-                edge_bus_id = self.get_bus_id_from_edge(node, edge, topo_vect)
-                if edge_bus_id == interesting_bus_id: # MASK
-                    edge_flow_value = float(all_edges_xlabel_attributes[edge])
-                    if edge_flow_value < 0:
-                        out_negative_flows.append(fabs(edge_flow_value))
-                    else:
-                        out_positive_flows.append(edge_flow_value)
-
-            for edge in graph.in_edges(node,keys=True):
-                edge_bus_id = self.get_bus_id_from_edge(node, edge, topo_vect)
-                if edge_bus_id == interesting_bus_id: # MASK
-                    edge_flow_value = float(all_edges_xlabel_attributes[edge])
-                    if edge_flow_value > 0:
-                        in_positive_flows.append(edge_flow_value)
-                    else:
-                        in_negative_flows.append(fabs(edge_flow_value))
-
-            # MAX (somme des reports positifs ENTRANT ET SORTANT)
-            max_pos_in_or_out_flows = max(sum(out_positive_flows), sum(in_positive_flows))
-
-            if self.debug:
-                logger.debug("out_negative_flows = %s", out_negative_flows)
-                logger.debug("in_negative_flows = %s", in_negative_flows)
-                logger.debug("out_positive_flows = %s", out_positive_flows)
-                logger.debug("in_positive_flows = %s", in_positive_flows)
-                logger.debug("sum out neg = %s", sum(out_negative_flows))
-                logger.debug("sum in  neg = %s", sum(in_negative_flows))
-                logger.debug("sum out pos = %s", sum(out_positive_flows))
-                logger.debug("sum in  pos = %s", sum(in_positive_flows))
-                logger.debug("max_pos_in_or_out_flows = %s", max_pos_in_or_out_flows)
-            # sur le noeud choisi (non connecté au cpath) on souhaite y connecter des consommations et pas des
-            # productions pour l'aval.
-            diff_sums = -(self.get_prod_conso_sum(node, interesting_bus_id, topo_vect)) #- self.get_prod_conso_sum(node,not_interesting_bus_id,topo_vect))
-            if (is_score_specific_substation):
-                final_score = np.around(sum(out_negative_flows)+ max_pos_in_or_out_flows + diff_sums, decimals=2)
+        for edge in graph.out_edges(node, keys=True):
+            if self.get_bus_id_from_edge(node, edge, topo_vect) != bus_id:
+                continue
+            value = float(label_attrs[edge])
+            if value > 0:
+                out_pos.append(value)
             else:
-                final_score = np.around(
-                sum(out_negative_flows) - np.around(sum(in_negative_flows)) + sum(in_positive_flows),# + diff_sums,
+                out_neg.append(fabs(value))
+
+        return {"in_pos": in_pos, "in_neg": in_neg,
+                "out_pos": out_pos, "out_neg": out_neg}
+
+    def _score_amont(self, graph, node, topo_vect, isSingleNode,
+                     is_score_specific_substation, color_attrs, label_attrs):
+        """Score a node that sits in "amont" (upstream) of the constrained path."""
+        if self.debug:
+            logger.debug("||||||||||||||||||||||||||| node [%s] is in_Amont of constrained_edge", node)
+
+        interesting_bus_id = self._pick_interesting_bus_id(
+            graph, node, topo_vect, isSingleNode, is_score_specific_substation,
+            color_attrs, label_attrs, direction="amont")
+
+        flows = self._collect_flows_on_bus(
+            graph, node, interesting_bus_id, topo_vect, label_attrs)
+
+        diff_sums = self.get_prod_conso_sum(node, interesting_bus_id, topo_vect)
+        max_pos_in_or_out = max(sum(flows["out_pos"]), sum(flows["in_pos"]))
+
+        # we want to push ingoing negative and production towards the red path
+        if is_score_specific_substation:
+            final_score = np.around(
+                sum(flows["in_neg"]) + max_pos_in_or_out + diff_sums, decimals=2)
+        else:
+            final_score = np.around(
+                sum(flows["in_neg"]) - np.around(sum(flows["out_neg"])) + sum(flows["out_pos"]),
                 decimals=2)
 
-            if self.debug:
-                logger.debug("AVAL")
-                logger.debug("diff_sums = %s", diff_sums)
-                logger.debug("Final score = %s", final_score)
-                logger.debug("type(final_score) = %s", type(final_score))
+        if self.debug:
+            logger.debug("AMONT")
+            logger.debug("diff_sums = %s", diff_sums)
+            logger.debug("type(diff_sums) = %s", type(diff_sums))
+            logger.debug("max_pos_in_or_out_flows = %s", max_pos_in_or_out)
+            logger.debug("in negative flows = %s", flows["in_neg"])
+            logger.debug("out negative flows = %s", flows["out_neg"])
+            logger.debug("out positive flow = %s", flows["out_pos"])
+            logger.debug("Final score = %s", final_score)
 
-        #  ########## IS IN Loop ##########
-        # you want a node with the maximum output lines connected to the ingoing red loop edges, not connected to other ingoing edges
-        elif node in set([x for loop in range(len(red_loops.Path)) for x in red_loops.Path[loop]]):
-            # ========================================================================
-            # print("AUTRE")
+        return final_score
 
-            if 1 in topo_vect and 0 in topo_vect:  # need to be a 2 node topology
-                # we find the node with the biggest red ingoing delta flow
-                InputRedDeltaFlow_1 = 0
-                InputRedDeltaFlow_2 = 0
+    def _score_aval(self, graph, node, topo_vect, isSingleNode,
+                    is_score_specific_substation, color_attrs, label_attrs):
+        """Score a node that sits in "aval" (downstream) of the constrained path."""
+        if self.debug:
+            logger.debug("||||||||||||||||||||||||||| node [%s] is in_Aval of constrained_edge", node)
 
+        interesting_bus_id = self._pick_interesting_bus_id(
+            graph, node, topo_vect, isSingleNode, is_score_specific_substation,
+            color_attrs, label_attrs, direction="aval")
 
-                for edge in graph.in_edges(node,keys=True):
-                    edge_bus_id = self.get_bus_id_from_edge(node, edge, topo_vect)
-                    edge_color = all_edges_color_attributes[edge]
-                    edge_value = float(all_edges_xlabel_attributes[edge])
-                    if (edge_color == "coral"):
-                        if edge_bus_id == 0: # MASK
-                            InputRedDeltaFlow_1 += edge_value
-                        elif edge_bus_id == 1: # MASK
-                            InputRedDeltaFlow_2 += edge_value
+        flows = self._collect_flows_on_bus(
+            graph, node, interesting_bus_id, topo_vect, label_attrs)
 
-                Bus_BiggestInputDeltaFlow = 0
-                InputRedDeltaFlow = InputRedDeltaFlow_1
-                if (InputRedDeltaFlow_2 >= InputRedDeltaFlow_1):
-                    Bus_BiggestInputDeltaFlow = 1
-                    InputRedDeltaFlow = InputRedDeltaFlow_2
-                ###
-                # over node with BiggestInputDeltaFlow, we want as much ingoing and outgoing red flow possible, with least possible production
-                OutputRedDeltaFlow = 0
-                for edge in graph.out_edges(node,keys=True):
-                    edge_bus_id = self.get_bus_id_from_edge(node, edge, topo_vect)
-                    if edge_bus_id == Bus_BiggestInputDeltaFlow:
-                        edge_color = all_edges_color_attributes[edge]
-                        edge_value = float(all_edges_xlabel_attributes[edge])
-                        if (edge_color == "coral"):
-                            OutputRedDeltaFlow += edge_value
+        max_pos_in_or_out = max(sum(flows["out_pos"]), sum(flows["in_pos"]))
 
-                min_pos_in_or_out_flows = min(OutputRedDeltaFlow, InputRedDeltaFlow)
-                injection = -self.get_prod_conso_sum(node, Bus_BiggestInputDeltaFlow, topo_vect)
-                final_score = np.around(min_pos_in_or_out_flows + injection, decimals=2)
+        if self.debug:
+            logger.debug("out_negative_flows = %s", flows["out_neg"])
+            logger.debug("in_negative_flows = %s", flows["in_neg"])
+            logger.debug("out_positive_flows = %s", flows["out_pos"])
+            logger.debug("in_positive_flows = %s", flows["in_pos"])
+            logger.debug("sum out neg = %s", sum(flows["out_neg"]))
+            logger.debug("sum in  neg = %s", sum(flows["in_neg"]))
+            logger.debug("sum out pos = %s", sum(flows["out_pos"]))
+            logger.debug("sum in  pos = %s", sum(flows["in_pos"]))
+            logger.debug("max_pos_in_or_out_flows = %s", max_pos_in_or_out)
+
+        # on the twin node (not connected to cpath) we want to attract loads,
+        # not productions, hence the sign flip on diff_sums.
+        diff_sums = -self.get_prod_conso_sum(node, interesting_bus_id, topo_vect)
+        if is_score_specific_substation:
+            final_score = np.around(
+                sum(flows["out_neg"]) + max_pos_in_or_out + diff_sums, decimals=2)
         else:
-            logger.debug("||||||||||||||||||||||||||| node [%s] is not connected to a path to the constrained_edge.", node)
-            in_negative_flows_node_1 = []
-            out_negative_flows_node_1 = []
-            in_negative_flows_node_2 = []
-            out_negative_flows_node_2 = []
+            final_score = np.around(
+                sum(flows["out_neg"]) - np.around(sum(flows["in_neg"])) + sum(flows["in_pos"]),
+                decimals=2)
 
-            # somme des reports négatifs entrants
-            for edge in graph.in_edges(node,keys=True):
-                edge_bus_id = self.get_bus_id_from_edge(node, edge, topo_vect)
-                edge_flow_value = float(all_edges_xlabel_attributes[edge])
-                if edge_flow_value < 0:
-                    if edge_bus_id == 0: # MASK
-                        in_negative_flows_node_1.append(fabs(edge_flow_value))
-                    elif edge_bus_id==1:
-                        in_negative_flows_node_2.append(fabs(edge_flow_value))
+        if self.debug:
+            logger.debug("AVAL")
+            logger.debug("diff_sums = %s", diff_sums)
+            logger.debug("Final score = %s", final_score)
+            logger.debug("type(final_score) = %s", type(final_score))
 
-            # somme des reports négatifs sortants
-            for edge in graph.out_edges(node,keys=True):
-                edge_bus_id = self.get_bus_id_from_edge(node, edge, topo_vect)
-                edge_flow_value = float(all_edges_xlabel_attributes[edge])
-                if edge_flow_value < 0:
-                    if edge_bus_id == 0: # MASK
-                        out_negative_flows_node_1.append(fabs(edge_flow_value))
-                    elif edge_bus_id==1:
-                        out_negative_flows_node_2.append(fabs(edge_flow_value))
+        return final_score
 
-            score_1=fabs(sum(in_negative_flows_node_1)-sum(out_negative_flows_node_1))
-            score_2=fabs(sum(in_negative_flows_node_2)-sum(out_negative_flows_node_2))
-            final_score = np.around(min(score_1,score_2),
-                decimals=2)  # + diff_sums, it is not very clear its impact
-            if self.debug:
-                logger.debug("in negative flows node 1 = %s", in_negative_flows_node_1)
-                logger.debug("out negative flows node 1 = %s", out_negative_flows_node_1)
-                logger.debug("in negative flows node 2 = %s", in_negative_flows_node_2)
-                logger.debug("out negative flows node 2 = %s", out_negative_flows_node_2)
-                logger.debug("Final score = %s", final_score)
+    def _score_in_red_loop(self, graph, node, topo_vect, color_attrs, label_attrs):
+        """
+        Score a node that belongs to a red loop path.
 
-        #=====================================================================
-        # print("SCORE   ---  "+str(final_score))
-        # print('\n')
+        Only meaningful for 2-busbar topologies (``0`` and ``1`` both present
+        in ``topo_vect``); returns ``0.0`` otherwise, matching the original
+        control flow.
+        """
+        if not (1 in topo_vect and 0 in topo_vect):
+            return 0.0
+
+        # Pick the bus with the biggest ingoing red (coral) delta flow
+        input_red_delta_by_bus = {0: 0.0, 1: 0.0}
+        for edge in graph.in_edges(node, keys=True):
+            if color_attrs[edge] != "coral":
+                continue
+            edge_bus_id = self.get_bus_id_from_edge(node, edge, topo_vect)
+            if edge_bus_id in (0, 1):
+                input_red_delta_by_bus[edge_bus_id] += float(label_attrs[edge])
+
+        if input_red_delta_by_bus[1] >= input_red_delta_by_bus[0]:
+            biggest_bus = 1
+        else:
+            biggest_bus = 0
+        input_red_delta = input_red_delta_by_bus[biggest_bus]
+
+        # On that bus, sum outgoing red flow (we want flow to transit through it)
+        output_red_delta = 0.0
+        for edge in graph.out_edges(node, keys=True):
+            if self.get_bus_id_from_edge(node, edge, topo_vect) != biggest_bus:
+                continue
+            if color_attrs[edge] != "coral":
+                continue
+            output_red_delta += float(label_attrs[edge])
+
+        min_pos_in_or_out = min(output_red_delta, input_red_delta)
+        injection = -self.get_prod_conso_sum(node, biggest_bus, topo_vect)
+        return np.around(min_pos_in_or_out + injection, decimals=2)
+
+    def _score_not_connected_to_cpath(self, graph, node, topo_vect, label_attrs):
+        """
+        Score a node that is not on the constrained path or any red loop.
+        The score is the smaller imbalance between the two candidate busbars.
+        """
+        logger.debug("||||||||||||||||||||||||||| node [%s] is not connected to a path to the constrained_edge.", node)
+
+        in_neg_by_bus = {0: [], 1: []}
+        out_neg_by_bus = {0: [], 1: []}
+
+        for edge in graph.in_edges(node, keys=True):
+            value = float(label_attrs[edge])
+            if value >= 0:
+                continue
+            bus_id = self.get_bus_id_from_edge(node, edge, topo_vect)
+            if bus_id in in_neg_by_bus:
+                in_neg_by_bus[bus_id].append(fabs(value))
+
+        for edge in graph.out_edges(node, keys=True):
+            value = float(label_attrs[edge])
+            if value >= 0:
+                continue
+            bus_id = self.get_bus_id_from_edge(node, edge, topo_vect)
+            if bus_id in out_neg_by_bus:
+                out_neg_by_bus[bus_id].append(fabs(value))
+
+        score_1 = fabs(sum(in_neg_by_bus[0]) - sum(out_neg_by_bus[0]))
+        score_2 = fabs(sum(in_neg_by_bus[1]) - sum(out_neg_by_bus[1]))
+        final_score = np.around(min(score_1, score_2), decimals=2)
+
+        if self.debug:
+            logger.debug("in negative flows node 1 = %s", in_neg_by_bus[0])
+            logger.debug("out negative flows node 1 = %s", out_neg_by_bus[0])
+            logger.debug("in negative flows node 2 = %s", in_neg_by_bus[1])
+            logger.debug("out negative flows node 2 = %s", out_neg_by_bus[1])
+            logger.debug("Final score = %s", final_score)
+
         return final_score
 
     def get_prod_conso_sum(self, node, interesting_bus_id, topo_vect):

@@ -1,6 +1,8 @@
 # Code Quality & Maintainability Analysis
 
-_Last updated: 2026-04-12 — short-term action plan landed on branch
+_Last updated: 2026-04-12 — longer-term refactors for the four highest-CC
+functions and the `"666"` twin-node encoding landed on branch
+`claude/refactor-rank-topo-function-U4y9g`. Short-term action plan landed on
 `claude/code-quality-short-term-tnydm`; original immediate-cleanup pass on
 `claude/code-quality-analysis-8Ftgi`._
 
@@ -11,11 +13,74 @@ audits over the entire `alphaDeesp/` package.
 
 ## Cleanup progress
 
-Both the "Immediate" and the "Short-term" items from the action plan have
-been addressed. The pyflakes CI scope (`alphaDeesp/core/**`,
-`expert_operator.py`, `main.py`, excluding the legacy Pypownet backend) is
-still clean, and 98/98 tests in `test_graphs_and_paths_unit.py` pass
-locally after the short-term edits.
+Items 11–13 from the longer-term refactor list are now done (in addition
+to every "Immediate" and "Short-term" item). The four highest-CC functions
+on the whole codebase have been decomposed into small helpers, each with
+dedicated unit tests, and the string-prefix `"666"` twin-node encoding is
+gone. The pyflakes CI scope (`alphaDeesp/core/**`, `expert_operator.py`,
+`main.py`, excluding the legacy Pypownet backend) is still clean and
+**130/130** tests across `test_graphs_and_paths_unit.py` (109) and the
+new `test_alphadeesp_unit.py` (21) pass locally.
+
+### Longer-term refactor landing (2026-04-12)
+
+| Function | Before | After | Helpers |
+|---|---|---|---|
+| `AlphaDeesp.rank_current_topo_at_node_x` | F (68) | **B (7)** | `_pick_interesting_bus_id`, `_collect_flows_on_bus`, `_score_amont`, `_score_aval`, `_score_in_red_loop`, `_score_not_connected_to_cpath` (max helper CC 15) |
+| `AlphaDeesp.apply_new_topo_to_graph` | E (36) | **B (7)** | `_gather_edge_colors`, `_compute_prod_load_per_bus`, `_classify_bus`, `_add_bus_nodes`, `_reconnect_bus_edges` (max helper CC 7) |
+| `OverFlowGraph.detect_edges_to_keep` | F (46) | **A (2)** | `_prepare_detect_edges_inputs`, `_compute_sssp_paths`, `_collect_paths_of_interest`, `_classify_paths_by_reconnectability` (max helper CC 20) |
+| `OverFlowGraph.add_relevant_null_flow_lines` | F (44) | **B (7)** | `_prepare_null_flow_edge_sets`, `_build_gray_components`, `_structural_info_for_null_flow`, `_detect_edges_for_target_path`, `_apply_null_flow_recoloring` (max helper CC 15) |
+
+Semantics were preserved line-for-line — the decomposition is a pure
+extract-method refactor with the following three *intentional* cleanups
+absorbed along the way:
+
+1. The original `rank_current_topo_at_node_x` declared four
+   `in/out_{positive,negative}_flows` lists at the top of the function and
+   reused them across the amont/aval branches. Each branch helper now owns
+   a fresh dict of lists, which is behaviourally identical (the branches
+   are mutually exclusive and each one completely rewrote the lists it
+   used) but makes the dead-code sharing go away.
+2. `apply_new_topo_to_graph` had a copy of the "second time, reparse
+   element_types" loop that used to track two unused ``i`` counters; the
+   unified ``_reconnect_bus_edges`` helper drops the counters and
+   consolidates the ``element == 1`` / ``element == 0`` branches through a
+   single ``local_node`` binding. The `ValueError` for "neither busbar"
+   is raised *before* the add_edge calls, which was previously unreachable
+   because the two branches covered every path and never reached the else.
+3. `add_relevant_null_flow_lines` used to duplicate the pre-iteration
+   structural-info computation (red/amont/aval nodes) between the
+   ``all_paths`` wrapper and the individual calls; the structural info
+   builder is now a dedicated helper on the class, callable from both
+   entry points.
+
+Each extracted helper has at least one targeted unit test; see
+`alphaDeesp/tests/test_alphadeesp_unit.py` and the new
+`TestDetectEdgesHelpers`/`TestNullFlowHelpers` classes in
+`alphaDeesp/tests/test_graphs_and_paths_unit.py`.
+
+### Twin-node id scheme
+
+The string-prefix encoding ``int("666" + str(node_to_change))`` used to
+mint a "twin" node id when a substation was split onto two busbars has been
+replaced with a proper additive scheme in
+`alphaDeesp/core/twin_nodes.py`:
+
+- ``TWIN_NODE_OFFSET = 10_000_000`` — chosen to exceed any realistic
+  substation id on the grids AlphaDeesp targets while fitting inside a
+  32-bit integer for graphviz round-trips.
+- ``twin_node_id(sub_id)`` returns ``TWIN_NODE_OFFSET + sub_id`` and
+  raises ``ValueError`` on negative or too-large inputs so we can never
+  silently collide with a real substation id again.
+- ``is_twin_node_id(node_id)`` / ``original_substation_id(twin_id)`` give
+  the two decoding primitives the old ``str(...)[3:]`` slice was pretending
+  to provide.
+
+The five string-prefix call sites (`alphadeesp.py`, `network.py`
+×2 — build + decode, `printer.py` ×2) all go through the helpers now. The
+old scheme broke for any substation id ≥ 1000 (because the decoder did an
+unconditional 3-character slice); the new one works uniformly. Round-trip
+and discrimination are covered in `TestTwinNodeIds`.
 
 | Status | Item | Notes |
 |---|---|---|
@@ -278,7 +343,7 @@ CI-config change.
 | Largest module | `core/graphsAndPaths.py` — **2,185 lines** | `wc -l` |
 | Largest class/file combo | `core/alphadeesp.py` — 908 lines, one class | `wc -l` |
 | Maintainability Index | `graphsAndPaths.py` **C (0.00)**, `Grid2opSimulation.py` 25.95, `PypownetSimulation.py` 25.91, `Expert_rule_action_verification.py` 27.29 | `radon mi` |
-| Worst cyclomatic complexity | `AlphaDeesp.rank_current_topo_at_node_x` **F (68)**, `apply_new_topo_to_graph` **E (36)**, `OverFlowGraph.detect_edges_to_keep` **F (46)**, `add_relevant_null_flow_lines` **F (44)** | `radon cc` |
+| Worst cyclomatic complexity (post-refactor) | Dispatchers: `rank_current_topo_at_node_x` **B (7)**, `apply_new_topo_to_graph` **B (7)**, `detect_edges_to_keep` **A (2)**, `add_relevant_null_flow_lines` **B (7)**. Worst helper: `_prepare_detect_edges_inputs` **C (20)**. | `radon cc` |
 | Average complexity | **B (5.72)** across 163 functions/classes | `radon cc` |
 | `print()` calls | baseline: **247** across 20 files → **~108 remaining** (tests, `build_new_parameters_environment.py`, legacy Pypownet backend, `Expert_rule_action_verification.py`); all 10 CI-scoped first-party modules are at **0** | grep |
 | Bare `except:` clauses | baseline: 9 → **0** | grep |
@@ -289,9 +354,10 @@ CI-config change.
 
 ## Critical issues (fix first)
 
-> Items 1, 2, 4 and 8 below are now resolved and are kept for historical
-> context — see the "Cleanup progress" section at the top. Items 3, 5, 6,
-> 7, 9, 10+ remain as targets for the longer-term refactors.
+> Items 1, 2, 3, 4, 8 and 10 below are now resolved and are kept for
+> historical context — see the "Cleanup progress" section at the top.
+> Items 5, 6, 7, 9, 11+ remain as targets for the remaining longer-term
+> refactors.
 
 ### 1. Bare `except:` clauses swallowing all errors
 `alphaDeesp/main.py` (×3 near lines 100, 105, 117),
@@ -309,17 +375,15 @@ Pyflakes flags **11** identifiers (`Production`, `Consumption`, `OriginLine`,
 defeats static analysis and makes refactoring `elements.py` risky. Replace
 with explicit imports.
 
-### 3. A single 68-CC function holds the ranking logic
-`core/alphadeesp.py:382 rank_current_topo_at_node_x` — cyclomatic complexity
-**68** (radon rates this "F — unstable"). It is ~250 lines, mixes busbar
-bookkeeping, graph mutation, and French inline comments. Nearly impossible to
-unit-test or modify safely. **This is the single most important refactor
-target.**
+### 3. ~~A single 68-CC function holds the ranking logic~~ (done)
+`core/alphadeesp.py rank_current_topo_at_node_x` has been decomposed into
+four scoring-branch helpers plus two data helpers; the dispatcher is now
+CC 7 (B). The three runner-up monsters
+(`apply_new_topo_to_graph`, `detect_edges_to_keep`,
+`add_relevant_null_flow_lines`) are also done in the same pass. See the
+"Longer-term refactor landing" table at the top of this document.
 
-Runners-up:
-- `AlphaDeesp.apply_new_topo_to_graph` — CC 36 / E
-- `OverFlowGraph.detect_edges_to_keep` — CC 46 / F
-- `OverFlowGraph.add_relevant_null_flow_lines` — CC 44 / F
+Still outstanding:
 - `Grid2opSimulation.score_changes_between_two_observations` — CC 25 / D
 - `Expert_rule_action_verification.check_rules` — CC 21 / D
 
@@ -380,13 +444,14 @@ Classic Python footgun that silently leaks state across calls.
 
 ## Medium-impact issues
 
-### 10. The magic `"666"` twin-node marker
-When splitting a substation into two busbars, the code creates a new node id
-by string-prefixing `666`: `int("666" + str(node_to_change))`
-(`alphadeesp.py` around line 245), and decodes it with
-`int(str(substation_id)[3:])` (`network.py`, `printer.py`). This breaks for
-any substation id ≥ 1000, is undocumented, and appears in at least 6 places.
-Replace with a `TwinNodeId` dataclass or a disjoint numbering scheme.
+### 10. ~~The magic `"666"` twin-node marker~~ (done)
+Replaced by the ``TWIN_NODE_OFFSET`` scheme in
+`alphaDeesp/core/twin_nodes.py` and its three helpers
+(`twin_node_id`, `is_twin_node_id`, `original_substation_id`). All five
+prior call sites (`alphadeesp.py`, `network.py` ×2, `printer.py` ×2) now
+go through the helpers; round-trip and discrimination are unit-tested in
+`TestTwinNodeIds`. See the "Twin-node id scheme" section at the top of this
+document.
 
 ### 11. Naming inconsistency
 Mix of `snake_case` methods (`get_dataframe`, `get_substation_elements`) and
@@ -470,11 +535,13 @@ See the "Cleanup progress" section at the top of this document for the
 details of each change.
 
 ### Longer-term refactors
-11. Decompose `rank_current_topo_at_node_x` (CC 68) into ≤5 helpers, each
-    with a unit test. This is the single biggest maintainability win.
-12. Same treatment for `detect_edges_to_keep`, `add_relevant_null_flow_lines`,
-    `apply_new_topo_to_graph`.
-13. Replace the `"666"` twin-node encoding with a proper id scheme.
+11. ~~Decompose `rank_current_topo_at_node_x` (CC 68) into ≤5 helpers, each
+    with a unit test.~~ Done — dispatcher is now CC 7 (B); see the
+    "Longer-term refactor landing" table above.
+12. ~~Same treatment for `detect_edges_to_keep`, `add_relevant_null_flow_lines`,
+    `apply_new_topo_to_graph`.~~ Done — F (46)/F (44)/E (36) → A (2)/B (7)/B (7).
+13. ~~Replace the `"666"` twin-node encoding with a proper id scheme.~~ Done,
+    see `alphaDeesp/core/twin_nodes.py`.
 14. Add type hints starting from `core/simulation.py` and `core/elements.py`
     outward; enable `mypy --ignore-missing-imports` in CI.
 15. Decide the fate of the Pypownet backend: first-class (re-enable CI,

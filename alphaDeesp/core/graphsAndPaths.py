@@ -950,44 +950,94 @@ class OverFlowGraph(PowerFlowGraph):
 
 
 
-    def add_relevant_null_flow_lines(self,structured_graph,non_connected_lines,non_reconnectable_lines=[],target_path="blue_to_red",depth_reconnectable_edges_search=2,max_null_flow_path_length=7,
+    def add_relevant_null_flow_lines(self, structured_graph, non_connected_lines,
+                                     non_reconnectable_lines=[], target_path="blue_to_red",
+                                     depth_reconnectable_edges_search=2,
+                                     max_null_flow_path_length=7,
                                      _skip_style_setup=False, _structural_info=None):
         """
-        Make edges bi-directionnal when flow redispatch value is null, recolor the relevant ones that could be of interest
-        for analyzing the problem or solving it, and get back to initial edges for the other
+        Make edges bi-directional when flow redispatch is null, recolor the
+        relevant ones that could be of interest for analyzing or solving the
+        problem, and get back to initial edges for the others.
+
+        The orchestration is split across four helpers:
+
+        - :meth:`_prepare_null_flow_edge_sets` computes the line / edge sets
+          and "connex" candidates up front,
+        - :meth:`_build_gray_components` materialises the gray-only weakly
+          connected components used as search subgraphs,
+        - :meth:`_detect_edges_for_target_path` runs the per-component
+          ``detect_edges_to_keep`` calls for one of the four target-path
+          strategies (``blue_only`` / ``blue_amont_aval`` / ``red_only`` /
+          ``blue_to_red``),
+        - :meth:`_apply_null_flow_recoloring` paints the resulting edges and
+          cleans up unused doubled edges.
 
         Parameters
         ----------
-
-        structured_graph: ``SuscturedOverflowGraph``
+        structured_graph: ``Structured_Overload_Distribution_Graph``
             a structured graph with identified constrained path, hubs, loop paths
-
-
-        non_connected_lines: ``array``
-            list of lines that are non connected but that could be reconnected and that we want to highlight if relevant
-
-        target_path: ``str``
-            target path on which to highlight disconnected lines. either blue_only,blue_amont_aval, red_only, blue_to_red
-
-        non_connected_lines: ``array``
+        non_connected_lines: list[str]
+            list of lines that are non connected but could be reconnected
+        non_reconnectable_lines: list[str]
             list of lines that are non connected and cannot be reconnected
+        target_path: str
+            one of ``blue_only``, ``blue_amont_aval``, ``red_only``, ``blue_to_red``
         """
-
-        ###############
         if not _skip_style_setup:
-            non_connected_lines = self._setup_null_flow_styles(non_connected_lines, non_reconnectable_lines)
-        else:
-            # non_connected_lines already includes non_reconnectable_lines when called from all_paths
-            pass
+            non_connected_lines = self._setup_null_flow_styles(
+                non_connected_lines, non_reconnectable_lines)
 
-        ###################
+        sets = self._prepare_null_flow_edge_sets(non_connected_lines, non_reconnectable_lines)
 
+        # Make null-flow-redispatch lines bidirectional inside self.g (this
+        # mutates self.g and returns the edges we added so we can roll back
+        # the ones that turned out not to be useful at the end).
+        edges_to_double, edges_double_added = add_double_edges_null_redispatch(self.g)
+
+        # Refresh edge sets now that new edges exist
         edge_names = nx.get_edge_attributes(self.g, 'name')
+        edges_non_connected_lines = {
+            edge for edge, n in edge_names.items() if n in sets["non_connected_lines_set"]
+        }
+        edges_non_reconnectable_lines = {
+            edge for edge, n in edge_names.items() if n in sets["non_reconnectable_lines_set"]
+        }
+
+        gray_components = self._build_gray_components()
+
+        structural_info = _structural_info or self._structural_info_for_null_flow(structured_graph)
+
+        edges_to_keep, edges_non_reconnectable = self._detect_edges_for_target_path(
+            gray_components, target_path, structural_info,
+            sets["edges_non_connected_lines_to_consider"],
+            edges_non_connected_lines,
+            edges_non_reconnectable_lines,
+            depth_reconnectable_edges_search,
+            max_null_flow_path_length,
+        )
+
+        self._apply_null_flow_recoloring(
+            target_path, edges_to_keep, edges_non_reconnectable,
+            edges_to_double, edges_double_added,
+        )
+
+    # ------------------------------------------------------------------
+    # Helpers for add_relevant_null_flow_lines
+    # ------------------------------------------------------------------
+
+    def _prepare_null_flow_edge_sets(self, non_connected_lines, non_reconnectable_lines):
+        """
+        Compute the input edge sets used by :meth:`add_relevant_null_flow_lines`:
+        the plain line-name sets, plus ``edges_non_connected_lines_to_consider``
+        which keeps only lines "connex" to at least one non-gray edge (i.e.
+        lines whose reconnection could plausibly matter for the analysis).
+        """
         non_connected_lines_set = set(non_connected_lines)
         non_reconnectable_lines_set = set(non_reconnectable_lines)
+        edge_names = nx.get_edge_attributes(self.g, 'name')
 
-        # Compute nodes with at least one non-gray edge and connex edge names
-        # in a single pass over edge colors (replaces delete_color_edges copy)
+        # Nodes with at least one non-gray edge
         edge_colors = nx.get_edge_attributes(self.g, 'color')
         nodes_coloured = set()
         for edge, color in edge_colors.items():
@@ -995,7 +1045,7 @@ class OverFlowGraph(PowerFlowGraph):
                 nodes_coloured.add(edge[0])
                 nodes_coloured.add(edge[1])
 
-        # Find connex edges: gray edges with at least one endpoint in coloured nodes
+        # Connex gray edge names — touching at least one coloured node
         edge_connex_names = set()
         for edge, color in edge_colors.items():
             if color == "gray" and (edge[0] in nodes_coloured or edge[1] in nodes_coloured):
@@ -1004,23 +1054,24 @@ class OverFlowGraph(PowerFlowGraph):
                     edge_connex_names.add(name)
 
         non_connected_lines_to_consider = non_connected_lines_set & edge_connex_names
-        edges_non_connected_lines_to_consider = set(
-            edge for edge, edge_name in edge_names.items() if edge_name in non_connected_lines_to_consider)
+        edges_non_connected_lines_to_consider = {
+            edge for edge, n in edge_names.items() if n in non_connected_lines_to_consider
+        }
 
-        #####################"
-        # detect connected components for gray edges among which we will try to detect
-        # some non_connected_lines of interest, that link constrained path and loop paths
-        edges_to_double, edges_double_added = add_double_edges_null_redispatch(self.g)  # making null flow redispatch lines bidirectionnal
+        return {
+            "non_connected_lines_set": non_connected_lines_set,
+            "non_reconnectable_lines_set": non_reconnectable_lines_set,
+            "edges_non_connected_lines_to_consider": edges_non_connected_lines_to_consider,
+        }
 
-        #Update edges_non_connected_lines after no direction edges addition
-        edge_names = nx.get_edge_attributes(self.g, 'name')
-        edges_non_connected_lines = set(
-            edge for edge, edge_name in edge_names.items() if edge_name in non_connected_lines_set)
-        edges_non_reconnectable_lines = set(
-            edge for edge, edge_name in edge_names.items() if edge_name in non_reconnectable_lines_set)
-
-        ###########
-        # Build gray component graph in a single pass (replaces 3 delete_color_edges copies)
+    def _build_gray_components(self):
+        """
+        Build the list of weakly connected components consisting only of
+        "gray" edges (i.e. non-coral/blue/black). Components are returned
+        sorted by size ascending and each is a mutable copy, so the caller
+        can freely drop positive- or negative-capacity edges before running
+        path searches on them.
+        """
         _EXCLUDED_COLORS = frozenset({"coral", "blue", "black"})
         g_only_gray_components = nx.MultiDiGraph()
         for u, v, k, data in self.g.edges(keys=True, data=True):
@@ -1028,223 +1079,262 @@ class OverFlowGraph(PowerFlowGraph):
                 g_only_gray_components.add_edge(u, v, key=k, **data)
         g_only_gray_components.remove_nodes_from(list(nx.isolates(g_only_gray_components)))
 
-        S = [g_only_gray_components.subgraph(c).copy() for c in sorted(nx.weakly_connected_components(g_only_gray_components), key=len, reverse=False)]
+        return [
+            g_only_gray_components.subgraph(c).copy()
+            for c in sorted(
+                nx.weakly_connected_components(g_only_gray_components),
+                key=len, reverse=False,
+            )
+        ]
 
-        #between nodes on the constrained path and on the loop paths, detect edge paths that pass through our lines of interest
+    @staticmethod
+    def _structural_info_for_null_flow(structured_graph):
+        """Extract the red/amont/aval node sets once per call."""
+        node_red_paths = []
+        if structured_graph.red_loops.Path.shape[0] != 0:
+            node_red_paths = set(structured_graph.g_only_red_components.nodes)
+        return {
+            "node_red_paths": node_red_paths,
+            "node_amont_constrained_path": structured_graph.constrained_path.n_amont(),
+            "node_aval_constrained_path": structured_graph.constrained_path.n_aval(),
+        }
 
-        #recover possible target and source nodes on constrained paths and loop paths
+    def _detect_edges_for_target_path(self, gray_components, target_path, structural_info,
+                                      edges_non_connected_lines_to_consider,
+                                      edges_non_connected_lines,
+                                      edges_non_reconnectable_lines,
+                                      depth_reconnectable_edges_search,
+                                      max_null_flow_path_length):
+        """
+        Per-component dispatch to :meth:`detect_edges_to_keep` based on the
+        chosen ``target_path`` strategy. Each strategy picks a different
+        source / target node set on the shared structural_info and may
+        additionally prune positive- or negative-capacity edges from the
+        mutable gray component before running the search.
+        """
+        node_red_paths = structural_info["node_red_paths"]
+        node_amont = structural_info["node_amont_constrained_path"]
+        node_aval = structural_info["node_aval_constrained_path"]
+
         edges_to_keep = set()
-        edges_non_reconnectable=set()
+        edges_non_reconnectable = set()
 
-        if _structural_info is not None:
-            node_red_paths = _structural_info["node_red_paths"]
-            node_amont_constrained_path = _structural_info["node_amont_constrained_path"]
-            node_aval_constrained_path = _structural_info["node_aval_constrained_path"]
-        else:
-            node_red_paths = []
-            if structured_graph.red_loops.Path.shape[0] != 0:
-                node_red_paths = set(structured_graph.g_only_red_components.nodes)
-            node_amont_constrained_path = structured_graph.constrained_path.n_amont()
-            node_aval_constrained_path = structured_graph.constrained_path.n_aval()
+        def _run(g_c, sources, targets):
+            keep, non_rec = self.detect_edges_to_keep(
+                g_c, sources, targets,
+                edges_non_connected_lines, edges_non_reconnectable_lines,
+                depth_edges_search=depth_reconnectable_edges_search,
+                max_null_flow_path_length=max_null_flow_path_length)
+            edges_to_keep.update(keep)
+            edges_non_reconnectable.update(non_rec)
 
-        for g_c in S:
-            #detect new edges with null-flow to highlight on constrained path
-            non_connected_edges = set(edges_non_connected_lines_to_consider).intersection(set(g_c.edges))
-            if len(non_connected_edges) >= 1:
+        for g_c in gray_components:
+            if not edges_non_connected_lines_to_consider.intersection(set(g_c.edges)):
+                continue
 
-                if target_path=="blue_only":
-                    # remove positive edges in gray components first in that case as we are looking for blue negative edge paths
-                    edges_to_remove = [edge for edge, capacity in
-                                       nx.get_edge_attributes(g_c, "capacity").items()
-                                       if capacity > 0.]
-                    g_c.remove_edges_from(edges_to_remove)
-                    ##########
+            if target_path == "blue_only":
+                # Looking for blue (negative) edge paths — drop positive-capacity edges
+                edges_to_remove = [
+                    edge for edge, capacity in nx.get_edge_attributes(g_c, "capacity").items()
+                    if capacity > 0.
+                ]
+                g_c.remove_edges_from(edges_to_remove)
 
-                    intersect_constrained_path_amont = set(g_c).intersection(set(node_amont_constrained_path))
-                    intersect_constrained_path_aval = set(g_c).intersection(set(node_aval_constrained_path))
+                intersect_amont = set(g_c).intersection(node_amont)
+                intersect_aval = set(g_c).intersection(node_aval)
+                _run(g_c, intersect_amont, intersect_amont)
+                _run(g_c, intersect_aval, intersect_aval)
 
-                    #only look at edges that connect "amont" path on one side "aval" path on the other side.
-                    #edges that would connect "amont" and "aval" path should be rather considered as a new loop path and tagged blue
-                    edges_to_keep_path, edges_non_reconnectable_path=self.detect_edges_to_keep(g_c, intersect_constrained_path_amont,
-                                                                                               intersect_constrained_path_amont, edges_non_connected_lines,edges_non_reconnectable_lines,
-                                                                                               depth_edges_search=depth_reconnectable_edges_search,max_null_flow_path_length=max_null_flow_path_length)
-                    edges_to_keep.update(edges_to_keep_path)
-                    edges_non_reconnectable.update(edges_non_reconnectable_path)
+            elif target_path == "blue_amont_aval":
+                intersect_amont = set(g_c).intersection(node_amont)
+                intersect_aval = set(g_c).intersection(node_aval)
+                _run(g_c, intersect_amont, intersect_aval)
 
-                    edges_to_keep_path, edges_non_reconnectable_path=self.detect_edges_to_keep(g_c, intersect_constrained_path_aval,
-                                                                                               intersect_constrained_path_aval, edges_non_connected_lines,edges_non_reconnectable_lines,
-                                                                                               depth_edges_search=depth_reconnectable_edges_search,max_null_flow_path_length=max_null_flow_path_length)
-                    edges_to_keep.update(edges_to_keep_path)
-                    edges_non_reconnectable.update(edges_non_reconnectable_path)
+            elif target_path == "red_only":
+                # Looking for red (positive) edge paths — drop negative-capacity edges
+                edges_to_remove = [
+                    edge for edge, capacity in nx.get_edge_attributes(g_c, "capacity").items()
+                    if capacity < 0.
+                ]
+                g_c.remove_edges_from(edges_to_remove)
 
+                intersect_red = set(g_c).intersection(node_red_paths)
+                _run(g_c, intersect_red, intersect_red)
 
-                elif target_path == "blue_amont_aval":
-                    # check also if exist between amont and aval ?
-                    intersect_constrained_path_amont = set(g_c).intersection(set(node_amont_constrained_path))
-                    intersect_constrained_path_aval = set(g_c).intersection(set(node_aval_constrained_path))
-                    edges_to_keep_path, edges_non_reconnectable_path = self.detect_edges_to_keep(g_c,
-                                                                                                 intersect_constrained_path_amont,
-                                                                                                 intersect_constrained_path_aval,
-                                                                                                 edges_non_connected_lines,
-                                                                                                 edges_non_reconnectable_lines,
-                                                                                                 depth_edges_search=depth_reconnectable_edges_search,max_null_flow_path_length=max_null_flow_path_length)
-                    edges_to_keep.update(edges_to_keep_path)
-                    edges_non_reconnectable.update(edges_non_reconnectable_path)
+            elif target_path == "blue_to_red":
+                intersect_amont = set(g_c).intersection(node_amont)
+                intersect_aval = set(g_c).intersection(node_aval)
+                intersect_red = set(g_c).intersection(node_red_paths)
 
-                # detect new edges with null-flow to highlight on red paths
-                elif target_path=="red_only":
-                    #remove negative edges in gray components first in that case as we are looking for red positive edge paths
-                    edges_to_remove = [edge for edge, capacity in
-                                       nx.get_edge_attributes(g_c, "capacity").items()
-                                       if capacity < 0.]
-                    g_c.remove_edges_from(edges_to_remove)
+                if intersect_amont:
+                    _run(g_c, intersect_amont, intersect_red)
+                if intersect_aval:
+                    _run(g_c, intersect_red, intersect_aval)
+                # Potential new loop path using disconnected lines
+                if intersect_amont and intersect_aval:
+                    _run(g_c, intersect_amont, intersect_aval)
 
-                    #####
-                    intersect_red_path = set(g_c).intersection(set(node_red_paths))
-                    edges_to_keep_path, edges_non_reconnectable_path=self.detect_edges_to_keep(g_c, intersect_red_path,
-                                                                                               intersect_red_path, edges_non_connected_lines,edges_non_reconnectable_lines,
-                                                                                               depth_edges_search=depth_reconnectable_edges_search,max_null_flow_path_length=max_null_flow_path_length)
-                    edges_to_keep.update(edges_to_keep_path)
-                    edges_non_reconnectable.update(edges_non_reconnectable_path)
+        return edges_to_keep, edges_non_reconnectable
 
-                # detect new edges with null-flow to highlight in between constrained path and red paths
-                elif target_path=="blue_to_red":
-
-                    intersect_constrained_path_amont = set(g_c).intersection(set(node_amont_constrained_path))
-                    intersect_constrained_path_aval = set(g_c).intersection(set(node_aval_constrained_path))
-                    intersect_red_path = set(g_c).intersection(set(node_red_paths))
-
-                    # look for edges from constrained path ("amont", before the constraint) to red_path
-                    if len(intersect_constrained_path_amont) != 0:
-                        edges_to_keep_path, edges_non_reconnectable_path=self.detect_edges_to_keep(g_c, intersect_constrained_path_amont, intersect_red_path,
-                                                                  edges_non_connected_lines,edges_non_reconnectable_lines,
-                                                                  depth_edges_search=depth_reconnectable_edges_search,max_null_flow_path_length=max_null_flow_path_length)
-                        edges_to_keep.update(edges_to_keep_path)
-                        edges_non_reconnectable.update(edges_non_reconnectable_path)
-                    # look for edges from red_path to constrained path ("aval", after the constraint)
-                    if len(intersect_constrained_path_aval) != 0:
-                        edges_to_keep_path, edges_non_reconnectable_path =self.detect_edges_to_keep(g_c, intersect_red_path, intersect_constrained_path_aval,
-                                                 edges_non_connected_lines,edges_non_reconnectable_lines,
-                                                 depth_edges_search=depth_reconnectable_edges_search,max_null_flow_path_length=max_null_flow_path_length)
-                        edges_to_keep.update(edges_to_keep_path)
-                        edges_non_reconnectable.update(edges_non_reconnectable_path)
-
-
-                    #look for a new loop path that could exist with disconnected lines
-                    if len(intersect_constrained_path_amont)!=0 and len(intersect_constrained_path_aval) != 0:
-                        edges_to_keep_path, edges_non_reconnectable_path=self.detect_edges_to_keep(g_c, intersect_constrained_path_amont, intersect_constrained_path_aval,
-                                                      edges_non_connected_lines,edges_non_reconnectable_lines,
-                                                      depth_edges_search=depth_reconnectable_edges_search,max_null_flow_path_length=max_null_flow_path_length)
-                        edges_to_keep.update(edges_to_keep_path)
-                        edges_non_reconnectable.update(edges_non_reconnectable_path)
-
-
-        #color those edges in blue or red
-        if target_path=="blue_only":
-            edge_attribues_to_set = {edge: {"color": "blue"} for edge in edges_to_keep}
-        elif target_path=="blue_to_red":
+    def _apply_null_flow_recoloring(self, target_path, edges_to_keep, edges_non_reconnectable,
+                                    edges_to_double, edges_double_added):
+        """
+        Paint the detected edges and roll back the double-edges that were
+        not used. Blue/red colours follow the ``target_path`` strategy; for
+        ``blue_to_red`` we additionally look at the current capacity sign so
+        negative edges stay blue even inside a red-tagged path.
+        """
+        if target_path == "blue_only":
+            edge_attributes = {edge: {"color": "blue"} for edge in edges_to_keep}
+        elif target_path == "blue_to_red":
             current_weights = nx.get_edge_attributes(self.g, 'capacity')
-            edge_attribues_to_set = {edge: {"color": "coral"} for edge in edges_to_keep}
-            #mark negative edges as blue
-            edge_attribues_to_set.update({edge: {"color": "blue"} for edge in edges_to_keep if current_weights[edge]<0})
+            edge_attributes = {edge: {"color": "coral"} for edge in edges_to_keep}
+            edge_attributes.update({
+                edge: {"color": "blue"}
+                for edge in edges_to_keep
+                if current_weights[edge] < 0
+            })
         else:
-            edge_attribues_to_set = {edge: {"color": "coral"} for edge in edges_to_keep}
+            edge_attributes = {edge: {"color": "coral"} for edge in edges_to_keep}
 
-        #make special case for non reconnectable lines
-        edge_attribues_to_set.update({edge: {"color": "dimgray"} for edge in edges_non_reconnectable if self.g.edges[edge]["color"]=="gray"})
+        # Non-reconnectable edges that were still gray get marked dimgray
+        edge_attributes.update({
+            edge: {"color": "dimgray"}
+            for edge in edges_non_reconnectable
+            if self.g.edges[edge]["color"] == "gray"
+        })
 
-        nx.set_edge_attributes(self.g, edge_attribues_to_set)
+        nx.set_edge_attributes(self.g, edge_attributes)
 
-        # also make no direction for kept edges
-        edge_dirs = {edge: "none" for edge in edges_to_keep.intersection(set(edges_to_double.values()).union(set(edges_double_added.values())))}#only for the zero edges
+        # Kept edges that came from the "double edge" trick should be drawn
+        # without an arrow tip (they represent null-flow lines).
+        doubled_edges = set(edges_to_double.values()) | set(edges_double_added.values())
+        edge_dirs = {edge: "none" for edge in edges_to_keep.intersection(doubled_edges)}
         nx.set_edge_attributes(self.g, edge_dirs, "dir")
 
-        # represent null-flow edges with new colors as dashed lines
-        #edges_non_connected_lines_displayed=edges_to_keep.intersection(edges_non_connected_lines)
-        #edge_attribues_to_set = {edge: {"style": "dashed"} for edge in edges_non_connected_lines_displayed}
-        ## make special case for non reconnectable lines
-        #edges_non_reconnectable_lines_displayed = edges_non_reconnectable.intersection(edges_non_reconnectable_lines)
-        #edge_attribues_to_set.update(
-        #    {edge: {"style": "dotted"} for edge in edges_non_reconnectable_lines_displayed})#only for actually disconnected lines
-#
-        #nx.set_edge_attributes(self.g, edge_attribues_to_set)
+        # Roll back unused doubled edges
+        self.g = remove_unused_added_double_edge(
+            self.g, edges_to_keep, edges_to_double, edges_double_added)
 
-        #remove added double edges not used
-        self.g=remove_unused_added_double_edge(self.g,edges_to_keep,edges_to_double, edges_double_added)
-
-    def detect_edges_to_keep(self,g_c, source_nodes, target_nodes, edges_of_interest,non_reconnectable_edges=[],depth_edges_search=2,max_null_flow_path_length=7):
+    def detect_edges_to_keep(self, g_c, source_nodes, target_nodes, edges_of_interest,
+                             non_reconnectable_edges=[], depth_edges_search=2,
+                             max_null_flow_path_length=7):
         """
-        detect edges in edges of interest that belongs to the subgraph and are on a path between source nodes and target nodes
+        Detect edges in ``edges_of_interest`` that lie on a short path between
+        ``source_nodes`` and ``target_nodes`` inside the subgraph ``g_c``.
 
-        Parameters
-        ----------
+        The work is split across five helpers:
 
-        g_c: ``Networkx Graph``
-            a networkx subgraph of gray edges to possibly recolor
-
-
-        source_nodes: ``array`` str
-            list of nodes, that belong to either constrained path or red loops, from which to find a path
-
-        target_nodes: ``array`` str
-            list of nodes, that belong to either constrained path or red loops, to which to find a path
-
-        depth_edges_search: int
-            The max distance from which to first identify possible relevant reconnectable edges and then look for paths
+        - :meth:`_prepare_detect_edges_inputs` handles every early-exit case,
+          flips negative capacities, and collects the per-node metadata.
+        - :meth:`_compute_sssp_paths` runs one single-source Dijkstra per
+          source node with an incentivised weight function.
+        - :meth:`_collect_paths_of_interest` materialises the shortest paths
+          that actually traverse an edge of interest.
+        - :meth:`_classify_paths_by_reconnectability` splits the collected
+          paths into reconnectable / non-reconnectable edges.
 
         Returns
-        ----------
-        res: ``set`` str
-            set of edges of interest found on paths and to be recoloured
+        -------
+        (set, set)
+            ``(reconnectable_edges, non_reconnectable_edges)`` — both sets of
+            MultiDiGraph edge keys.
+        """
+        prepared = self._prepare_detect_edges_inputs(
+            g_c, source_nodes, target_nodes, edges_of_interest,
+            non_reconnectable_edges, depth_edges_search)
+        if prepared is None:
+            return set(), set()
+
+        sssp_paths_cache = self._compute_sssp_paths(g_c, prepared, edges_of_interest)
+        paths_of_interest = self._collect_paths_of_interest(
+            g_c, prepared, sssp_paths_cache, max_null_flow_path_length)
+        return self._classify_paths_by_reconnectability(prepared, paths_of_interest)
+
+    # ------------------------------------------------------------------
+    # Helpers for detect_edges_to_keep
+    # ------------------------------------------------------------------
+
+    def _prepare_detect_edges_inputs(self, g_c, source_nodes, target_nodes, edges_of_interest,
+                                     non_reconnectable_edges, depth_edges_search):
+        """
+        Run the up-front bookkeeping shared by every branch of
+        :meth:`detect_edges_to_keep`:
+
+        - filter ``edges_of_interest`` / ``source_nodes`` / ``target_nodes``
+          down to what exists in ``g_c``,
+        - flip the sign of any negative-capacity edge (single pass),
+        - pre-compute which nodes have an incident edge of interest,
+        - pre-compute per-node BFS results for the edge-name search.
+
+        Returns ``None`` if any early-exit condition is met; otherwise a
+        dictionary with the cached structures for downstream helpers.
         """
         g_c_edge_names_dict = nx.get_edge_attributes(g_c, "name")
 
-        # Pre-filter edges of interest to only those present in this component
         edges_of_interest_in_gc = edges_of_interest & set(g_c_edge_names_dict.keys())
-
-        # Early exit: no edges of interest in this component
         if not edges_of_interest_in_gc:
-            return set(), set()
+            return None
 
-        edge_names_of_interest = set(g_c_edge_names_dict[edge] for edge in edges_of_interest_in_gc)
-        non_reconnectable_edges_names = set(g_c_edge_names_dict[edge] for edge in non_reconnectable_edges if edge in g_c_edge_names_dict)
+        edge_names_of_interest = {g_c_edge_names_dict[edge] for edge in edges_of_interest_in_gc}
+        non_reconnectable_edges_names = {
+            g_c_edge_names_dict[edge] for edge in non_reconnectable_edges
+            if edge in g_c_edge_names_dict
+        }
 
-        # Flip negative capacities once (instead of once per source-target pair)
-        new_attributes_dict = {e: {"capacity": -capacity} for e, capacity
-            in nx.get_edge_attributes(g_c, "capacity").items() if capacity < 0}
+        # Flip negative capacities once (single pass)
+        new_attributes_dict = {
+            e: {"capacity": -capacity}
+            for e, capacity in nx.get_edge_attributes(g_c, "capacity").items()
+            if capacity < 0
+        }
         if new_attributes_dict:
             nx.set_edge_attributes(g_c, new_attributes_dict)
 
-        # Filter source/target nodes to those actually in g_c
         source_nodes_in_gc = [s for s in source_nodes if s in g_c]
         target_nodes_in_gc = [t for t in target_nodes if t in g_c]
-
         if not source_nodes_in_gc or not target_nodes_in_gc:
-            return set(), set()
+            return None
 
-        # Precompute incident edges per unique node (avoids recomputation in O(S*T) loop)
         unique_nodes = set(source_nodes_in_gc) | set(target_nodes_in_gc)
         node_has_incident_interest = {}
         for node in unique_nodes:
             incident = set(g_c.out_edges(node, keys=True)) | set(g_c.in_edges(node, keys=True))
             node_has_incident_interest[node] = bool(incident & edges_of_interest_in_gc)
 
-        # Early exit: no node has incident edges of interest
         if not any(node_has_incident_interest.values()):
-            return set(), set()
+            return None
 
-        # Precompute BFS results per unique node (avoids redundant BFS in O(S*T) loop)
-        bfs_cache = {}
-        for node in unique_nodes:
-            bfs_cache[node] = find_multidigraph_edges_by_name(
-                g_c, node, edge_names_of_interest, depth=depth_edges_search, name_attr="name")
+        bfs_cache = {
+            node: find_multidigraph_edges_by_name(
+                g_c, node, edge_names_of_interest,
+                depth=depth_edges_search, name_attr="name")
+            for node in unique_nodes
+        }
 
-        # Pre-check: which sources/targets have BFS results
         targets_with_bfs = frozenset(t for t in target_nodes_in_gc if bfs_cache[t])
         any_target_has_interest = any(node_has_incident_interest[t] for t in target_nodes_in_gc)
 
-        # Build incentivized weight function for single-source Dijkstra
-        # (matches the logic in shortest_path_with_promoted_edges)
+        return {
+            "g_c_edge_names_dict": g_c_edge_names_dict,
+            "edges_of_interest_in_gc": edges_of_interest_in_gc,
+            "edge_names_of_interest": edge_names_of_interest,
+            "non_reconnectable_edges_names": non_reconnectable_edges_names,
+            "source_nodes_in_gc": source_nodes_in_gc,
+            "target_nodes_in_gc": target_nodes_in_gc,
+            "node_has_incident_interest": node_has_incident_interest,
+            "bfs_cache": bfs_cache,
+            "targets_with_bfs": targets_with_bfs,
+            "any_target_has_interest": any_target_has_interest,
+        }
+
+    def _compute_sssp_paths(self, g_c, prepared, edges_of_interest):
+        """
+        Run single-source Dijkstra once per source node with a weight function
+        that massively favours low-capacity edges and gently promotes edges
+        of interest when capacities tie. Returns a dict
+        ``source_node -> {target_node -> path_nodes}``.
+        """
         HUGE_MULTIPLIER = 1_000_000_000
         NORMAL_HOP_COST = 100
         PROMOTED_HOP_COST = 33
@@ -1258,10 +1348,13 @@ class OverFlowGraph(PowerFlowGraph):
             hop_cost = PROMOTED_HOP_COST if is_promoted else NORMAL_HOP_COST
             return (real_weight * HUGE_MULTIPLIER) + hop_cost
 
-        # Run single-source Dijkstra per unique source (O(S) instead of O(S*T) Dijkstra calls)
+        bfs_cache = prepared["bfs_cache"]
+        targets_with_bfs = prepared["targets_with_bfs"]
+        node_has_incident_interest = prepared["node_has_incident_interest"]
+        any_target_has_interest = prepared["any_target_has_interest"]
+
         sssp_paths_cache = {}
-        for source_node in set(source_nodes_in_gc):
-            # Quick check: does this source have at least one valid target?
+        for source_node in set(prepared["source_nodes_in_gc"]):
             if not node_has_incident_interest[source_node] and not any_target_has_interest:
                 continue
             if not bfs_cache[source_node] and not targets_with_bfs:
@@ -1271,8 +1364,22 @@ class OverFlowGraph(PowerFlowGraph):
                     g_c, source_node, weight=incentivized_weight)
             except Exception:
                 sssp_paths_cache[source_node] = {}
+        return sssp_paths_cache
 
-        # Find paths of interest by looking up cached shortest paths
+    def _collect_paths_of_interest(self, g_c, prepared, sssp_paths_cache, max_null_flow_path_length):
+        """
+        Walk the (source, target) product and materialise the paths whose
+        node-count is within ``max_null_flow_path_length`` and which actually
+        traverse at least one edge of interest. Paths are returned sorted by
+        length so the downstream classifier can dedupe greedily.
+        """
+        source_nodes_in_gc = prepared["source_nodes_in_gc"]
+        target_nodes_in_gc = prepared["target_nodes_in_gc"]
+        bfs_cache = prepared["bfs_cache"]
+        targets_with_bfs = prepared["targets_with_bfs"]
+        node_has_incident_interest = prepared["node_has_incident_interest"]
+        edges_of_interest_in_gc = prepared["edges_of_interest_in_gc"]
+
         paths_of_interest = []
         for source_node in source_nodes_in_gc:
             if source_node not in sssp_paths_cache:
@@ -1284,41 +1391,51 @@ class OverFlowGraph(PowerFlowGraph):
             for target_node in target_nodes_in_gc:
                 if source_node == target_node:
                     continue
-
-                # Edge of interest should be at the interface, one neighbor away
                 if not source_has_interest and not node_has_incident_interest[target_node]:
                     continue
-
-                # Check BFS: edges of interest reachable from source or target
                 if not source_has_bfs and target_node not in targets_with_bfs:
                     continue
 
-                if target_node in source_paths:
-                    path_nodes = source_paths[target_node]
-                    if len(path_nodes) > 0 and len(path_nodes) <= max_null_flow_path_length:
-                        path = nodepath_to_edgepath(g_c, path_nodes, with_keys=True)
-                        if any(edge in edges_of_interest_in_gc for edge in path):
-                            paths_of_interest.append(path)
+                path_nodes = source_paths.get(target_node)
+                if not path_nodes or len(path_nodes) > max_null_flow_path_length:
+                    continue
+                path = nodepath_to_edgepath(g_c, path_nodes, with_keys=True)
+                if any(edge in edges_of_interest_in_gc for edge in path):
+                    paths_of_interest.append(path)
 
-        # Sort paths to start looking at the shortest ones and tag them of interest
         paths_of_interest.sort(key=len)
-        edge_names_already_found_in_path = set()
+        return paths_of_interest
+
+    def _classify_paths_by_reconnectability(self, prepared, paths_of_interest):
+        """
+        Greedy dedupe over the sorted ``paths_of_interest``: each edge name
+        is attributed to the *first* (shortest) path that uses it, and the
+        path as a whole is classified as non-reconnectable iff any of its
+        newly-attributed edges is in the non-reconnectable edge-name set.
+        """
+        g_c_edge_names_dict = prepared["g_c_edge_names_dict"]
+        edge_names_of_interest = prepared["edge_names_of_interest"]
+        non_reconnectable_edges_names = prepared["non_reconnectable_edges_names"]
+
+        edge_names_already_found = set()
         edges_to_keep_reconnectable = []
         edges_to_keep_non_reconnectable = []
 
         for path in paths_of_interest:
-            path_edges_not_already_found = set(
-                edge for edge in path if g_c_edge_names_dict[edge] not in edge_names_already_found_in_path)
-            path_edge_names_not_already_found = set(g_c_edge_names_dict[edge] for edge in path_edges_not_already_found)
+            fresh_edges = {
+                edge for edge in path
+                if g_c_edge_names_dict[edge] not in edge_names_already_found
+            }
+            fresh_edge_names = {g_c_edge_names_dict[edge] for edge in fresh_edges}
 
-            found_remaining_edges_names_of_interest_in_path = path_edge_names_not_already_found & edge_names_of_interest
-            if found_remaining_edges_names_of_interest_in_path:
-                found_remaining_non_reconnectable_edges_names = path_edge_names_not_already_found & non_reconnectable_edges_names
-                if found_remaining_non_reconnectable_edges_names:
-                    edges_to_keep_non_reconnectable += path_edges_not_already_found
-                else:
-                    edges_to_keep_reconnectable += path_edges_not_already_found
-                edge_names_already_found_in_path |= path_edge_names_not_already_found
+            if not (fresh_edge_names & edge_names_of_interest):
+                continue
+
+            if fresh_edge_names & non_reconnectable_edges_names:
+                edges_to_keep_non_reconnectable += fresh_edges
+            else:
+                edges_to_keep_reconnectable += fresh_edges
+            edge_names_already_found |= fresh_edge_names
 
         return set(edges_to_keep_reconnectable), set(edges_to_keep_non_reconnectable)
 
