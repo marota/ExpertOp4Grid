@@ -8,6 +8,7 @@
 
 import logging
 import pprint
+from typing import Any, Dict, List, Tuple
 
 import numpy as np
 
@@ -17,6 +18,7 @@ from alphaDeesp.core.elements import (
     OriginLine,
     Production,
 )
+from alphaDeesp.core.simulation import SubstationElement
 from alphaDeesp.core.twin_nodes import (
     is_twin_node_id,
     original_substation_id,
@@ -37,7 +39,7 @@ class Network:
         self.substation_id_busbar_id_node_id_mapping = substation_id_busbar_id_to_node_id_mapping
 
     """
-    def __init__(self, substations_elements: dict):
+    def __init__(self, substations_elements: Dict[int, List[SubstationElement]]) -> None:
         logger.debug("A Network got created...")
 
         nodes = sorted(list(substations_elements.keys()))
@@ -100,8 +102,8 @@ class Network:
 
         ################################
         ################################
-        final_array_for_drawing_nodes = []
-        save_for_complementary_nodes = []
+        final_array_for_drawing_nodes: List[Tuple[Any, Any]] = []
+        save_for_complementary_nodes: List[Tuple[Any, Any]] = []
         # LOOP THROUGH SUBSTATIONS
         for substation_id in nodes:
             for busbar in mapping_node_id_to_prod_minus_load[substation_id].keys():
@@ -127,7 +129,7 @@ class Network:
         if logger.isEnabledFor(logging.DEBUG):
             logger.debug("final_array_for_drawing_nodes (with complementaries)\n%s",
                          pprint.pformat(final_array_for_drawing_nodes))
-        self.nodes_prod_values = final_array_for_drawing_nodes
+        self.nodes_prod_values: List[Tuple[Any, Any]] = final_array_for_drawing_nodes
 
         #####################################################################################################
         # ##################################### EDGE PART PREPROCESSING #####################################
@@ -179,17 +181,19 @@ class Network:
             logger.debug("substation_id_busbar_id_to_node_id_mapping\n%s",
                          pprint.pformat(substation_id_busbar_id_to_node_id_mapping))
 
-        self.substation_id_busbar_id_node_id_mapping = substation_id_busbar_id_to_node_id_mapping
-        self.nb_graphical_nodes = len(list(substation_id_busbar_id_to_node_id_mapping.keys()))
+        self.substation_id_busbar_id_node_id_mapping: Dict[int, Dict[int, Any]] = (
+            substation_id_busbar_id_to_node_id_mapping
+        )
+        self.nb_graphical_nodes: int = len(list(substation_id_busbar_id_to_node_id_mapping.keys()))
         logger.debug("There are %s graphical nodes in this graph.", self.nb_graphical_nodes)
 
 
-    def get_number_total_number_of_nodes(self):
+    def get_number_total_number_of_nodes(self) -> None:
         """
         Nodes, meaning counting splits if diff busbars
         :return:
         """
         pass
 
-    def get_graphical_number_of_nodes(self):
+    def get_graphical_number_of_nodes(self) -> int:
         return self.nb_graphical_nodes

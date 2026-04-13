@@ -1,5 +1,6 @@
 
 import logging
+from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
 
 import pandas as pd
 import networkx as nx
@@ -17,7 +18,7 @@ class PowerFlowGraph:
     A coloured graph of current grid state with productions, consumptions and topology
     """
 
-    def __init__(self, topo,lines_cut,layout=None,float_precision="%.2f"):
+    def __init__(self, topo: Dict[str, Any], lines_cut: List[int], layout: Optional[List[Tuple[float, float]]] = None, float_precision: str = "%.2f") -> None:
         """
         Parameters
         ----------
@@ -40,7 +41,7 @@ class PowerFlowGraph:
         self.build_graph()
         #self.g=self.build_powerflow_graph()
 
-    def build_graph(self):
+    def build_graph(self) -> None:
         """This method creates the NetworkX Graph of the grid state"""
         g = nx.MultiDiGraph()
 
@@ -64,7 +65,7 @@ class PowerFlowGraph:
         #return g
         self.g=g
 
-    def build_nodes(self,g, are_prods, are_loads, prods_values, loads_values,debug=False):
+    def build_nodes(self, g: nx.MultiDiGraph, are_prods: Any, are_loads: Any, prods_values: Any, loads_values: Any, debug: bool = False) -> None:
         """
         Create nodes in graph for current grid state
 
@@ -109,7 +110,7 @@ class PowerFlowGraph:
                            fillcolor="#ffffed")  # white color
             i += 1
 
-    def build_edges(self,g, idx_or, idx_ex, edge_weights):
+    def build_edges(self, g: nx.MultiDiGraph, idx_or: Any, idx_ex: Any, edge_weights: Any) -> None:
 
         """
         Create edges in graph for current grid state
@@ -159,7 +160,7 @@ class PowerFlowGraph:
                            penwidth=max(float(self.float_precision % penwidth),min_penwidth))
 
 
-    def get_graph(self):
+    def get_graph(self) -> nx.MultiDiGraph:
         """
         Returns the NetworkX graph representing the current state of the power flow.
 
@@ -170,7 +171,7 @@ class PowerFlowGraph:
         """
         return self.g
 
-    def set_voltage_level_color(self, voltage_levels_dict, voltage_colors=default_voltage_colors):
+    def set_voltage_level_color(self, voltage_levels_dict: Dict[Any, Any], voltage_colors: Dict[Any, str] = default_voltage_colors) -> None:
         """
         Sets the voltage level color for each node in the graph based on the provided voltage levels dictionary.
 
@@ -189,7 +190,7 @@ class PowerFlowGraph:
 
         nx.set_node_attributes(self.g, voltage_levels_colors_dict, "color")
 
-    def set_electrical_node_number(self, nodal_number_dict):
+    def set_electrical_node_number(self, nodal_number_dict: Dict[Any, Any]) -> None:
         """
         Sets the electrical node number for each node in the graph based on the provided nodal number dictionary.
 
@@ -206,7 +207,7 @@ class PowerFlowGraph:
 
         nx.set_node_attributes(self.g, peripheries_dict, "peripheries")
 
-    def plot(self, save_folder, name, state="before", sim=None):
+    def plot(self, save_folder: str, name: str, state: str = "before", sim: Optional[Any] = None) -> None:
         """
         Plots the graph using the Printer class.
 
@@ -245,7 +246,7 @@ class OverFlowGraph(PowerFlowGraph):
     A coloured graph of grid overflow redispatch, displaying the delta flows before and after disconnecting the overloaded lines
     """
 
-    def __init__(self, topo,lines_to_cut,df_overflow,layout=None,float_precision="%.2f"):
+    def __init__(self, topo: Dict[str, Any], lines_to_cut: List[int], df_overflow: pd.DataFrame, layout: Optional[List[Tuple[float, float]]] = None, float_precision: str = "%.2f") -> None:
         """
         Parameters
         ----------
@@ -269,7 +270,7 @@ class OverFlowGraph(PowerFlowGraph):
         self.df = df_overflow
         super().__init__(topo, lines_to_cut,layout,float_precision)
 
-    def build_graph(self):
+    def build_graph(self) -> None:
         """This method creates the NetworkX Graph of the overflow redispatch """
         g = nx.MultiDiGraph()
         self.build_nodes(g, self.topo["nodes"]["are_prods"], self.topo["nodes"]["are_loads"],
@@ -284,7 +285,7 @@ class OverFlowGraph(PowerFlowGraph):
         self.g=g
         #self.add_double_edges_null_redispatch()
 
-    def build_edges_from_df(self, g, lines_to_cut):
+    def build_edges_from_df(self, g: nx.MultiDiGraph, lines_to_cut: List[int]) -> None:
         """
         Create edges in graph for overflow redispatch
 
@@ -331,7 +332,7 @@ class OverFlowGraph(PowerFlowGraph):
             i += 1
         #nx.set_edge_attributes(g, {e:self.df["line_name"][i] for i,e in enumerate(g.edges)}, name="name")
 
-    def keep_overloads_components(self):
+    def keep_overloads_components(self) -> None:
         """
         Filter the graph to only keep components that contain overloaded (black) edges.
 
@@ -362,7 +363,7 @@ class OverFlowGraph(PowerFlowGraph):
                         if self.g[u][v][key].get("color") != "gray":
                             self.g[u][v][key]["color"] = "gray"
 
-    def consolidate_constrained_path(self, constrained_path_nodes_amont,constrained_path_nodes_aval,constrained_path_edges,ignore_null_edges=True):#hub_sources,hub_targets):
+    def consolidate_constrained_path(self, constrained_path_nodes_amont: List[Any], constrained_path_nodes_aval: List[Any], constrained_path_edges: List[Any], ignore_null_edges: bool = True) -> None:  # hub_sources,hub_targets):
         """
         Consolidate constrained blue path for some edges that were discarded with lower values but are actually on the path
         knowing the hubs in the SuscturedOverflowGraph
@@ -493,7 +494,7 @@ class OverFlowGraph(PowerFlowGraph):
 #
         #print("ok")
 
-    def reverse_edges(self, edge_path_names,target_color):
+    def reverse_edges(self, edge_path_names: List[str], target_color: str) -> None:
 
         graph_adge_names = nx.get_edge_attributes(self.g, 'name')
         edges_path=[edge for edge, name in graph_adge_names.items() if name in edge_path_names]
@@ -519,7 +520,7 @@ class OverFlowGraph(PowerFlowGraph):
         self.g.add_edges_from([(edge[1], edge[0], edge[2]) for edge in path_subgraph_to_reverse.edges(data=True)])
         self.g.remove_edges_from(edges_to_reverse)
 
-    def reverse_blue_edges_in_looppaths(self, constrained_path):
+    def reverse_blue_edges_in_looppaths(self, constrained_path: List[Any]) -> None:
         """
         Reverse blue edges that are not on the constrained paths, and that should be regarded as edges on which we are pushing
         the flows
@@ -558,7 +559,7 @@ class OverFlowGraph(PowerFlowGraph):
         self.g.add_edges_from([(edge[1], edge[0], edge[2]) for edge in g_without_pos_edges.edges(data=True)])
         self.g.remove_edges_from(g_without_pos_edges.edges)
 
-    def consolidate_loop_path(self, hub_sources,hub_targets,ignore_null_edges=True):
+    def consolidate_loop_path(self, hub_sources: Iterable[Any], hub_targets: Iterable[Any], ignore_null_edges: bool = True) -> None:
         """
         Consolidate constrained red path for some edges that were discarded with lower values but are actually on the path
         knowing the hubs in the SuscturedOverflowGraph
@@ -598,7 +599,7 @@ class OverFlowGraph(PowerFlowGraph):
         edge_attribues_to_set = {edge: {"color": "coral"} for i,edge in enumerate(g_without_blue_edges.edges) if edge in all_edges_to_recolor and current_colors[edge]=="gray"}
         nx.set_edge_attributes(self.g, edge_attribues_to_set)
 
-    def set_hubs_shape(self, hubs,shape_hub="circle"):
+    def set_hubs_shape(self, hubs: Iterable[Any], shape_hub: str = "circle") -> None:
         """
         Distinguish the shape of "hub" nodes to make them more visible
 
@@ -617,7 +618,7 @@ class OverFlowGraph(PowerFlowGraph):
 
         nx.set_node_attributes(self.g, dict_shapes, "shape")
 
-    def highlight_swapped_flows(self, lines_swapped):
+    def highlight_swapped_flows(self, lines_swapped: List[Any]) -> None:
         """
         Highlight lines with "tappered" style on edge that have seen their flows swapped in the overflow graph to be aware of that
 
@@ -637,7 +638,7 @@ class OverFlowGraph(PowerFlowGraph):
         nx.set_edge_attributes(self.g, edge_dirs, "dir")
         nx.set_edge_attributes(self.g, edge_tails, "arrowtail")
 
-    def highlight_significant_line_loading(self, dict_line_loading):
+    def highlight_significant_line_loading(self, dict_line_loading: Dict[Any, Any]) -> None:
         """
         Highlight lines that could get overloaded and should be monitored. Edge label is augmented with change in loading rate
         before and after the constrained line cut
@@ -680,7 +681,7 @@ class OverFlowGraph(PowerFlowGraph):
         nx.set_edge_attributes(self.g, label_font_color, "fontcolor")
         nx.set_edge_attributes(self.g, edge_colors, "color")
 
-    def plot(self,layout,rescale_factor=None,allow_overlap=True,fontsize=None,node_thickness=3,save_folder="",without_gray_edges=False):
+    def plot(self, layout: Optional[List[Any]], rescale_factor: Optional[float] = None, allow_overlap: bool = True, fontsize: Optional[int] = None, node_thickness: int = 3, save_folder: str = "", without_gray_edges: bool = False) -> Any:
         printer=Printer(save_folder)
         g=self.g
 
@@ -701,7 +702,7 @@ class OverFlowGraph(PowerFlowGraph):
             printer.display_geo(g, layout,rescale_factor=rescale_factor,fontsize=fontsize,node_thickness=node_thickness, name="g_overflow_print")
             return None
 
-    def consolidate_graph(self, structured_graph,non_connected_lines_to_ignore=[],no_desambiguation=False):
+    def consolidate_graph(self, structured_graph: Any, non_connected_lines_to_ignore: List[Any] = [], no_desambiguation: bool = False) -> None:
         """
         Consolidate overflow graph knwoing structural elements from SuscturedOverflowGraph
 
@@ -764,7 +765,7 @@ class OverFlowGraph(PowerFlowGraph):
         #add back removed edges
         self.g.add_edges_from(edges_to_remove_data)
 
-    def identify_ambiguous_paths(self, structured_graph):
+    def identify_ambiguous_paths(self, structured_graph: Any) -> Tuple[List[Any], List[Any]]:
         """
         Identify ambiguous paths in the structured graph.
 
@@ -819,7 +820,7 @@ class OverFlowGraph(PowerFlowGraph):
 
         return ambiguous_edge_paths, ambiguous_node_paths
 
-    def desambiguation_type_path(self, ambiguous_node_path, structured_graph):
+    def desambiguation_type_path(self, ambiguous_node_path: Iterable[Any], structured_graph: Any) -> str:
         """
         Desambiguates the type of path for ambiguous nodes based on the structured graph.
 
@@ -876,12 +877,12 @@ class OverFlowGraph(PowerFlowGraph):
             # it is classified as a loop path
             return "loop_path"
 
-    def rename_nodes(self,mapping):
+    def rename_nodes(self, mapping: Dict[Any, Any]) -> None:
         self.g = nx.relabel_nodes(self.g, mapping, copy=True)
         self.df["idx_or"]=[mapping[idx_or] for idx_or in self.df["idx_or"]]
         self.df["idx_ex"] = [mapping[idx_or] for idx_or in self.df["idx_ex"]]
 
-    def _setup_null_flow_styles(self, non_connected_lines, non_reconnectable_lines):
+    def _setup_null_flow_styles(self, non_connected_lines: List[Any], non_reconnectable_lines: List[Any]) -> List[Any]:
         """
         One-time setup of edge styles and directions for non-connected/non-reconnectable lines.
         Returns pre-computed edge sets for reuse across target_path iterations.
@@ -909,7 +910,7 @@ class OverFlowGraph(PowerFlowGraph):
 
         return non_connected_lines
 
-    def add_relevant_null_flow_lines_all_paths(self, structured_graph, non_connected_lines,non_reconnectable_lines=[]):
+    def add_relevant_null_flow_lines_all_paths(self, structured_graph: Any, non_connected_lines: List[Any], non_reconnectable_lines: List[Any] = []) -> None:
         """
         Make edges bi-directionnal when flow redispatch value is null
 
@@ -950,11 +951,11 @@ class OverFlowGraph(PowerFlowGraph):
 
 
 
-    def add_relevant_null_flow_lines(self, structured_graph, non_connected_lines,
-                                     non_reconnectable_lines=[], target_path="blue_to_red",
-                                     depth_reconnectable_edges_search=2,
-                                     max_null_flow_path_length=7,
-                                     _skip_style_setup=False, _structural_info=None):
+    def add_relevant_null_flow_lines(self, structured_graph: Any, non_connected_lines: List[Any],
+                                     non_reconnectable_lines: List[Any] = [], target_path: str = "blue_to_red",
+                                     depth_reconnectable_edges_search: int = 2,
+                                     max_null_flow_path_length: int = 7,
+                                     _skip_style_setup: bool = False, _structural_info: Optional[Dict[str, Any]] = None) -> None:
         """
         Make edges bi-directional when flow redispatch is null, recolor the
         relevant ones that could be of interest for analyzing or solving the
@@ -1026,7 +1027,7 @@ class OverFlowGraph(PowerFlowGraph):
     # Helpers for add_relevant_null_flow_lines
     # ------------------------------------------------------------------
 
-    def _prepare_null_flow_edge_sets(self, non_connected_lines, non_reconnectable_lines):
+    def _prepare_null_flow_edge_sets(self, non_connected_lines: List[Any], non_reconnectable_lines: List[Any]) -> Dict[str, Any]:
         """
         Compute the input edge sets used by :meth:`add_relevant_null_flow_lines`:
         the plain line-name sets, plus ``edges_non_connected_lines_to_consider``
@@ -1064,7 +1065,7 @@ class OverFlowGraph(PowerFlowGraph):
             "edges_non_connected_lines_to_consider": edges_non_connected_lines_to_consider,
         }
 
-    def _build_gray_components(self):
+    def _build_gray_components(self) -> List[Any]:
         """
         Build the list of weakly connected components consisting only of
         "gray" edges (i.e. non-coral/blue/black). Components are returned
@@ -1088,7 +1089,7 @@ class OverFlowGraph(PowerFlowGraph):
         ]
 
     @staticmethod
-    def _structural_info_for_null_flow(structured_graph):
+    def _structural_info_for_null_flow(structured_graph: Any) -> Dict[str, Any]:
         """Extract the red/amont/aval node sets once per call."""
         node_red_paths = []
         if structured_graph.red_loops.Path.shape[0] != 0:
@@ -1099,12 +1100,12 @@ class OverFlowGraph(PowerFlowGraph):
             "node_aval_constrained_path": structured_graph.constrained_path.n_aval(),
         }
 
-    def _detect_edges_for_target_path(self, gray_components, target_path, structural_info,
-                                      edges_non_connected_lines_to_consider,
-                                      edges_non_connected_lines,
-                                      edges_non_reconnectable_lines,
-                                      depth_reconnectable_edges_search,
-                                      max_null_flow_path_length):
+    def _detect_edges_for_target_path(self, gray_components: List[Any], target_path: str, structural_info: Dict[str, Any],
+                                      edges_non_connected_lines_to_consider: Set[Any],
+                                      edges_non_connected_lines: Set[Any],
+                                      edges_non_reconnectable_lines: Set[Any],
+                                      depth_reconnectable_edges_search: int,
+                                      max_null_flow_path_length: int) -> Tuple[Set[Any], Set[Any]]:
         """
         Per-component dispatch to :meth:`detect_edges_to_keep` based on the
         chosen ``target_path`` strategy. Each strategy picks a different
@@ -1176,8 +1177,8 @@ class OverFlowGraph(PowerFlowGraph):
 
         return edges_to_keep, edges_non_reconnectable
 
-    def _apply_null_flow_recoloring(self, target_path, edges_to_keep, edges_non_reconnectable,
-                                    edges_to_double, edges_double_added):
+    def _apply_null_flow_recoloring(self, target_path: str, edges_to_keep: Set[Any], edges_non_reconnectable: Set[Any],
+                                    edges_to_double: Dict[Any, Any], edges_double_added: Dict[Any, Any]) -> None:
         """
         Paint the detected edges and roll back the double-edges that were
         not used. Blue/red colours follow the ``target_path`` strategy; for
@@ -1216,9 +1217,9 @@ class OverFlowGraph(PowerFlowGraph):
         self.g = remove_unused_added_double_edge(
             self.g, edges_to_keep, edges_to_double, edges_double_added)
 
-    def detect_edges_to_keep(self, g_c, source_nodes, target_nodes, edges_of_interest,
-                             non_reconnectable_edges=[], depth_edges_search=2,
-                             max_null_flow_path_length=7):
+    def detect_edges_to_keep(self, g_c: nx.MultiDiGraph, source_nodes: Iterable[Any], target_nodes: Iterable[Any], edges_of_interest: Set[Any],
+                             non_reconnectable_edges: List[Any] = [], depth_edges_search: int = 2,
+                             max_null_flow_path_length: int = 7) -> Tuple[Set[Any], Set[Any]]:
         """
         Detect edges in ``edges_of_interest`` that lie on a short path between
         ``source_nodes`` and ``target_nodes`` inside the subgraph ``g_c``.
@@ -1255,8 +1256,8 @@ class OverFlowGraph(PowerFlowGraph):
     # Helpers for detect_edges_to_keep
     # ------------------------------------------------------------------
 
-    def _prepare_detect_edges_inputs(self, g_c, source_nodes, target_nodes, edges_of_interest,
-                                     non_reconnectable_edges, depth_edges_search):
+    def _prepare_detect_edges_inputs(self, g_c: nx.MultiDiGraph, source_nodes: Iterable[Any], target_nodes: Iterable[Any], edges_of_interest: Set[Any],
+                                     non_reconnectable_edges: List[Any], depth_edges_search: int) -> Optional[Dict[str, Any]]:
         """
         Run the up-front bookkeeping shared by every branch of
         :meth:`detect_edges_to_keep`:
@@ -1328,7 +1329,7 @@ class OverFlowGraph(PowerFlowGraph):
             "any_target_has_interest": any_target_has_interest,
         }
 
-    def _compute_sssp_paths(self, g_c, prepared, edges_of_interest):
+    def _compute_sssp_paths(self, g_c: nx.MultiDiGraph, prepared: Dict[str, Any], edges_of_interest: Set[Any]) -> Dict[Any, Any]:
         """
         Run single-source Dijkstra once per source node with a weight function
         that massively favours low-capacity edges and gently promotes edges
@@ -1366,7 +1367,7 @@ class OverFlowGraph(PowerFlowGraph):
                 sssp_paths_cache[source_node] = {}
         return sssp_paths_cache
 
-    def _collect_paths_of_interest(self, g_c, prepared, sssp_paths_cache, max_null_flow_path_length):
+    def _collect_paths_of_interest(self, g_c: nx.MultiDiGraph, prepared: Dict[str, Any], sssp_paths_cache: Dict[Any, Any], max_null_flow_path_length: int) -> List[Any]:
         """
         Walk the (source, target) product and materialise the paths whose
         node-count is within ``max_null_flow_path_length`` and which actually
@@ -1406,7 +1407,7 @@ class OverFlowGraph(PowerFlowGraph):
         paths_of_interest.sort(key=len)
         return paths_of_interest
 
-    def _classify_paths_by_reconnectability(self, prepared, paths_of_interest):
+    def _classify_paths_by_reconnectability(self, prepared: Dict[str, Any], paths_of_interest: List[Any]) -> Tuple[Set[Any], Set[Any]]:
         """
         Greedy dedupe over the sorted ``paths_of_interest``: each edge name
         is attributed to the *first* (shortest) path that uses it, and the
@@ -1439,7 +1440,7 @@ class OverFlowGraph(PowerFlowGraph):
 
         return set(edges_to_keep_reconnectable), set(edges_to_keep_non_reconnectable)
 
-    def collapse_red_loops(self):
+    def collapse_red_loops(self) -> None:
         """
         Collapse nodes that are purely part of "red loops" (coral-only edges) into point shapes.
 
@@ -1498,7 +1499,7 @@ class ConstrainedPath:
     Hence flows should be pushed on other path to relieve the overloads.
     """
 
-    def __init__(self, amont_edges, constrained_edge, aval_edges):
+    def __init__(self, amont_edges: List[Any], constrained_edge: Any, aval_edges: List[Any]) -> None:
         logger.debug("Constrained path created")
         self.amont_edges = amont_edges #lines which flow goes into the overloaded lines
         self.constrained_edge = constrained_edge #overloaded lines
@@ -1508,19 +1509,19 @@ class ConstrainedPath:
         """Returns a list of nodes that are in "amont" """
         return from_edges_get_nodes(self.amont_edges, "amont", self.constrained_edge)
 
-    def n_aval(self):
+    def n_aval(self) -> List[Any]:
         """Returns a list of nodes that are in "aval" """
         return from_edges_get_nodes(self.aval_edges, "aval", self.constrained_edge)
 
-    def e_amont(self):
+    def e_amont(self) -> List[Any]:
         """Returns a list of edges that are in "amont" """
         return self.amont_edges
 
-    def e_aval(self):
+    def e_aval(self) -> List[Any]:
         """Returns a list of edges that are in "aval" """
         return self.aval_edges
 
-    def filter_constrained_path_for_nodes(self):
+    def filter_constrained_path_for_nodes(self) -> List[Any]:
         """
         This filters the constrained_path_lists and creates a uniq ordered list that represents the constrained_path
 
@@ -1547,10 +1548,10 @@ class ConstrainedPath:
 
         return set_constrained_path
 
-    def full_n_constrained_path(self):
+    def full_n_constrained_path(self) -> List[Any]:
         return self.filter_constrained_path_for_nodes()
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "################################################################\n" \
                "ConstrainedPath = %s \nDetails: (amont: %s, constrained_edge: %s, aval: %s)\n" \
                "################################################################" % (
@@ -1560,7 +1561,7 @@ class Structured_Overload_Distribution_Graph:
     """
     Staring from a raw overload distribution graph with color edges, this class identifies the underlying path structure in terms of constrained path, loop paths and hub nodes
     """
-    def __init__(self,g,possible_hubs=None):
+    def __init__(self, g: nx.MultiDiGraph, possible_hubs: Optional[List[Any]] = None) -> None:
         """
         Parameters
         ----------
@@ -1588,7 +1589,7 @@ class Structured_Overload_Distribution_Graph:
         self.red_loops = self.find_loops() #parallel path to the constrained path on which flow can be rerouted
         self.hubs = self.find_hubs() #specific nodes at substations connecting loop paths to constrained path. This is where flow can be most easily rerouted
 
-    def get_amont_blue_edges(self, g, node):
+    def get_amont_blue_edges(self, g: nx.MultiDiGraph, node: Any) -> List[Any]:
         """
         From a given node, get blue edges (with negative overflow redispatch) that are above this node
 
@@ -1614,7 +1615,7 @@ class Structured_Overload_Distribution_Graph:
                 res.append((e[0], e[1],e[2]))
         return res
 
-    def get_aval_blue_edges(self, g, node):
+    def get_aval_blue_edges(self, g: nx.MultiDiGraph, node: Any) -> List[Any]:
         """
         From a given node, get blue edges (with negative overflow redispatch) that are after this node
 
@@ -1643,7 +1644,7 @@ class Structured_Overload_Distribution_Graph:
         return res
 
 
-    def find_hubs(self):
+    def find_hubs(self) -> List[Any]:
         """
         "A hub (carrefour_electrique) has a constrained_path and positiv reports"
 
@@ -1681,10 +1682,10 @@ class Structured_Overload_Distribution_Graph:
         # print("get_hubs = ", hubs)
         return hubs
 
-    def get_hubs(self):
+    def get_hubs(self) -> List[Any]:
         return self.hubs
 
-    def find_loops(self):
+    def find_loops(self) -> pd.DataFrame:
 
         """This function returns all parallel paths. After discussing with Antoine, start with the most "en Aval" node,
         and walk in reverse for loops and parallel path returns a dict with all data
@@ -1765,10 +1766,10 @@ class Structured_Overload_Distribution_Graph:
 
         return pd.DataFrame(data_for_df)
 
-    def get_loops(self):
+    def get_loops(self) -> pd.DataFrame:
         return self.red_loops
 
-    def find_constrained_path(self):
+    def find_constrained_path(self) -> "ConstrainedPath":
         """Find and return the constrained path
 
          Returns
@@ -1787,10 +1788,10 @@ class Structured_Overload_Distribution_Graph:
 
         return ConstrainedPath(amont_edges,constrained_edge,aval_edges)
 
-    def get_constrained_path(self):
+    def get_constrained_path(self) -> "ConstrainedPath":
         return self.constrained_path
 
-    def get_constrained_edges_nodes(self):
+    def get_constrained_edges_nodes(self) -> Tuple[List[Any], List[Any], List[Any], List[Any]]:
         """
         This function identifies the constrained path within the distribution graph.
 
@@ -1827,7 +1828,7 @@ class Structured_Overload_Distribution_Graph:
 
         return list(set(edges_constrained_path)), nodes_constrained_path, other_blue_edges, other_blue_nodes
 
-    def get_dispatch_edges_nodes(self,only_loop_paths=True):
+    def get_dispatch_edges_nodes(self, only_loop_paths: bool = True) -> Tuple[List[Any], List[Any]]:
         """
         This function identifies the dispatch path within the distribution graph.
 
@@ -1855,7 +1856,7 @@ class Structured_Overload_Distribution_Graph:
         return lines_redispatch, list_nodes_dispatch_path
 
 
-def from_edges_get_nodes(edges, amont_or_aval: str, constrained_edge):
+def from_edges_get_nodes(edges: Iterable[Any], amont_or_aval: str, constrained_edge: Any) -> List[Any]:
     """edges is a list of tuples"""
     if edges:
         nodes = []
@@ -1871,7 +1872,7 @@ def from_edges_get_nodes(edges, amont_or_aval: str, constrained_edge):
     else:
         raise ValueError("Error in function from_edges_get_nodes")
 
-def delete_color_edges(_g, edge_color):
+def delete_color_edges(_g: nx.MultiDiGraph, edge_color: str) -> nx.MultiDiGraph:
     """
     Returns a copy of a graph without edges of a given color. Gray for instance, with values below a threshold of significance
 
@@ -1909,7 +1910,7 @@ def delete_color_edges(_g, edge_color):
         g.remove_nodes_from(list(nx.isolates(g)))
     return g
 
-def nodepath_to_edgepath(G, node_path, with_keys=False):
+def nodepath_to_edgepath(G: Any, node_path: List[Any], with_keys: bool = False) -> List[Any]:
     """Convert a list of nodes into a list of edges for Graph/MultiGraph."""
     edges = []
     for u, v in zip(node_path[:-1], node_path[1:]):
@@ -1923,7 +1924,7 @@ def nodepath_to_edgepath(G, node_path, with_keys=False):
             edges.append((u, v))
     return edges
 
-def incident_edges(G, node, data=True, keys=False):
+def incident_edges(G: Any, node: Any, data: bool = True, keys: bool = False) -> List[Any]:
     if keys and G.is_multigraph():
         out_e = G.out_edges(node, keys=True, data=data)
         in_e  = G.in_edges(node, keys=True, data=data)
@@ -1932,7 +1933,7 @@ def incident_edges(G, node, data=True, keys=False):
         in_e  = G.in_edges(node, data=data)
     return list(out_e) + list(in_e)
 
-def all_simple_edge_paths_multi(G, sources, targets, cutoff=None):
+def all_simple_edge_paths_multi(G: Any, sources: Iterable[Any], targets: Iterable[Any], cutoff: Optional[int] = None) -> Any:
     """
     Yield all simple edge paths between multiple sources and targets.
 
@@ -1960,7 +1961,7 @@ def all_simple_edge_paths_multi(G, sources, targets, cutoff=None):
                 except nx.NetworkXNoPath:
                     continue
 
-def remove_unused_added_double_edge(g, edges_to_keep, edges_to_double, edges_double_added):
+def remove_unused_added_double_edge(g: nx.MultiDiGraph, edges_to_keep: Set[Any], edges_to_double: Dict[Any, Any], edges_double_added: Dict[Any, Any]) -> nx.MultiDiGraph:
 
     """
     Make edges bi-directionnal when flow redispatch value is null
@@ -2005,7 +2006,7 @@ def remove_unused_added_double_edge(g, edges_to_keep, edges_to_double, edges_dou
 
     return g
 
-def add_double_edges_null_redispatch(g,color_init="gray",only_no_dir=False):
+def add_double_edges_null_redispatch(g: nx.MultiDiGraph, color_init: str = "gray", only_no_dir: bool = False) -> Tuple[Dict[Any, Any], Dict[Any, Any]]:
     """
     Make edges bi-directionnal when flow redispatch value is null
 
@@ -2046,7 +2047,7 @@ def add_double_edges_null_redispatch(g,color_init="gray",only_no_dir=False):
 
 
 
-def find_multidigraph_edges_by_name(G, source_node, target_names, depth=2, name_attr="name"):
+def find_multidigraph_edges_by_name(G: nx.MultiDiGraph, source_node: Any, target_names: Iterable[Any], depth: int = 2, name_attr: str = "name") -> List[Any]:
     """
     Traverses the MultiDiGraph using BFS up to 'depth'.
     For every connection (u, v) traversed, checks ALL parallel edges
@@ -2076,7 +2077,7 @@ def find_multidigraph_edges_by_name(G, source_node, target_names, depth=2, name_
     return found_edges
 
 
-def shortest_path_min_weight_then_hops(G, source, target, mandatory_edge, weight_attr="weight"):
+def shortest_path_min_weight_then_hops(G: Any, source: Any, target: Any, mandatory_edge: Tuple[Any, ...], weight_attr: str = "weight") -> Tuple[Optional[List[Any]], float]:
     """
     Finds the path that:
     1. Passes through 'mandatory_edge'
@@ -2139,7 +2140,7 @@ def shortest_path_min_weight_then_hops(G, source, target, mandatory_edge, weight
         return None, float('inf')
 
 
-def shortest_path_mandatory_and_promoted(G, source, target, mandatory_edge, promoted_edges, weight_attr="weight"):
+def shortest_path_mandatory_and_promoted(G: Any, source: Any, target: Any, mandatory_edge: Tuple[Any, ...], promoted_edges: Iterable[Any], weight_attr: str = "weight") -> Tuple[Optional[List[Any]], float]:
     """
     Finds a path that:
     1. MUST pass through 'mandatory_edge'.
@@ -2224,7 +2225,7 @@ def shortest_path_mandatory_and_promoted(G, source, target, mandatory_edge, prom
         return None, float('inf')
 
 
-def shortest_path_with_promoted_edges(G, source, target, promoted_edges, weight_attr="weight"):
+def shortest_path_with_promoted_edges(G: Any, source: Any, target: Any, promoted_edges: Iterable[Any], weight_attr: str = "weight") -> Tuple[Optional[List[Any]], float]:
     """
     Finds a path from source to target that:
     1. Minimizes Total Weight (Primary - strict dominance)

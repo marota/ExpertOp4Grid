@@ -8,6 +8,7 @@
 
 import ast
 import logging
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -16,7 +17,7 @@ import networkx as nx
 
 from grid2op.PlotGrid import PlotMatplot
 
-from alphaDeesp.core.simulation import Simulation
+from alphaDeesp.core.simulation import Simulation, SubstationElement
 from alphaDeesp.core.network import Network
 from alphaDeesp.core.elements import OriginLine, Consumption, Production, ExtremityLine
 from alphaDeesp.core.printer import Printer
@@ -26,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 
 class Grid2opSimulation(Simulation):
-    def compute_layout(self):
+    def compute_layout(self) -> List[Tuple[float, float]]:
         try:
             layout = self.param_options['CustomLayout']
             # Conversion from string to list
@@ -53,10 +54,23 @@ class Grid2opSimulation(Simulation):
         logger.warning("No CustomLayout has been given in config.ini and no grid_layout has been found in Grid2op data. Default layout is set and might cause plotting errors: %s", layout)
         return layout
 
-    def get_layout(self):
+    def get_layout(self) -> List[Tuple[float, float]]:
         return self.layout
 
-    def __init__(self, obs, action_space, observation_space, param_options=None, debug=False, ltc=None, other_ltc=None, plot=False, plot_folder=None, reward_type=None, simu_step=0):
+    def __init__(
+        self,
+        obs: Any,
+        action_space: Any,
+        observation_space: Any,
+        param_options: Optional[Dict[str, Any]] = None,
+        debug: bool = False,
+        ltc: Optional[List[int]] = None,
+        other_ltc: Optional[List[int]] = None,
+        plot: bool = False,
+        plot_folder: Optional[str] = None,
+        reward_type: Optional[str] = None,
+        simu_step: int = 0,
+    ) -> None:
         super().__init__()
 
         # Get Grid2op objects
@@ -105,10 +119,10 @@ class Grid2opSimulation(Simulation):
         self.load()
         self.save_bag = []
 
-    def load(self):
+    def load(self) -> None:
         self.load_from_observation(self.obs, self.ltc+self.other_ltc)
 
-    def load_from_observation(self, obs, linesToDisconnect):
+    def load_from_observation(self, obs: Any, linesToDisconnect: List[int]) -> None:
         #self.obs = obs
         self.topo = self.extract_topo_from_obs(obs)
         self.topo_linecut = None
@@ -118,21 +132,21 @@ class Grid2opSimulation(Simulation):
         self.substations_elements = {}
         self.create_and_fill_internal_structures(obs, self.df)
 
-    def set_simu_step(self,simu_step):
+    def set_simu_step(self, simu_step: int) -> None:
         self.simu_step=simu_step
 
-    def get_substation_elements(self):
+    def get_substation_elements(self) -> Dict[int, List[SubstationElement]]:
         return self.substations_elements
 
-    def get_substation_in_cooldown(self):
+    def get_substation_in_cooldown(self) -> List[int]:
         return [i for i in range(self.obs.n_sub) if (self.obs.time_before_cooldown_sub[i]>=1)]
 
-    def get_reference_topovec_sub(self,sub):
+    def get_reference_topovec_sub(self, sub: int) -> List[int]:
         nelements=self.obs.sub_info[sub]
         topovec=[0 for i in range(nelements)]
         return topovec
 
-    def get_overload_disconnection_topovec_subor(self,l):
+    def get_overload_disconnection_topovec_subor(self, l: int) -> Tuple[int, List[int]]:
         sub_or=self.obs.line_or_to_subid[l]
         position_at_sub=self.obs.line_or_to_sub_pos[l]
         current_topo_vec=self.obs.state_of(substation_id=sub_or)['topo_vect']
@@ -141,19 +155,19 @@ class Grid2opSimulation(Simulation):
         new_topo_vec[position_at_sub]=-1#to get line disconnection
         return sub_or,new_topo_vec
 
-    def get_substation_to_node_mapping(self):
+    def get_substation_to_node_mapping(self) -> Optional[Dict[int, Any]]:
         pass
 
-    def get_internal_to_external_mapping(self):
+    def get_internal_to_external_mapping(self) -> Dict[int, int]:
         return self.internal_to_external_mapping
 
     @staticmethod
-    def merge_two_dicts(x, y):
+    def merge_two_dicts(x: Dict[Any, Any], y: Dict[Any, Any]) -> Dict[Any, Any]:
         z = x.copy()   # start with x's keys and values
         z.update(y)    # modifies z with y's keys and values & returns None
         return z
 
-    def get_action_from_topo(self, substation_id, new_conf, obs):
+    def get_action_from_topo(self, substation_id: int, new_conf: Any, obs: Any) -> Any:
         final_dict = {}
         i = 0
         objects = obs.get_obj_connect_to(substation_id=substation_id)
@@ -180,7 +194,7 @@ class Grid2opSimulation(Simulation):
         # print(final_dict)
         return self.action_space({"set_bus": final_dict})
 
-    def compute_new_network_changes(self, ranked_combinations):
+    def compute_new_network_changes(self, ranked_combinations: List[pd.DataFrame]) -> Tuple[pd.DataFrame, List[Any]]:
         """
         This function takes a dataframe ranked_combinations,
         For each combination it computes a simulation step in Grid2op by following the given combinations
@@ -253,7 +267,18 @@ class Grid2opSimulation(Simulation):
             actions = [self.action_space()]
         return end_result_dataframe, actions
 
-    def compute_one_network_change_score_data(self, obs,virtual_obs,done,info,new_conf,internal_target_node,alphaDeesp_Internal_topo,new_conf_grid2op,score_topo):
+    def compute_one_network_change_score_data(
+        self,
+        obs: Any,
+        virtual_obs: Any,
+        done: bool,
+        info: Dict[str, Any],
+        new_conf: Any,
+        internal_target_node: int,
+        alphaDeesp_Internal_topo: Any,
+        new_conf_grid2op: Any,
+        score_topo: int,
+    ) -> List[Any]:
         # Same as in Pypownet, this is not what we would want though, as we do the work for only one ltc
         only_line = self.ltc[0]
         line_state_before = obs.state_of(line_id=only_line)
@@ -320,7 +345,11 @@ class Grid2opSimulation(Simulation):
         return score_data
 
     @staticmethod
-    def create_boolean_array_of_worsened_line_ids(old_obs, new_obs,nb_timestep_cooldown_line_param):
+    def create_boolean_array_of_worsened_line_ids(
+        old_obs: Any,
+        new_obs: Any,
+        nb_timestep_cooldown_line_param: int,
+    ) -> List[int]:
         res = []
         n_lines=len(new_obs.rho)
 
@@ -345,7 +374,7 @@ class Grid2opSimulation(Simulation):
 
     import numpy as np
 
-    def create_and_fill_internal_structures(self, obs, df):
+    def create_and_fill_internal_structures(self, obs: Any, df: pd.DataFrame) -> None:
         """
         Version optimisée CORRECTIVE.
         Respecte l'ordre strict : [Gens, Loads, Lines_OR, Lines_EX] pour correspondre
@@ -432,7 +461,7 @@ class Grid2opSimulation(Simulation):
         self.substations_elements = dict(enumerate(sub_elements_buckets))
 
     @staticmethod
-    def extract_topo_from_obs(obs):
+    def extract_topo_from_obs(obs: Any) -> Dict[str, Any]:
         """This function, takes an obs an returns a dict with all topology information"""
         d = {
             "edges": {},
@@ -473,7 +502,7 @@ class Grid2opSimulation(Simulation):
         #         print(d[key][key2])
         return d
 
-    def cut_lines_and_recomputes_flows(self, ids: list):
+    def cut_lines_and_recomputes_flows(self, ids: List[int]) -> Any:
         """This functions cuts lines: [ids], simulates and returns new line flows"""
 
         # First, set parameter to avoid disconnection
@@ -509,7 +538,7 @@ class Grid2opSimulation(Simulation):
 
         return new_flow
 
-    def build_powerflow_graph_beforecut(self):
+    def build_powerflow_graph_beforecut(self) -> nx.DiGraph:
         """
         Builds a graph of the grid and its powerflow before the lines are cut
         :return: NetworkX Graph of representing the grid
@@ -518,7 +547,7 @@ class Grid2opSimulation(Simulation):
         #g = build_powerflow_graph(self.topo, lines_cut)
         return PowerFlowGraph(self.topo, lines_cut).g
 
-    def build_powerflow_graph_aftercut(self):
+    def build_powerflow_graph_aftercut(self) -> nx.DiGraph:
         """
         Builds a graph of the grid and its powerflow after the lines have been cut
         :return: NetworkX Graph of representing the grid
@@ -527,13 +556,13 @@ class Grid2opSimulation(Simulation):
         #g = build_powerflow_graph(self.topo_linecut, lines_cut)
         return PowerFlowGraph(self.topo_linecut, lines_cut).g
 
-    def get_dataframe(self):
+    def get_dataframe(self) -> pd.DataFrame:
         """
         :return: pandas dataframe with topology information before and after line cutting
         """
         return self.df
 
-    def isAntenna(self):
+    def isAntenna(self) -> Optional[int]:
         linesAtBusbar_dic = self.getLinesAtSubAndBusbar()
 
         for sub in linesAtBusbar_dic.keys():
@@ -542,7 +571,7 @@ class Grid2opSimulation(Simulation):
                 return sub  # this is an Antenna
         return None
 
-    def isDoubleLine(self):
+    def isDoubleLine(self) -> Optional[List[int]]:
         ltc = self.ltc[0]
         obs = self.obs
 
@@ -567,7 +596,7 @@ class Grid2opSimulation(Simulation):
             return Common_lines
 
 
-    def getLinesAtSubAndBusbar(self):
+    def getLinesAtSubAndBusbar(self) -> Dict[Any, List[int]]:
         ltc = self.ltc[0]
         obs=self.obs
         linesAtBusbar_dic = {}
@@ -597,7 +626,7 @@ class Grid2opSimulation(Simulation):
         linesAtBusbar_dic[sub_ex] = linesAtBusbarEx
         return linesAtBusbar_dic
 
-    def build_detailed_graph_from_internal_structure(self, lines_to_cut):
+    def build_detailed_graph_from_internal_structure(self, lines_to_cut: List[int]) -> nx.MultiDiGraph:
         """This function create a detailed graph from internal self structures as self.substations_elements..."""
         g = nx.MultiDiGraph()
 
@@ -642,7 +671,7 @@ class Grid2opSimulation(Simulation):
     #    """
     #    return self.plot_grid(obs, name=name)
 
-    def plot(self,obs,save_file_path):
+    def plot(self, obs: Any, save_file_path: str) -> None:
         plot_helper = PlotMatplot(self.observation_space)
         fig_obs = plot_helper.plot_obs(obs, line_info='p')
         fig_obs.savefig(save_file_path)
@@ -661,7 +690,7 @@ class Grid2opSimulation(Simulation):
     #        fig_obs = self.plot_helper.plot_obs(obs, line_info='p')
     #        fig_obs.savefig(output_name[1])
 #
-    def change_nodes_configurations(self, new_configurations, node_ids, env):
+    def change_nodes_configurations(self, new_configurations: List[Any], node_ids: List[int], env: Any) -> Any:
         change = []
         for (conf, node) in zip(new_configurations, node_ids):
             change.append((node, conf))
@@ -673,7 +702,7 @@ class Grid2opSimulation(Simulation):
 
 
 
-def build_nodes_v2(g, nodes_prod_values: list):
+def build_nodes_v2(g: nx.MultiDiGraph, nodes_prod_values: List[Any]) -> None:
     """nodes_prod_values is a list of tuples, (graphical_node_id, prod_cons_total_value)
         prod_cons_total_value is a float.
         If the value is positive then it is a Production, if negative it is a Consumption
@@ -699,7 +728,11 @@ def build_nodes_v2(g, nodes_prod_values: list):
         i += 1
 
 
-def build_edges_v2(g, substation_id_busbar_id_node_id_mapping, substations_elements):
+def build_edges_v2(
+    g: nx.MultiDiGraph,
+    substation_id_busbar_id_node_id_mapping: Dict[int, Dict[int, int]],
+    substations_elements: Dict[int, List[Any]],
+) -> None:
     # print("\nWE ARE IN BUILD EDGES V2")
     substation_ids = sorted(list(substations_elements.keys()))
     # loops through each substation, and creates an edge from (
@@ -745,7 +778,12 @@ def build_edges_v2(g, substation_id_busbar_id_node_id_mapping, substations_eleme
 
 #TO DO: check is line is disconnected in new_obs
 
-def score_changes_between_two_observations(ltc, old_obs, new_obs,nb_timestep_cooldown_line_param=0):
+def score_changes_between_two_observations(
+    ltc: List[int],
+    old_obs: Any,
+    new_obs: Any,
+    nb_timestep_cooldown_line_param: int = 0,
+) -> Union[int, float]:
     """This function takes two observations and computes a score to quantify the change between old_obs and new_obs.
     @:return int between [0 and 4]
     4: if every overload disappeared

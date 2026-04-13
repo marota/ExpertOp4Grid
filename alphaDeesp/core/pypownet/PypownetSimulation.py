@@ -1,9 +1,11 @@
 from math import fabs
 import ast
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 import networkx as nx
 from pypownet.environment import ElementType
 import numpy as np
+import pandas as pd
 
 from alphaDeesp.core.elements import (
     Consumption,
@@ -17,7 +19,17 @@ from alphaDeesp.core.printer import Printer
 
 
 class PypownetSimulation(Simulation):
-    def __init__(self, env, obs, action_space, param_options=None, debug=False, ltc=None, plot_folder=None, isScoreFromBackend=False):
+    def __init__(
+        self,
+        env: Any,
+        obs: Any,
+        action_space: Any,
+        param_options: Optional[Dict[str, Any]] = None,
+        debug: bool = False,
+        ltc: Optional[List[int]] = None,
+        plot_folder: Optional[str] = None,
+        isScoreFromBackend: bool = False,
+    ) -> None:
         super().__init__()
         print("PypownetSimulation object created...")
 
@@ -63,7 +75,7 @@ class PypownetSimulation(Simulation):
         print(self.obs)
         self.load()
 
-    def compute_layout(self):
+    def compute_layout(self) -> List[Tuple[float, float]]:
         try:
             layout = self.param_options['CustomLayout']
             # Conversion from string to list
@@ -75,49 +87,49 @@ class PypownetSimulation(Simulation):
                     (438, 100), (326, 140), (200, 8), (79, 12), (-152, 170), (-70, 200), (222, 200)]
         return layout
 
-    def get_layout(self):
+    def get_layout(self) -> List[Tuple[float, float]]:
         return self.layout
 
-    def get_substation_elements(self):
+    def get_substation_elements(self) -> Dict[int, List[Any]]:
         return self.substations_elements
 
-    def get_substation_to_node_mapping(self):
+    def get_substation_to_node_mapping(self) -> Optional[Dict[int, Any]]:
         return self.substation_to_node_mapping
 
-    def get_internal_to_external_mapping(self):
+    def get_internal_to_external_mapping(self) -> Dict[int, int]:
         return self.internal_to_external_mapping
 
-    def get_dataframe(self):
+    def get_dataframe(self) -> pd.DataFrame:
         """
         :return: pandas dataframe with topology information before and after line cutting
         """
         return self.df
 
-    def isAntenna(self):
+    def isAntenna(self) -> Optional[int]:
         """TODO"""
         return None
 
-    def isDoubleLine(self):
+    def isDoubleLine(self) -> Optional[List[int]]:
         """TODO"""
         return None
 
-    def getLinesAtSubAndBusbar(self):
+    def getLinesAtSubAndBusbar(self) -> Dict[Any, List[int]]:
         """TODO"""
         return None
 
-    def get_overload_disconnection_topovec_subor(self, l):
+    def get_overload_disconnection_topovec_subor(self, l: int) -> Tuple[Optional[int], Optional[List[int]]]:
         """TODO"""
         return None,None
 
-    def get_reference_topovec_sub(self,sub):
+    def get_reference_topovec_sub(self, sub: int) -> Optional[List[int]]:
         """TODO"""
         return None
 
-    def get_substation_in_cooldown(self):
+    def get_substation_in_cooldown(self) -> Optional[List[int]]:
         """TODO"""
         return None
 
-    def compute_new_network_changes(self, ranked_combinations):
+    def compute_new_network_changes(self, ranked_combinations: List[pd.DataFrame]) -> pd.DataFrame:
         """this function takes a dataframe ranked_combinations,
          for each combination it computes a simulation step in Pypownet with action:
          change nodes topo(combination)"""
@@ -244,7 +256,13 @@ class PypownetSimulation(Simulation):
 
         return end_result_dataframe
 
-    def observations_comparator(self, old_obs, new_obs, score_topo, delta_flow):
+    def observations_comparator(
+        self,
+        old_obs: Any,
+        new_obs: Any,
+        score_topo: Any,
+        delta_flow: float,
+    ) -> Tuple[Any, Any, float, float, float]:
         """This function takes two observations and extracts several information:
         - the flow reports in %
         - list of lines, on which the situation got worse ie, the line capacity diminished.
@@ -274,7 +292,7 @@ class PypownetSimulation(Simulation):
 
         return simulated_score, worsened_line_ids, redistribution_prod, redistribution_load, efficacity
 
-    def create_boolean_array_of_worsened_line_ids(self, old_obs, new_obs):
+    def create_boolean_array_of_worsened_line_ids(self, old_obs: Any, new_obs: Any) -> np.ndarray:
         """This function creates a boolean array of lines that got worse between two observations.
         @:return boolean numpy array [0..1]"""
 
@@ -300,7 +318,12 @@ class PypownetSimulation(Simulation):
 
         return np.array(res)
 
-    def score_changes_between_two_observations(self, old_obs, new_obs,nb_timestep_cooldown_line_param=0):
+    def score_changes_between_two_observations(
+        self,
+        old_obs: Any,
+        new_obs: Any,
+        nb_timestep_cooldown_line_param: int = 0,
+    ) -> Union[int, float]:
         """This function takes two observations and computes a score to quantify the change between old_obs and new_obs.
         @:return int between [0 and 4]
         4: if every overload disappeared
@@ -414,7 +437,7 @@ class PypownetSimulation(Simulation):
         else:
             raise ValueError("Probleme with Scoring")
 
-    def create_and_fill_internal_structures(self, obs, df):
+    def create_and_fill_internal_structures(self, obs: Any, df: pd.DataFrame) -> None:
         """This function fills multiple structures:
         self.substation_elements, self.substation_to_node_mapping, self.internal_to_external_mapping
         @:arg observation, df"""
@@ -532,10 +555,10 @@ class PypownetSimulation(Simulation):
 
             self.substations_elements[substation_id] = elements_array
 
-    def load(self):
+    def load(self) -> None:
         self.load_from_observation(self.obs, self.ltc)
 
-    def load_from_observation(self, observation, lines_to_cut: list):
+    def load_from_observation(self, observation: Any, lines_to_cut: List[int]) -> None:
         # first, load information into a data frame
         self.ltc = lines_to_cut
         # d is a dict containing topology
@@ -548,7 +571,7 @@ class PypownetSimulation(Simulation):
         self.create_and_fill_internal_structures(observation, df)
 
 
-    def build_detailed_graph_from_internal_structure(self, lines_to_cut):
+    def build_detailed_graph_from_internal_structure(self, lines_to_cut: List[int]) -> nx.MultiDiGraph:
         """This function create a detailed graph from internal self structures as self.substations_elements..."""
         g = nx.MultiDiGraph()
         network = Network(self.substations_elements)
@@ -558,7 +581,7 @@ class PypownetSimulation(Simulation):
         print("This graph is weakly connected : ", nx.is_weakly_connected(g))
         return g
 
-    def change_nodes_configurations(self, new_configuration, node_id):
+    def change_nodes_configurations(self, new_configuration: Any, node_id: Any) -> Any:
         """Changes pypownet's internal graph network by changing node : node_id by applying new_configuration"""
 
         action_space = self.environment.action_space
@@ -575,7 +598,7 @@ class PypownetSimulation(Simulation):
         return obs
 
     @staticmethod
-    def extract_topo_from_obs(obs):
+    def extract_topo_from_obs(obs: Any) -> Dict[str, Dict[str, Any]]:
         """This function, takes an obs an returns a dict with all topology information"""
         d = {
             "edges": {},
@@ -602,7 +625,7 @@ class PypownetSimulation(Simulation):
         d["nodes"]["loads_values"] = loads_values
         return d
 
-    def cut_lines_and_recomputes_flows(self, ids: list):
+    def cut_lines_and_recomputes_flows(self, ids: List[int]) -> Sequence[float]:
         """This functions cuts lines: [ids], simulates and returns new line flows"""
         action_space = self.environment.action_space
         action = action_space.get_do_nothing_action(as_class_Action=True)
@@ -618,7 +641,7 @@ class PypownetSimulation(Simulation):
         return obs.active_flows_origin
 
 
-def build_nodes_v2(g, nodes_prod_values: list):
+def build_nodes_v2(g: nx.MultiDiGraph, nodes_prod_values: List[Any]) -> None:
     """nodes_prod_values is a list of tuples, (graphical_node_id, prod_cons_total_value)
         prod_cons_total_value is a float.
         If the value is positive then it is a Production, if negative it is a Consumption
@@ -644,7 +667,11 @@ def build_nodes_v2(g, nodes_prod_values: list):
         i += 1
 
 
-def build_edges_v2(g, substation_id_busbar_id_node_id_mapping, substations_elements):
+def build_edges_v2(
+    g: nx.MultiDiGraph,
+    substation_id_busbar_id_node_id_mapping: Dict[Any, Any],
+    substations_elements: Dict[int, List[Any]],
+) -> None:
     print("\nWE ARE IN BUILD EDGES V2")
     substation_ids = sorted(list(substations_elements.keys()))
     # loops through each substation, and creates an edge from (
@@ -689,7 +716,7 @@ def build_edges_v2(g, substation_id_busbar_id_node_id_mapping, substations_eleme
             g.add_edge(origin, extremity, capacity=float(reported_flow[0]), label=reported_flow[0])
 
 
-def get_differencial_topology(new_conf, old_conf):
+def get_differencial_topology(new_conf: List[int], old_conf: List[int]) -> List[int]:
     """new - old, for elem in result, if elem -1, then put one"""
     assert (len(new_conf) == len(old_conf))
     res = []
