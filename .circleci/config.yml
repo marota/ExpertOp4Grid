@@ -32,7 +32,7 @@ jobs:
       - run: sudo apt-get update
       - run: sudo apt-get install graphviz
       - run: pip install -r requirements.txt
-      - run: pip install pyflakes
+      - run: pip install pyflakes mypy radon
       - run: pip install .
       - run:
           name: Run pyflakes (lint)
@@ -51,6 +51,50 @@ jobs:
               alphaDeesp/core/grid2op/Grid2opObservationLoader.py \
               alphaDeesp/expert_operator.py \
               alphaDeesp/main.py
+      - run:
+          name: Run mypy (static type check)
+          # Config lives in `setup.cfg` (ignore_missing_imports = True etc).
+          # Two modules are enforced strictly — `core/simulation.py` and
+          # `core/elements.py` — via per-module overrides; the rest of the
+          # tree still runs mypy but in permissive mode so annotations can
+          # be rolled out incrementally. `|| true` keeps mypy findings
+          # informational for the untyped modules until the full codebase
+          # catches up.
+          command: |
+            python -m mypy \
+              alphaDeesp/core/simulation.py \
+              alphaDeesp/core/elements.py
+            python -m mypy \
+              alphaDeesp/core/network.py \
+              alphaDeesp/core/printer.py \
+              alphaDeesp/core/alphadeesp.py \
+              alphaDeesp/core/graphsAndPaths.py \
+              alphaDeesp/core/twin_nodes.py \
+              alphaDeesp/core/grid2op/Grid2opSimulation.py \
+              alphaDeesp/core/grid2op/Grid2opObservationLoader.py \
+              alphaDeesp/expert_operator.py \
+              alphaDeesp/main.py || true
+      - run:
+          name: Code quality metrics (radon)
+          # Radon reports cyclomatic complexity, maintainability index, and
+          # raw metrics so the baseline tracked in
+          # docs/code-quality-analysis.md stays visible per build. These
+          # commands are *reporting only* — they never fail the build.
+          command: |
+            echo "=== Cyclomatic complexity (A-F, min: C) ==="
+            python -m radon cc -a -s --min C \
+              alphaDeesp/core/ \
+              alphaDeesp/Expert_rule_action_verification.py || true
+            echo ""
+            echo "=== Maintainability Index (all modules) ==="
+            python -m radon mi -s \
+              alphaDeesp/core/ \
+              alphaDeesp/Expert_rule_action_verification.py || true
+            echo ""
+            echo "=== Raw metrics (SLOC / comment ratio) ==="
+            python -m radon raw -s \
+              alphaDeesp/core/ \
+              alphaDeesp/Expert_rule_action_verification.py || true
       - run:
           name: Run tests
           # `test_cli.py` is run in its own dedicated step below (it spawns a

@@ -8,6 +8,7 @@
 
 """ This file is the main file for the Expert Agent called AlphaDeesp """
 import logging
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import networkx as nx
 import pandas as pd
@@ -28,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 
 class AlphaDeesp:  # AKA SOLVER
-    def __init__(self, _g, df_of_g, simulator_data=None, substation_in_cooldown=None, debug=False):
+    def __init__(self, _g: nx.MultiDiGraph, df_of_g: pd.DataFrame, simulator_data: Optional[Dict[str, Any]] = None, substation_in_cooldown: Optional[List[int]] = None, debug: bool = False) -> None:
         # used for postprocessing
         self.bag_of_graphs = {}
         self.debug = debug
@@ -76,18 +77,18 @@ class AlphaDeesp:  # AKA SOLVER
 
         # self.simulate_network_change(self.ranked_combinations)
 
-    def load2(self, observation, line_to_cut: int):
+    def load2(self, observation: Any, line_to_cut: int) -> None:
         """@:arg observation: a pypownet observation,
         line_to_cut: line to cut for overload graph"""
 
-    def simulate_network_change(self, ranked_combinations):
+    def simulate_network_change(self, ranked_combinations: Any) -> None:
         """This function takes a dataFrame ranked_combinations and computes new changes with Pypownet"""
         pass
 
-    def get_ranked_combinations(self):
+    def get_ranked_combinations(self) -> List[pd.DataFrame]:
         return self.ranked_combinations
 
-    def compute_best_topologies(self):
+    def compute_best_topologies(self) -> List[pd.DataFrame]:
         """
         inputs: selected_ranked_nodes (after having identified routing buses, ie 4 categories)
         :return: pd.DataFrame containing all topologies scored.
@@ -124,7 +125,7 @@ class AlphaDeesp:  # AKA SOLVER
 
         return res_container
 
-    def clean_and_sort_best_topologies(self, best_topologies):
+    def clean_and_sort_best_topologies(self, best_topologies: pd.DataFrame) -> pd.DataFrame:
         """This function cleans the Dataframe best_topologies;
         it deletes rows with XX, and sorts the Dataframe. In order to achieve this we have to set_index first."""
         best_topologies = best_topologies.set_index("score")
@@ -133,7 +134,7 @@ class AlphaDeesp:  # AKA SOLVER
 
         return best_topologies
 
-    def compute_all_combinations(self, node):
+    def compute_all_combinations(self, node: int) -> List[Any]:
         """ Given a node, returns all possible combinations of a node configuration.
         ex: [001], [010], [100], [101], [011]... etc..."""
 
@@ -172,7 +173,7 @@ class AlphaDeesp:  # AKA SOLVER
 
         return uniqueComb
 
-    def legal_comb(self,comb,nProd_loads,n_elements,node_configuration,node_configuration_sym):
+    def legal_comb(self, comb: List[int], nProd_loads: int, n_elements: int, node_configuration: List[int], node_configuration_sym: List[int]) -> bool:
         sum_comb=np.sum(comb)
         busBar_prods_loads=set(comb[0:nProd_loads])
         busBar_lines = set(comb[nProd_loads:])
@@ -188,7 +189,7 @@ class AlphaDeesp:  # AKA SOLVER
 
         return legal_condition
 
-    def rank_topologies(self, all_combinations, graph, node_to_change: int):
+    def rank_topologies(self, all_combinations: List[Any], graph: nx.MultiDiGraph, node_to_change: int) -> pd.DataFrame:
         """==> ultimate goal: This function returns a DF with topologies ranked
         for the moment:
             takes a topo,
@@ -225,7 +226,7 @@ class AlphaDeesp:  # AKA SOLVER
         return ranked_combinations
 
     # WARNING: does not work yet when you go back from two nodes to one node at a given substation? Basically one node will be not connected?
-    def apply_new_topo_to_graph(self, graph: nx.MultiDiGraph, new_topology, node_to_change: int):
+    def apply_new_topo_to_graph(self, graph: nx.MultiDiGraph, new_topology: List[int], node_to_change: int) -> Tuple[nx.MultiDiGraph, Dict[Any, Any]]:
         """
         Apply a busbar reassignment to ``graph``.
 
@@ -276,7 +277,7 @@ class AlphaDeesp:  # AKA SOLVER
     # Helpers for apply_new_topo_to_graph
     # ------------------------------------------------------------------
 
-    def _gather_edge_colors(self):
+    def _gather_edge_colors(self) -> Dict[Tuple[Any, Any, Any], Any]:
         """
         Snapshot the color of every edge of ``self.g`` before the graph is
         mutated. For edges marked as ``swapped`` in ``self.df`` we also store
@@ -292,7 +293,7 @@ class AlphaDeesp:  # AKA SOLVER
         return color_edges
 
     @staticmethod
-    def _compute_prod_load_per_bus(elements):
+    def _compute_prod_load_per_bus(elements: Iterable[Any]) -> Tuple[Dict[int, float], Dict[int, float]]:
         """
         Sum production and consumption values per ``busbar_id`` for the
         given iterable of ``elements``. Returns ``(prod, load)`` dicts where
@@ -308,7 +309,7 @@ class AlphaDeesp:  # AKA SOLVER
         return prod, load
 
     @staticmethod
-    def _classify_bus(bus_id, prod, load):
+    def _classify_bus(bus_id: int, prod: Dict[int, float], load: Dict[int, float]) -> Tuple[Optional[str], float]:
         """
         Return ``(kind, prod_minus_load)`` for ``bus_id`` where ``kind`` is
         ``"prod"``, ``"load"`` or ``None`` (neither production nor load).
@@ -324,7 +325,7 @@ class AlphaDeesp:  # AKA SOLVER
             return "load", load[bus_id]
         return None, 0
 
-    def _add_bus_nodes(self, graph, bus_ids, prod, load, node_to_change, new_node_id):
+    def _add_bus_nodes(self, graph: nx.MultiDiGraph, bus_ids: Iterable[int], prod: Dict[int, float], load: Dict[int, float], node_to_change: int, new_node_id: Any) -> None:
         """
         Re-add the (up to two) graph nodes corresponding to the new topology,
         styled by their net prod/load balance.
@@ -346,8 +347,8 @@ class AlphaDeesp:  # AKA SOLVER
                                value=str(prod_minus_load),
                                style="filled", fillcolor="#ffffff")
 
-    def _reconnect_bus_edges(self, graph, new_topology, element_types,
-                             node_to_change, new_node_id, color_edges):
+    def _reconnect_bus_edges(self, graph: nx.MultiDiGraph, new_topology: List[int], element_types: List[Any],
+                             node_to_change: int, new_node_id: Any, color_edges: Dict[Tuple[Any, Any, Any], Any]) -> None:
         """
         Re-add every line edge between the (possibly split) substation and
         its neighbours, using the memoised ``color_edges`` for styling.
@@ -379,8 +380,8 @@ class AlphaDeesp:  # AKA SOLVER
                                color=color, fontsize=10,
                                penwidth="%.2f" % penwidth)
 
-    def rank_current_topo_at_node_x(self, graph, node: int, isSingleNode=False, topo_vect=None,
-                                    is_score_specific_substation=True):
+    def rank_current_topo_at_node_x(self, graph: nx.MultiDiGraph, node: int, isSingleNode: bool = False, topo_vect: Optional[List[int]] = None,
+                                    is_score_specific_substation: bool = True) -> Any:
         """
         Rank a candidate topology at ``node`` by scoring how much it relieves
         the overloaded constrained path.
@@ -422,9 +423,9 @@ class AlphaDeesp:  # AKA SOLVER
     # Helpers for rank_current_topo_at_node_x
     # ------------------------------------------------------------------
 
-    def _pick_interesting_bus_id(self, graph, node, topo_vect, isSingleNode,
-                                 is_score_specific_substation,
-                                 color_attrs, label_attrs, direction):
+    def _pick_interesting_bus_id(self, graph: nx.MultiDiGraph, node: int, topo_vect: List[int], isSingleNode: bool,
+                                 is_score_specific_substation: bool,
+                                 color_attrs: Dict[Any, Any], label_attrs: Dict[Any, Any], direction: str) -> int:
         """
         Return the bus id on which to score edges for amont/aval branches.
 
@@ -456,7 +457,7 @@ class AlphaDeesp:  # AKA SOLVER
         neg1 = fabs(sum(x for x in caps_bus1 if x < 0))
         return 1 if neg1 > neg0 else 0
 
-    def _collect_flows_on_bus(self, graph, node, bus_id, topo_vect, label_attrs):
+    def _collect_flows_on_bus(self, graph: nx.MultiDiGraph, node: int, bus_id: int, topo_vect: List[int], label_attrs: Dict[Any, Any]) -> Dict[str, List[float]]:
         """
         Partition in/out flows incident to ``node`` on ``bus_id`` into the
         four (positive, negative) × (in, out) buckets.
@@ -488,8 +489,8 @@ class AlphaDeesp:  # AKA SOLVER
         return {"in_pos": in_pos, "in_neg": in_neg,
                 "out_pos": out_pos, "out_neg": out_neg}
 
-    def _score_amont(self, graph, node, topo_vect, isSingleNode,
-                     is_score_specific_substation, color_attrs, label_attrs):
+    def _score_amont(self, graph: nx.MultiDiGraph, node: int, topo_vect: List[int], isSingleNode: bool,
+                     is_score_specific_substation: bool, color_attrs: Dict[Any, Any], label_attrs: Dict[Any, Any]) -> Any:
         """Score a node that sits in "amont" (upstream) of the constrained path."""
         if self.debug:
             logger.debug("||||||||||||||||||||||||||| node [%s] is in_Amont of constrained_edge", node)
@@ -525,8 +526,8 @@ class AlphaDeesp:  # AKA SOLVER
 
         return final_score
 
-    def _score_aval(self, graph, node, topo_vect, isSingleNode,
-                    is_score_specific_substation, color_attrs, label_attrs):
+    def _score_aval(self, graph: nx.MultiDiGraph, node: int, topo_vect: List[int], isSingleNode: bool,
+                    is_score_specific_substation: bool, color_attrs: Dict[Any, Any], label_attrs: Dict[Any, Any]) -> Any:
         """Score a node that sits in "aval" (downstream) of the constrained path."""
         if self.debug:
             logger.debug("||||||||||||||||||||||||||| node [%s] is in_Aval of constrained_edge", node)
@@ -570,7 +571,7 @@ class AlphaDeesp:  # AKA SOLVER
 
         return final_score
 
-    def _score_in_red_loop(self, graph, node, topo_vect, color_attrs, label_attrs):
+    def _score_in_red_loop(self, graph: nx.MultiDiGraph, node: int, topo_vect: List[int], color_attrs: Dict[Any, Any], label_attrs: Dict[Any, Any]) -> Any:
         """
         Score a node that belongs to a red loop path.
 
@@ -609,7 +610,7 @@ class AlphaDeesp:  # AKA SOLVER
         injection = -self.get_prod_conso_sum(node, biggest_bus, topo_vect)
         return np.around(min_pos_in_or_out + injection, decimals=2)
 
-    def _score_not_connected_to_cpath(self, graph, node, topo_vect, label_attrs):
+    def _score_not_connected_to_cpath(self, graph: nx.MultiDiGraph, node: int, topo_vect: List[int], label_attrs: Dict[Any, Any]) -> Any:
         """
         Score a node that is not on the constrained path or any red loop.
         The score is the smaller imbalance between the two candidate busbars.
@@ -648,7 +649,7 @@ class AlphaDeesp:  # AKA SOLVER
 
         return final_score
 
-    def get_prod_conso_sum(self, node, interesting_bus_id, topo_vect):
+    def get_prod_conso_sum(self, node: int, interesting_bus_id: int, topo_vect: List[int]) -> float:
         total = 0
         elements = self.simulator_data["substations_elements"][node]
         for element, bus_id in zip(elements, topo_vect):
@@ -659,7 +660,7 @@ class AlphaDeesp:  # AKA SOLVER
                     total = total + element.value
         return total
 
-    def get_bus_id_from_edge(self, node, edge, topo_vect):
+    def get_bus_id_from_edge(self, node: int, edge: Tuple[Any, Any, Any], topo_vect: List[int]) -> Optional[int]:
         """
         Knowing that topo_vect is applied on given node, returns on which bus_id is connected a given edge
 
@@ -693,7 +694,7 @@ class AlphaDeesp:  # AKA SOLVER
                     else:  # in that case there are parallel edges between the two nodes, so deal with that
                         paralel_edge_counter += 1
 
-    def is_connected_to_cpath(self, all_edges_color_attributes, all_edges_xlabel_attributes, node, edge, isSingleNode):
+    def is_connected_to_cpath(self, all_edges_color_attributes: Dict[Any, Any], all_edges_xlabel_attributes: Dict[Any, Any], node: int, edge: Tuple[Any, Any, Any], isSingleNode: bool) -> bool:
         edge_color = all_edges_color_attributes[edge]
         edge_value = all_edges_xlabel_attributes[edge]
         # if there is a outgoing negative blue or black edge this means we are connected to cpath.
@@ -705,7 +706,7 @@ class AlphaDeesp:  # AKA SOLVER
             logger.debug("######################################################")
         return bool
 
-    def sort_hubs(self, hubs):
+    def sort_hubs(self, hubs: Optional[List[Any]]) -> Optional[pd.DataFrame]:
         # creates a DATAFRAME and sort it, returns the sorted hubs
         # print("================= sort_hubs =================")
         if hubs:
@@ -741,7 +742,7 @@ class AlphaDeesp:  # AKA SOLVER
         # else:
         #   raise ValueError("There are no hubs")
 
-    def identify_routing_buses(self):
+    def identify_routing_buses(self) -> Dict[int, Any]:
         """Categories 1 to 4
         1. Hubs
         2. all nodes that belong to c_path
@@ -769,7 +770,7 @@ class AlphaDeesp:  # AKA SOLVER
             d = {1: category1, 2: set_category2, 3: category3, 4: set_category4}
         return d
 
-    def rank_loop_buses(self, graph, df_initial_flows):
+    def rank_loop_buses(self, graph: nx.MultiDiGraph, df_initial_flows: pd.DataFrame) -> Dict[Any, float]:
         # self.g => overflow graph
         all_edges_color_attributes = nx.get_edge_attributes(graph, "color")  # dict[edge]
         all_edges_xlabel_attributes = nx.get_edge_attributes(graph, "label")
@@ -824,7 +825,7 @@ class AlphaDeesp:  # AKA SOLVER
                         Strength_Bus_dic[bus] = strength_measure
         return Strength_Bus_dic
 
-    def rank_red_loops(self):
+    def rank_red_loops(self) -> None:
         cut_values = []
         cut_sets = []  # contains the edges that ended up having the minimum cut_values
         g_red_DiGraph=self.to_DiGraph(self.g_distribution_graph.g_only_red_components)#self.g_only_red_components)#necessary to be able to compute minimum_cut
@@ -859,7 +860,7 @@ class AlphaDeesp:  # AKA SOLVER
         # print(self.red_loops)
 
     # create weighted digraph from MultiDiGraph
-    def to_DiGraph(self,gM):
+    def to_DiGraph(self, gM: nx.MultiDiGraph) -> nx.DiGraph:
         G = nx.DiGraph()
         for u, v,idx, data in gM.edges(data=True,keys=True):
             w = data['capacity'] if 'capacity' in data else 1.0
@@ -869,18 +870,18 @@ class AlphaDeesp:  # AKA SOLVER
                 G.add_edge(u, v, capacity=w)
         return G
 
-    def compute_meaningful_structures(self):
+    def compute_meaningful_structures(self) -> None:
         self.data["constrained_path"] = self.get_constrained_path()
 
-    def get_adjacency_matrix(self, g):
+    def get_adjacency_matrix(self, g: nx.MultiDiGraph) -> None:
         logger.debug("adjacency matrix full = ")
         for line in nx.generate_adjlist(g):
             logger.debug("%s", line)
 
-    def get_loop_paths(self):
+    def get_loop_paths(self) -> None:
         pass
 
-    def filter_constrained_path(self, path_to_filter):
+    def filter_constrained_path(self, path_to_filter: Any) -> List[Any]:
         """This function gets rid of duplicates, tuples, arrays, and return a single clean ordered array"""
         set_constrained_path = []
         for edge in path_to_filter:
@@ -894,21 +895,21 @@ class AlphaDeesp:  # AKA SOLVER
                         set_constrained_path.append(node)
         return set_constrained_path
 
-    def isAntenna(self):
+    def isAntenna(self) -> None:
         pass
 
-    def write_g(self, g):
+    def write_g(self, g: nx.MultiDiGraph) -> None:
         """This saves file g"""
         nx.write_edgelist(self.g, "./alphaDeesp/tmp/save.graph")
         # print("file saved")
         pass
 
-    def read_g(self):
+    def read_g(self) -> None:
         pass
 
 
 class AlphaDeesp_warmStart(AlphaDeesp):
-    def __init__(self, g, g_distribution_graph,simulator_data=None, debug=False):
+    def __init__(self, g: nx.MultiDiGraph, g_distribution_graph: Any, simulator_data: Optional[Dict[str, Any]] = None, debug: bool = False) -> None:
         # used for postprocessing
         self.bag_of_graphs = {}
         self.debug = debug

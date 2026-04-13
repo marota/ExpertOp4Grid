@@ -26,6 +26,12 @@ SubstationElement = Union[Production, Consumption, OriginLine, ExtremityLine]
 class Simulation(ABC):
     """Abstract Class Simulation"""
 
+    #: Backend-provided runtime configuration (thresholds, layout, etc.)
+    #: populated by concrete subclasses in their own ``__init__``.
+    param_options: Dict[str, Any]
+    #: Debug flag consulted by :meth:`create_df`; concrete subclasses set it.
+    debug: bool
+
     def __init__(self) -> None:
         super().__init__()
 
@@ -184,7 +190,7 @@ class Simulation(ABC):
     def create_end_result_empty_dataframe() -> pd.DataFrame:
         """This function creates initial structure for the dataframe"""
 
-        end_result_dataframe_structure_initiation = {
+        end_result_dataframe_structure_initiation: Dict[str, List[Any]] = {
             "overflow ID": [],
             "Flows before": [],
             "Flows after": [],

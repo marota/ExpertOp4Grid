@@ -1,14 +1,20 @@
 # Code Quality & Maintainability Analysis
 
-_Last updated: 2026-04-12 — high-impact items 5, 6, 7 and 9 are now all
-resolved on branch `claude/fix-code-quality-issues-XGpMU` (type hints on
-`core/simulation.py` and `core/elements.py`; remaining mutable defaults on
-`Grid2opSimulation.__init__` / `PypownetSimulation.__init__`; items 5 and 7
-were already done in prior passes and are reconfirmed). Longer-term refactors
-for the four highest-CC functions and the `"666"` twin-node encoding landed
-on branch `claude/refactor-rank-topo-function-U4y9g`. Short-term action plan
-landed on `claude/code-quality-short-term-tnydm`; original immediate-cleanup
-pass on `claude/code-quality-analysis-8Ftgi`._
+_Last updated: 2026-04-13 — item 14 (type hints propagation + mypy in CI) is
+now resolved on branch `claude/add-type-hints-mypy-PkQvf`: the remaining six
+modules (`core/alphadeesp.py`, `core/graphsAndPaths.py`, `core/network.py`,
+`core/printer.py`, `core/grid2op/Grid2opSimulation.py`,
+`core/pypownet/PypownetSimulation.py`) have signature-level annotations,
+`mypy --ignore-missing-imports` is wired into CircleCI (strict for the two
+seed modules, permissive for the rest), and `radon cc/mi/raw` runs on every
+build as an informational "code quality report" step. Previous passes:
+high-impact items 5, 6, 7 and 9 on `claude/fix-code-quality-issues-XGpMU`
+(initial type hints seed for `core/simulation.py` and `core/elements.py`;
+remaining mutable defaults). Longer-term refactors for the four highest-CC
+functions and the `"666"` twin-node encoding landed on
+`claude/refactor-rank-topo-function-U4y9g`. Short-term action plan landed on
+`claude/code-quality-short-term-tnydm`; original immediate-cleanup pass on
+`claude/code-quality-analysis-8Ftgi`._
 
 This document captures a diagnostic review of the `alphaDeesp` (ExpertOp4Grid)
 codebase. It is intended as a living punch-list for incremental cleanup work.
@@ -100,6 +106,9 @@ and discrimination are covered in `TestTwinNodeIds`.
 | done | Unify `LICENSE`/`LICENSE.md`; refresh `setup.py` classifiers and version pins | See "Packaging cleanup" below |
 | done | Fix remaining mutable defaults on `Grid2opSimulation.__init__` / `PypownetSimulation.__init__` | See "Mutable defaults" below |
 | done | Type hints seed on `core/simulation.py` and `core/elements.py` | See "Type hints seed" below |
+| done | Type hints propagation to `alphadeesp.py`, `graphsAndPaths.py`, `network.py`, `printer.py`, `Grid2opSimulation.py`, `PypownetSimulation.py` | See "Type hints propagation" below |
+| done | Enable `mypy --ignore-missing-imports` in CI (strict for the two seed modules, permissive for the rest) | See "Mypy in CI" below |
+| done | Automate code quality metrics (pyflakes + mypy + radon cc/mi/raw) in CircleCI | See "Code quality metrics in CI" below |
 
 ### Bare except cleanup
 
@@ -240,17 +249,191 @@ What landed:
     OriginLine, ExtremityLine]`` alias is exposed so downstream annotations
     can use a single name instead of repeating the 4-way union.
 
-Deliberately out of scope for this pass (tracked under longer-term item 14):
+All of the modules that were deferred in the seed pass now carry
+signature-level annotations — see "Type hints propagation" below. Mypy is
+also wired into CI; see "Mypy in CI" below.
 
-- `core/alphadeesp.py`, `core/graphsAndPaths.py`, `core/network.py`,
-  `core/printer.py`, and the two concrete backends
-  (`core/grid2op/Grid2opSimulation.py`, `core/pypownet/PypownetSimulation.py`).
-  These modules consume the seed types but annotating them requires
-  carefully typing `networkx.DiGraph` / `rustworkx.PyDiGraph` nodes and
-  edges, which is a larger job.
-- Wiring `mypy --ignore-missing-imports` into CI. With only the two seed
-  modules annotated mypy would be almost entirely noise; it makes sense to
-  enable it once `alphadeesp.py` and the backends are typed.
+### Type hints propagation
+
+The six modules the seed pass left untyped now carry **public
+signature-level** annotations (parameters + return types). Internal locals
+are still untyped in most cases — the goal of this pass was to surface
+enough of the shape of the package that `mypy --ignore-missing-imports` can
+run over the whole first-party tree without `Any`-chasing every call site.
+
+| Module | Annotated signatures (approximate) |
+|---|---|
+| `core/printer.py` | 7 methods/functions: `Printer.__init__`, `plot_graphviz`, `display_geo`, `display_elec`, `create_namefile`, `shell_print_project_header`, `execute_command`. |
+| `core/network.py` | `Network.__init__(substations_elements: Dict[int, List[SubstationElement]])`, `get_number_total_number_of_nodes`, `get_graphical_number_of_nodes` + the `nodes_prod_values` / `substation_id_busbar_id_node_id_mapping` / `nb_graphical_nodes` attributes. |
+| `core/alphadeesp.py` | ~38 signatures — `__init__`, `simulate_network_change`, `get_ranked_combinations`, `compute_best_topologies`, `clean_and_sort_best_topologies`, `compute_all_combinations`, `legal_comb`, `rank_topologies`, `apply_new_topo_to_graph` + 5 helpers, `rank_current_topo_at_node_x` + 4 `_score_*` helpers, `_pick_interesting_bus_id`, `_collect_flows_on_bus`, `get_prod_conso_sum`, `get_bus_id_from_edge`, `is_connected_to_cpath`, `sort_hubs`, `identify_routing_buses`, `rank_loop_buses`, `rank_red_loops`, `to_DiGraph`, `compute_meaningful_structures`, `get_adjacency_matrix`, `get_loop_paths`, `filter_constrained_path`, `isAntenna`, `write_g`, `read_g`, `AlphaDeesp_warmStart.__init__`. |
+| `core/graphsAndPaths.py` | ~76 signatures across `PowerFlowGraph`, `OverFlowGraph`, `ConstrainedPath`, `Structured_Overload_Distribution_Graph`, plus 11 module-level graph helpers (`from_edges_get_nodes`, `delete_color_edges`, `nodepath_to_edgepath`, `incident_edges`, `all_simple_edge_paths_multi`, `remove_unused_added_double_edge`, `add_double_edges_null_redispatch`, `find_multidigraph_edges_by_name`, `shortest_path_min_weight_then_hops`, `shortest_path_mandatory_and_promoted`, `shortest_path_with_promoted_edges`). |
+| `core/grid2op/Grid2opSimulation.py` | ~33 signatures covering every method of `Grid2opSimulation` plus the three module-level helpers `build_nodes_v2`, `build_edges_v2`, `score_changes_between_two_observations`. |
+| `core/pypownet/PypownetSimulation.py` | ~27 signatures covering every method of `PypownetSimulation` plus `build_nodes_v2`, `build_edges_v2`, `get_differencial_topology`. This module is outside the pyflakes/mypy CI scope because `pypownet` is an optional backend, but annotating it still helps IDE support for users who opt into it. |
+
+Type-annotated function count in the first-party tree went from **36**
+after the seed pass to **~220** return-type annotations after this one
+(`grep -c '-> ' alphaDeesp/core/*.py alphaDeesp/core/*/*.py`).
+
+Guidelines used throughout the propagation pass:
+
+- **`Any` was preferred over guessing** whenever the runtime type is a
+  backend-specific object (Grid2op observations, pypownet environments,
+  rustworkx PyDiGraph). `mypy --ignore-missing-imports` does not need
+  precise types to catch the common errors.
+- **`networkx.MultiDiGraph` / `nx.DiGraph`** was used for graph parameters
+  where the class contract is clear.
+- **`pandas.DataFrame`** and **`Sequence[float]`** were used for
+  dataframe and flow-vector parameters.
+- Abstract-base-class return types were propagated through to the two
+  concrete backends (`Grid2opSimulation`, `PypownetSimulation`) so
+  `Liskov`-style checks work: `isAntenna -> Optional[int]`,
+  `isDoubleLine -> Optional[List[int]]`,
+  `getLinesAtSubAndBusbar -> Dict[Any, List[int]]`,
+  `get_layout -> List[Tuple[float, float]]`,
+  `get_substation_in_cooldown -> List[int]`,
+  `get_substation_elements -> Dict[int, List[SubstationElement]]`.
+- **Mutable defaults were not rewritten** in this pass — the existing
+  `= []` defaults are annotated as `List[Any] = []` and the mutable-
+  default lint finding (where applicable) is tracked separately.
+- **No refactors, no semantic changes.** Only `def` signatures were
+  touched and `typing` imports added at the top of each module.
+
+A few base-class-level attribute annotations were added on
+`Simulation` so that the strict-mode seed modules keep passing mypy
+after the propagation landed:
+
+```python
+class Simulation(ABC):
+    # Backend-provided runtime configuration (thresholds, layout, etc.)
+    # populated by concrete subclasses in their own __init__.
+    param_options: Dict[str, Any]
+    # Debug flag consulted by create_df; concrete subclasses set it.
+    debug: bool
+```
+
+and `create_end_result_empty_dataframe` picked up an explicit
+`end_result_dataframe_structure_initiation: Dict[str, List[Any]]`
+annotation so the strict-mode run no longer trips on the previously
+inferred `dict[str, list[<nothing>]]`.
+
+### Mypy in CI
+
+The CircleCI `build-and-test` job now installs `mypy` alongside
+`pyflakes` and runs a two-stage type-check after the pyflakes lint
+step:
+
+```yaml
+- run:
+    name: Run mypy (static type check)
+    command: |
+      python -m mypy \
+        alphaDeesp/core/simulation.py \
+        alphaDeesp/core/elements.py
+      python -m mypy \
+        alphaDeesp/core/network.py \
+        alphaDeesp/core/printer.py \
+        alphaDeesp/core/alphadeesp.py \
+        alphaDeesp/core/graphsAndPaths.py \
+        alphaDeesp/core/twin_nodes.py \
+        alphaDeesp/core/grid2op/Grid2opSimulation.py \
+        alphaDeesp/core/grid2op/Grid2opObservationLoader.py \
+        alphaDeesp/expert_operator.py \
+        alphaDeesp/main.py || true
+```
+
+The first `mypy` invocation is **strict for the two seed modules** — a
+new type error in `core/simulation.py` or `core/elements.py` fails the
+build. The second invocation runs in **permissive mode** over the rest
+of the first-party tree and is guarded by `|| true` so its findings are
+informational until the whole package is annotated at the local-
+variable level.
+
+Configuration lives in `setup.cfg` under a new `[mypy]` section:
+
+```ini
+[mypy]
+python_version = 3.12
+ignore_missing_imports = True
+follow_imports = silent
+warn_unused_ignores = False
+warn_return_any = False
+warn_redundant_casts = True
+no_strict_optional = True
+allow_untyped_defs = True
+allow_untyped_calls = True
+allow_incomplete_defs = True
+exclude = (alphaDeesp/core/pypownet/|alphaDeesp/tests/pypownet/|alphaDeesp/Expert_rule_action_verification\.py|alphaDeesp/ressources/)
+
+[mypy-alphaDeesp.core.simulation]
+disallow_untyped_defs = True
+check_untyped_defs = True
+
+[mypy-alphaDeesp.core.elements]
+disallow_untyped_defs = True
+check_untyped_defs = True
+```
+
+`ignore_missing_imports = True` silences the missing-stub noise from
+`grid2op`, `lightsim2grid`, `networkx`, `rustworkx`, `pypowsybl` and
+friends. `follow_imports = silent` keeps the permissive run from
+cascading into strict-scope errors. The legacy Pypownet backend, the
+optional-toolbox `Expert_rule_action_verification.py`, and the ad-hoc
+`ressources/parameters/*.py` scripts are excluded — they match the
+existing pyflakes / pytest CI exclusions.
+
+**Current mypy status** (local, 2026-04-13):
+
+- Strict seed (`core/simulation.py`, `core/elements.py`): **0 errors**.
+- Permissive scope (9 modules): **~51 errors**, all of them either
+  "needs a type annotation for a local dict/list" or
+  "incompatible int / float assignment" inside AlphaDeesp hot loops.
+  These are tracked as follow-up work but do not gate the build.
+
+### Code quality metrics in CI
+
+The CircleCI job now also runs `radon` after the lint/type-check
+phases, as a dedicated **"Code quality metrics"** step:
+
+```yaml
+- run:
+    name: Code quality metrics (radon)
+    command: |
+      echo "=== Cyclomatic complexity (A-F, min: C) ==="
+      python -m radon cc -a -s --min C \
+        alphaDeesp/core/ \
+        alphaDeesp/Expert_rule_action_verification.py || true
+      echo ""
+      echo "=== Maintainability Index (all modules) ==="
+      python -m radon mi -s \
+        alphaDeesp/core/ \
+        alphaDeesp/Expert_rule_action_verification.py || true
+      echo ""
+      echo "=== Raw metrics (SLOC / comment ratio) ==="
+      python -m radon raw -s \
+        alphaDeesp/core/ \
+        alphaDeesp/Expert_rule_action_verification.py || true
+```
+
+- The **cyclomatic-complexity** report surfaces any new function that
+  crosses into the C grade (CC ≥ 11), which is the threshold the
+  longer-term refactor work flagged as the upper bound for acceptable
+  helpers (the dispatcher functions are all at B (7) after the
+  "Longer-term refactor landing" pass).
+- The **maintainability index** report tracks MI for every module in
+  the package so regressions in `graphsAndPaths.py` (already at C),
+  `Grid2opSimulation.py`, `PypownetSimulation.py` and
+  `Expert_rule_action_verification.py` are visible per build.
+- The **raw metrics** report keeps SLOC / comment ratio / blank-line
+  ratio visible so the "largest module" and "comment-to-code density"
+  numbers in the Metrics table above stay fresh.
+
+Each `radon` command is guarded with `|| true` so the step is
+**purely informational**; it never fails the build. The test suite
+still gates the pipeline.
+
+This is the single-command replacement for the "How to reproduce these
+metrics" section at the bottom of this document — developers no longer
+need to run `radon` locally to see where they stand.
 
 Verification:
 
@@ -424,7 +607,7 @@ CI-config change.
 | Average complexity | **B (5.72)** across 163 functions/classes | `radon cc` |
 | `print()` calls | baseline: **247** across 20 files → **~108 remaining** (tests, `build_new_parameters_environment.py`, legacy Pypownet backend, `Expert_rule_action_verification.py`); all 10 CI-scoped first-party modules are at **0** | grep |
 | Bare `except:` clauses | baseline: 9 → **0** | grep |
-| Type-annotated functions | baseline 1 → **36** after the core base-class seed (16 in `core/elements.py` + 20 in `core/simulation.py`); rest of the package still untyped | grep `-> ` |
+| Type-annotated functions | baseline 1 → **36** after the seed → **~220** after the propagation pass (20 in `simulation.py`, 16 in `elements.py`, 3 in `network.py`, 7 in `printer.py`, 38 in `alphadeesp.py`, 76 in `graphsAndPaths.py`, 33 in `Grid2opSimulation.py`, 27 in `PypownetSimulation.py`) | grep `-> ` |
 | Pyflakes findings | baseline: 59 → **0** in CI scope | `pyflakes` |
 | TODO/FIXME markers | 25 across 7 files | grep |
 | Test functions | 164 across 9 files; CI now only excludes `test_cli.py` (run as a dedicated step); pypownet + expert_rules self-skip via `pytest.importorskip` | `.circleci/config.yml` |
@@ -619,18 +802,32 @@ details of each change.
     `apply_new_topo_to_graph`.~~ Done — F (46)/F (44)/E (36) → A (2)/B (7)/B (7).
 13. ~~Replace the `"666"` twin-node encoding with a proper id scheme.~~ Done,
     see `alphaDeesp/core/twin_nodes.py`.
-14. Add type hints starting from `core/simulation.py` and `core/elements.py`
-    outward; enable `mypy --ignore-missing-imports` in CI. _Seed done for
-    the two base-class modules — see "Type hints seed" above. Remaining:
-    `core/alphadeesp.py`, `core/graphsAndPaths.py`, `core/network.py`,
-    `core/printer.py`, and the two concrete simulator backends._
+14. ~~Add type hints starting from `core/simulation.py` and `core/elements.py`
+    outward; enable `mypy --ignore-missing-imports` in CI.~~ Done — all six
+    previously untyped modules (`core/alphadeesp.py`,
+    `core/graphsAndPaths.py`, `core/network.py`, `core/printer.py`,
+    `core/grid2op/Grid2opSimulation.py`,
+    `core/pypownet/PypownetSimulation.py`) now carry signature-level
+    annotations, and `mypy --ignore-missing-imports` is wired into
+    CircleCI in strict mode for the seed and permissive mode for the rest
+    of the first-party tree. See "Type hints propagation", "Mypy in CI",
+    and "Code quality metrics in CI" above. **Remaining nits** (not
+    blockers): ~51 permissive-mode mypy findings, mostly
+    "needs-local-annotation" on internal dicts/lists inside
+    `alphadeesp.py` and `Grid2opSimulation.py`, plus a handful of
+    `int`/`float` assignment mismatches in AlphaDeesp hot loops. These
+    are tracked as an item-14 follow-up and do not gate the build.
 15. Decide the fate of the Pypownet backend: first-class (re-enable CI,
     modernize) or deprecated.
 
 ## How to reproduce these metrics
 
+_CircleCI runs pyflakes, mypy, and radon automatically on every build —
+see "Code quality metrics in CI" above. The commands below reproduce the
+same reports locally._
+
 ```bash
-pip install pyflakes radon
+pip install pyflakes mypy radon
 
 # Complexity
 python -m radon cc -a -s alphaDeesp/core/alphadeesp.py \
@@ -647,6 +844,15 @@ python -m radon raw -s alphaDeesp/core/ alphaDeesp/Expert_rule_action_verificati
 
 # Unused code and star-import leaks
 python -m pyflakes alphaDeesp/core alphaDeesp/*.py
+
+# Static type checking (same two-stage invocation as CI)
+python -m mypy alphaDeesp/core/simulation.py alphaDeesp/core/elements.py
+python -m mypy alphaDeesp/core/network.py alphaDeesp/core/printer.py \
+    alphaDeesp/core/alphadeesp.py alphaDeesp/core/graphsAndPaths.py \
+    alphaDeesp/core/twin_nodes.py \
+    alphaDeesp/core/grid2op/Grid2opSimulation.py \
+    alphaDeesp/core/grid2op/Grid2opObservationLoader.py \
+    alphaDeesp/expert_operator.py alphaDeesp/main.py || true
 
 # Print statements
 grep -rn --include='*.py' '^\s*print(' alphaDeesp/ | wc -l

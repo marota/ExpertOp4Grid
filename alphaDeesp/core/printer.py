@@ -12,6 +12,7 @@ import datetime
 import logging
 import os
 import subprocess
+from typing import List, Optional, Tuple
 
 import networkx as nx
 
@@ -21,9 +22,9 @@ logger = logging.getLogger(__name__)
 
 
 class Printer:
-    save_id_number = 0
+    save_id_number: int = 0
 
-    def __init__(self, output_path = None):
+    def __init__(self, output_path: Optional[str] = None) -> None:
         if output_path is None:
             self.default_output_path = "alphaDeesp/ressources/output"
         else:
@@ -34,7 +35,18 @@ class Printer:
         os.makedirs(self.results_output_path, exist_ok=True)
         logger.debug("self.default output path = %s", self.default_output_path)
 
-    def plot_graphviz(self, g, custom_layout=None,rescale_factor=None,allow_overlap=True,fontsize=None,node_thickness=3, axial_symetry=False, save=False, name=None):
+    def plot_graphviz(
+        self,
+        g: nx.DiGraph,
+        custom_layout: Optional[List[Tuple[float, float]]] = None,
+        rescale_factor: Optional[float] = None,
+        allow_overlap: bool = True,
+        fontsize: Optional[int] = None,
+        node_thickness: int = 3,
+        axial_symetry: bool = False,
+        save: bool = False,
+        name: Optional[str] = None,
+    ) -> bytes:
         "filenames are pathlib.Paths objects"
 
         dic_pos_attributes = {}
@@ -82,7 +94,17 @@ class Printer:
 
 
 
-    def display_geo(self, g, custom_layout=None,rescale_factor=None,fontsize=None, node_thickness=3, axial_symetry=False, save=False, name=None):
+    def display_geo(
+        self,
+        g: nx.DiGraph,
+        custom_layout: Optional[List[Tuple[float, float]]] = None,
+        rescale_factor: Optional[float] = None,
+        fontsize: Optional[int] = None,
+        node_thickness: int = 3,
+        axial_symetry: bool = False,
+        save: bool = False,
+        name: Optional[str] = None,
+    ) -> None:
         """This function displays the graph g in a "geographical" way"""
 
         "filenames are pathlib.Paths objects"
@@ -148,10 +170,15 @@ class Printer:
         #     os.system("rm " + filename_dot)
         #     os.system("rm " + filename_pdf)
 
-    def display_elec(self, g, save=False):
+    def display_elec(self, g: nx.DiGraph, save: bool = False) -> None:
         pass
 
-    def create_namefile(self, display_type, name=None, type = "results"):
+    def create_namefile(
+        self,
+        display_type: str,
+        name: Optional[str] = None,
+        type: str = "results",
+    ) -> Tuple[str, str]:
         """return dot and pdf filenames"""
         # filename_dot = "graph_result_" + display_type + "_" + current_date + ".dot"
         # filename_pdf = "graph_result_" + display_type + "_" + current_date + ".pdf"
@@ -183,7 +210,7 @@ class Printer:
         return hard_filename_dot, hard_filename_pdf
 
 
-def shell_print_project_header():
+def shell_print_project_header() -> None:
     os.system("cat ./print_header.txt")
 
 ########################################################################################################################
@@ -191,7 +218,7 @@ def shell_print_project_header():
 ########################################################################################################################
 
 
-def execute_command(command: str):
+def execute_command(command: str) -> bool:
     """
     This function executes a command on the local machine, and fill self.output and self.error with results of
     command.
