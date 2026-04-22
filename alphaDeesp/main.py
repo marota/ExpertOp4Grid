@@ -12,6 +12,7 @@ import logging
 import os
 import argparse
 import configparser
+import warnings
 
 from alphaDeesp.core.printer import shell_print_project_header
 from alphaDeesp.expert_operator import expert_operator
@@ -94,17 +95,7 @@ def main():
     args.snapshot = bool(args.snapshot)
 
 
-    if config["DEFAULT"]["simulatorType"] == "Pypownet":
-        logger.info("We init Pypownet Simulation")
-        from alphaDeesp.core.pypownet.PypownetSimulation import PypownetSimulation
-        from alphaDeesp.core.pypownet.PypownetObservationLoader import PypownetObservationLoader
-
-        parameters_folder = config["DEFAULT"]["gridPath"]
-        loader = PypownetObservationLoader(parameters_folder)
-        env, obs, action_space = loader.get_observation(args.timestep)
-        sim = PypownetSimulation(env, obs, action_space, param_options=config["DEFAULT"], debug=args.debug,
-                                 ltc=args.ltc)
-    elif config["DEFAULT"]["simulatorType"] == "Grid2OP":
+    if config["DEFAULT"]["simulatorType"] == "Grid2OP":
         logger.info("We init Grid2OP Simulation")
         from alphaDeesp.core.grid2op.Grid2opSimulation import Grid2opSimulation
         from alphaDeesp.core.grid2op.Grid2opObservationLoader import Grid2opObservationLoader
@@ -143,6 +134,23 @@ def main():
 
         sim = Grid2opSimulation(obs, action_space, observation_space, param_options=config["DEFAULT"], debug=args.debug,
                                  ltc=args.ltc, plot=args.snapshot, plot_folder = plot_folder)
+
+    elif config["DEFAULT"]["simulatorType"] == "Pypownet":
+        warnings.warn(
+            "The Pypownet backend is deprecated and no longer maintained. "
+            "Please migrate to Grid2OP (set simulatorType = Grid2OP in config.ini).",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        logger.warning("Pypownet backend is deprecated and no longer maintained. Use Grid2OP instead.")
+        from alphaDeesp.core.pypownet.PypownetSimulation import PypownetSimulation
+        from alphaDeesp.core.pypownet.PypownetObservationLoader import PypownetObservationLoader
+
+        parameters_folder = config["DEFAULT"]["gridPath"]
+        loader = PypownetObservationLoader(parameters_folder)
+        env, obs, action_space = loader.get_observation(args.timestep)
+        sim = PypownetSimulation(env, obs, action_space, param_options=config["DEFAULT"], debug=args.debug,
+                                 ltc=args.ltc)
 
     elif config["DEFAULT"]["simulatorType"] == "RTE":
         logger.info("We init RTE Simulation")

@@ -778,130 +778,101 @@ def build_edges_v2(
 
 #TO DO: check is line is disconnected in new_obs
 
+def _compute_overload_counts(
+    old_rho: Any,
+    new_rho: Any,
+) -> Tuple[int, int]:
+    old_count = sum(1 for r in old_rho if r > 1.0)
+    new_count = sum(1 for r in new_rho if r > 1.0)
+    return old_count, new_count
+
+
+def _compute_line_flags(
+    old_rho: Any,
+    new_rho: Any,
+    ltc: List[int],
+) -> Tuple[Any, Any, Any, Any]:
+    worsened, relieved_30pct, relieved, created = [], [], [], []
+    for line_id, (old, new) in enumerate(zip(old_rho, new_rho)):
+        worsened.append(1 if (new > 1.05 * old) and (new > 1.0) else 0)
+
+        if (old > 1.0) and (line_id in ltc):
+            pct = (old - new) * 100 / (old - 1.0)
+            relieved_30pct.append(1 if pct > 30.0 else 0)
+        else:
+            relieved_30pct.append(0)
+
+        relieved.append(1 if (old > 1.0 > new) and (line_id in ltc) else 0)
+        created.append(1 if old < 1.0 < new else 0)
+
+    return (
+        np.array(worsened),
+        np.array(relieved_30pct),
+        np.array(relieved),
+        np.array(created),
+    )
+
+
+def _compute_cut_load_percent(old_obs: Any, new_obs: Any) -> float:
+    total_prod = np.nansum(new_obs.prod_p)
+    losses = np.nansum(np.abs(new_obs.p_or + new_obs.p_ex))
+    expected_load = total_prod - losses
+    return (np.sum(old_obs.load_p) - expected_load) / np.sum(old_obs.load_p)
+
+
+def _resolve_score(
+    old_count: int,
+    new_count: int,
+    worsened: Any,
+    relieved_30pct: Any,
+    relieved: Any,
+    created: Any,
+    cascading: Any,
+    cut_load_percent: float,
+) -> Union[int, float]:
+    if old_count == 0:
+        return float('nan')
+    if cut_load_percent > 0.01:
+        return 0
+    if (relieved == 1).any() and (
+        (created == 1).any() or (worsened == 1).any() or cascading.any()
+    ):
+        return 1
+    if old_count > 0 and new_count == 0:
+        return 4
+    if (relieved == 1).any() and (worsened == 0).all():
+        return 3
+    if (relieved_30pct == 1).any() and (worsened == 0).all():
+        return 2
+    if (relieved_30pct == 0).all() or (worsened == 1).any():
+        return 0
+    raise ValueError("Probleme with Scoring")
+
+
 def score_changes_between_two_observations(
     ltc: List[int],
     old_obs: Any,
     new_obs: Any,
     nb_timestep_cooldown_line_param: int = 0,
 ) -> Union[int, float]:
-    """This function takes two observations and computes a score to quantify the change between old_obs and new_obs.
-    @:return int between [0 and 4]
-    4: if every overload disappeared
-    3: if an overload disappeared without stressing the network
-    2: if at least 30% of an overload was relieved
-    1: if an overload was relieved but another appeared and got worse
-    0: if no overloads were alleviated or if it resulted in some load shedding or production distribution.
+    """Compute a score [0–4] quantifying improvement from old_obs to new_obs.
+
+    4: every overload disappeared
+    3: overload disappeared without stressing the network
+    2: at least 30% of an overload was relieved
+    1: overload relieved but another appeared/worsened
+    0: no improvement or load shedding occurred
     """
-    old_number_of_overloads = 0
-    new_number_of_overloads = 0
-    boolean_overload_worsened = []
-    boolean_constraint_30percent_relieved = []
-    boolean_constraint_relieved = []
-    boolean_overload_created = []
-    boolean_line_cascading_disconnection = ((new_obs.time_before_cooldown_line-old_obs.time_before_cooldown_line)>nb_timestep_cooldown_line_param)
-
-
-
-    old_obs_lines_capacity_usage = old_obs.rho
-    new_obs_lines_capacity_usage = new_obs.rho
-    # ################################### PREPROCESSING #####################################
-    for elem in old_obs_lines_capacity_usage:
-        if elem > 1.0:
-            old_number_of_overloads += 1
-
-    for elem in new_obs_lines_capacity_usage:
-        if elem > 1.0:
-            new_number_of_overloads += 1
-
-    # preprocessing for score 3 and 2
-    line_id=0
-    for old, new in zip(old_obs_lines_capacity_usage, new_obs_lines_capacity_usage):
-        # preprocessing for score 3
-        if (new > 1.05 * old) & (new > 1.0):  # if new > old > 1.0 it means it worsened an existing constraint
-            boolean_overload_worsened.append(1)
-        else:
-            boolean_overload_worsened.append(0)
-
-        # preprocessing for score 2
-        if (old > 1.0) & (line_id in ltc) :  # if old was an overload:
-            surcharge = old - 1.0
-            diff = old - new
-            percentage_relieved = diff * 100 / surcharge
-            if percentage_relieved > 30.0:
-                boolean_constraint_30percent_relieved.append(1)
-            else:
-                boolean_constraint_30percent_relieved.append(0)
-        else:
-            boolean_constraint_30percent_relieved.append(0)
-
-
-        # preprocessing for score 1
-        if (old > 1.0 > new) & (line_id in ltc):
-            boolean_constraint_relieved.append(1)
-        else:
-            boolean_constraint_relieved.append(0)
-
-        if old < 1.0 < new:
-            boolean_overload_created.append(1)
-        else:
-            boolean_overload_created.append(0)
-
-        line_id+=1
-
-    boolean_overload_worsened = np.array(boolean_overload_worsened)
-    boolean_constraint_30percent_relieved = np.array(boolean_constraint_30percent_relieved)
-    boolean_constraint_relieved = np.array(boolean_constraint_relieved)
-    boolean_overload_created = np.array(boolean_overload_created)
-
-    #redistribution_load = np.sum(np.absolute(new_obs.load_p - old_obs.load_p))#not exact in Grid2op if load are disconnected
-
-    TotalProd=np.nansum(new_obs.prod_p)
-    Losses=np.nansum(np.abs(new_obs.p_or+new_obs.p_ex))
-    ExpectedNewLoad=TotalProd-Losses
-    cut_load_percent=(np.sum(old_obs.load_p)-ExpectedNewLoad)/np.sum(old_obs.load_p)
-
-
-    # ################################ END OF PREPROCESSING #################################
-    # score 0 if no overloads were alleviated or if it resulted in some load shedding or production distribution.
-    if old_number_of_overloads == 0:
-        # print("return NaN: No overflow at initial state of grid")
-        return float('nan')
-    elif cut_load_percent > 0.01: # (boolean_overload_relieved == 0).all()
-        # print("return 0: no overloads were alleviated or some load shedding occured.")
-        return 0
-
-    # score 1 if overload was relieved but another one appeared and got worse
-    elif (boolean_constraint_relieved == 1).any() and ((boolean_overload_created == 1).any() or
-                                                     (boolean_overload_worsened == 1).any() or (boolean_line_cascading_disconnection).any()):
-        # print("return 1: our overload was relieved but another one appeared")
-        return 1
-
-    # 4: if every overload disappeared
-    elif old_number_of_overloads > 0 and new_number_of_overloads == 0:
-        # print("return 4: every overload disappeared")
-        return 4
-
-    # 3: if this overload disappeared without stressing the network, ie,
-    # if an overload disappeared
-    # and without worsening existing constraint
-    # and no Loads that get cut
-    elif (boolean_constraint_relieved == 1).any() and \
-            (boolean_overload_worsened == 0).all():
-        # and \ (new_obs.are_loads_cut == 0).all():
-        # print("return 3: our overload disappeared without stressing the network")
-        return 3
-
-    # 2: if at least 30% of this overload was relieved
-    elif (boolean_constraint_30percent_relieved == 1).any() and \
-            (boolean_overload_worsened == 0).all():
-        # print("return 2: at least 30% of our overload [{}] was relieved".format(
-        #     np.where(boolean_overload_30percent_relieved == 1)[0]))
-        return 2
-
-    # score 0
-    elif (boolean_constraint_30percent_relieved == 0).all() or \
-            (boolean_overload_worsened == 1).any():
-        return 0
-
-    else:
-        raise ValueError("Probleme with Scoring")
+    old_rho = old_obs.rho
+    new_rho = new_obs.rho
+    old_count, new_count = _compute_overload_counts(old_rho, new_rho)
+    worsened, relieved_30pct, relieved, created = _compute_line_flags(old_rho, new_rho, ltc)
+    cascading = (
+        (new_obs.time_before_cooldown_line - old_obs.time_before_cooldown_line)
+        > nb_timestep_cooldown_line_param
+    )
+    cut_load_pct = _compute_cut_load_percent(old_obs, new_obs)
+    return _resolve_score(
+        old_count, new_count, worsened, relieved_30pct, relieved, created,
+        cascading, cut_load_pct,
+    )
