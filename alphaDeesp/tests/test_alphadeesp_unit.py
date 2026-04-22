@@ -381,3 +381,153 @@ class TestAddBusNodes:
         host._add_bus_nodes(g, bus_ids={0}, prod={}, load={},
                             node_to_change=5, new_node_id=twin_node_id(5))
         assert g.nodes[5]["fillcolor"] == "#ffffff"
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Tests for rank_loop_buses helpers (extracted during refactor)
+# ──────────────────────────────────────────────────────────────────────
+
+
+class _LoopBusHost:
+    """Expose the rank_loop_buses helpers on a bare object."""
+    _bus_loop_strength = AlphaDeesp._bus_loop_strength
+    _local_production_at_bus = AlphaDeesp._local_production_at_bus
+    _initial_inflow_between = staticmethod(AlphaDeesp._initial_inflow_between)
+
+    def __init__(self, simulator_data, g):
+        self.simulator_data = simulator_data
+        self.g = g
+
+
+class TestLocalProductionAtBus:
+
+    def test_sums_production_values(self):
+        sim_data = {"substations_elements": {
+            5: [Production(busbar_id=0, value=3.0),
+                Production(busbar_id=1, value=2.5),
+                Consumption(busbar_id=0, value=4.0)]  # ignored
+        }}
+        host = _LoopBusHost(sim_data, g=nx.MultiDiGraph())
+        assert host._local_production_at_bus(5) == 5.5
+
+    def test_no_production_returns_zero(self):
+        sim_data = {"substations_elements": {
+            7: [Consumption(busbar_id=0, value=1.0),
+                _line_to(end_substation_id=9, flow_value=2.0)]
+        }}
+        host = _LoopBusHost(sim_data, g=nx.MultiDiGraph())
+        assert host._local_production_at_bus(7) == 0.0
+
+
+class TestInitialInflowBetween:
+    """Regression harness for the flow-orientation lookup in the initial
+    flow DataFrame: both positive-source→target and negative-target→source
+    conventions must resolve to ``|init_flow|``."""
+
+    def test_positive_flow_oriented_source_to_target(self):
+        import pandas as pd
+        df = pd.DataFrame({
+            "idx_or": [3, 4],
+            "idx_ex": [5, 5],
+            "init_flows": [12.0, 0.0],
+        })
+        assert AlphaDeesp._initial_inflow_between(df, source=3, target=5) == 12.0
+
+    def test_negative_flow_oriented_target_to_source(self):
+        """Line stored as 3→5 with a negative init flow is power moving
+        *into* bus 5 from bus 3 (negative means reverse-direction flow)."""
+        import pandas as pd
+        df = pd.DataFrame({
+            "idx_or": [3],
+            "idx_ex": [5],
+            "init_flows": [-7.0],
+        })
+        # Asking "flow from 5 into 3": matches the reverse-orientation branch.
+        assert AlphaDeesp._initial_inflow_between(df, source=5, target=3) == 7.0
+
+    def test_no_matching_row_returns_zero(self):
+        import pandas as pd
+        df = pd.DataFrame({
+            "idx_or": [1], "idx_ex": [2], "init_flows": [5.0],
+        })
+        assert AlphaDeesp._initial_inflow_between(df, source=99, target=100) == 0.0
+
+
+class TestBusLoopStrength:
+    """``_bus_loop_strength`` = ``(non_red_inflow + local_production) *
+    red_delta_inflow``."""
+
+    def test_combines_production_and_red_and_non_red_flows(self):
+        import pandas as pd
+        g = nx.MultiDiGraph()
+        # red (coral) edge carrying a +3 delta flow into bus 5
+        g.add_edge(10, 5, label="3", color="coral")
+        # non-red edge carrying initial flow from 4 into 5
+        g.add_edge(4, 5, label="0", color="gray")
+
+        sim_data = {"substations_elements": {
+            5: [Production(busbar_id=0, value=2.0)]
+        }}
+        host = _LoopBusHost(sim_data, g)
+        df_init = pd.DataFrame({
+            "idx_or": [4], "idx_ex": [5], "init_flows": [6.0],
+        })
+        color_attrs = nx.get_edge_attributes(g, "color")
+        label_attrs = nx.get_edge_attributes(g, "label")
+        # (6.0 non-red init + 2.0 local production) * 3.0 red delta = 24.0
+        assert host._bus_loop_strength(
+            5, df_init, color_attrs, label_attrs) == 24.0
+
+    def test_zero_when_no_red_inflow(self):
+        import pandas as pd
+        g = nx.MultiDiGraph()
+        g.add_edge(4, 5, label="1", color="gray")  # no coral edge
+        sim_data = {"substations_elements": {
+            5: [Production(busbar_id=0, value=5.0)]
+        }}
+        host = _LoopBusHost(sim_data, g)
+        df_init = pd.DataFrame({
+            "idx_or": [4], "idx_ex": [5], "init_flows": [3.0],
+        })
+        color_attrs = nx.get_edge_attributes(g, "color")
+        label_attrs = nx.get_edge_attributes(g, "label")
+        assert host._bus_loop_strength(
+            5, df_init, color_attrs, label_attrs) == 0.0
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Tests for to_DiGraph (MultiDiGraph -> weighted DiGraph conversion)
+# ──────────────────────────────────────────────────────────────────────
+
+
+class TestToDiGraph:
+    """``to_DiGraph`` flattens a MultiDiGraph into a DiGraph by summing
+    parallel-edge capacities; required by ``nx.minimum_cut``."""
+
+    @staticmethod
+    def _call(g):
+        host = _LoopBusHost({}, g)
+        # pull the unbound method off AlphaDeesp so we don't need __init__
+        return AlphaDeesp.to_DiGraph(host, g)
+
+    def test_sums_parallel_capacities(self):
+        g = nx.MultiDiGraph()
+        g.add_edge("A", "B", capacity=2.0)
+        g.add_edge("A", "B", capacity=3.0)
+        result = self._call(g)
+        assert isinstance(result, nx.DiGraph)
+        assert result["A"]["B"]["capacity"] == 5.0
+
+    def test_defaults_missing_capacity_to_one(self):
+        g = nx.MultiDiGraph()
+        g.add_edge("A", "B")  # no capacity
+        result = self._call(g)
+        assert result["A"]["B"]["capacity"] == 1.0
+
+    def test_preserves_distinct_edges(self):
+        g = nx.MultiDiGraph()
+        g.add_edge("A", "B", capacity=1.0)
+        g.add_edge("B", "C", capacity=2.0)
+        result = self._call(g)
+        assert result["A"]["B"]["capacity"] == 1.0
+        assert result["B"]["C"]["capacity"] == 2.0

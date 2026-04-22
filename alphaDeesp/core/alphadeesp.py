@@ -45,45 +45,19 @@ class AlphaDeesp:  # AKA SOLVER
         # we cannot play with those substations so no need to compute simulations
         self.substation_in_cooldown = substation_in_cooldown if substation_in_cooldown is not None else []
 
-        # check that line extemity does not have only load or productions: otherwise there is either node merging to do or nothing else
-
         #Compute the overload distribution graph (constrained path, loops, hubs)
-        self.g_distribution_graph=Structured_Overload_Distribution_Graph(self.g)
+        self.g_distribution_graph = Structured_Overload_Distribution_Graph(self.g)
 
-        # this function takes the dataFrame self.red_loops and adds the min cut_values to it.
+        # adds min cut_values to self.g_distribution_graph.red_loops
         self.rank_red_loops()
-
         self.rankedLoopBuses = self.rank_loop_buses(self.g, self.df)
 
-        # here we classify nodes into 4 categories
-        self.structured_topological_actions = self.identify_routing_buses()  # it is a dict
-        # print("#########################################################################")
-        # print("structured_top_actions =", self.structured_topological_actions)
-        # print("#########################################################################")
-
+        # classify nodes into 4 categories (hubs / c_path / loop / aval)
+        self.structured_topological_actions = self.identify_routing_buses()
         self.ranked_combinations = self.compute_best_topologies()
-
-        # for ranked_comb in self.ranked_combinations:
-        # print("---------------------------")
-        # print(ranked_comb)
 
         if self.boolean_dump_data_to_file:
             self.ranked_combinations[0].to_csv("./result_ranked_combinations.csv", index=True)
-
-        # The order to get structures is:
-        # constrained_path
-        # hubs
-        # parallel loops and loops
-
-        # self.simulate_network_change(self.ranked_combinations)
-
-    def load2(self, observation: Any, line_to_cut: int) -> None:
-        """@:arg observation: a pypownet observation,
-        line_to_cut: line to cut for overload graph"""
-
-    def simulate_network_change(self, ranked_combinations: Any) -> None:
-        """This function takes a dataFrame ranked_combinations and computes new changes with Pypownet"""
-        pass
 
     def get_ranked_combinations(self) -> List[pd.DataFrame]:
         return self.ranked_combinations
@@ -107,21 +81,10 @@ class AlphaDeesp:  # AKA SOLVER
                 continue
 
             all_combinations = self.compute_all_combinations(node)
-            if (len(all_combinations) != 0):
+            if len(all_combinations) != 0:
                 ranked_combinations = self.rank_topologies(all_combinations, self.g, node)
-                # print(ranked_combinations)
-
-                # best_topologies = best_topologies.append(ranked_combinations)
-                # pd.concat([best_topologies, *ranked_combinations])
-
-                # print("\n##############################################################################")
-                # print("##########............BEST_TOPOLOGIES COMPUTED............####################")
-                # print("##############################################################################")
-
-                # best_topologies = self.clean_and_sort_best_topologies(best_topologies)
                 best_topologies = self.clean_and_sort_best_topologies(ranked_combinations)
                 res_container.append(best_topologies)
-            # # print(best_topologies)
 
         return res_container
 
@@ -137,41 +100,30 @@ class AlphaDeesp:  # AKA SOLVER
     def compute_all_combinations(self, node: int) -> List[Any]:
         """ Given a node, returns all possible combinations of a node configuration.
         ex: [001], [010], [100], [101], [011]... etc..."""
-
-        # ## check that current topology is not in this list
-        # TO DO: manage the fact that a substation can already be in 2 nodes. How do you get the node configuration and everything?
         node_configuration_elements = self.simulator_data["substations_elements"][node]
         n_elements = len(node_configuration_elements)
         node_configuration = [node_configuration_elements[i].busbar_id for i in range(n_elements)]
         node_configuration_sym = [0 if node_configuration[i] == 1 else 1 for i in range(n_elements)]
 
-        # print("Inside compute_all_comb : for node [{}], node_configuration = {}".format(node, node_configuration))
         if n_elements == 0 or n_elements == 1:
             raise ValueError("Cannot generate combinations out of a configuration with len = 1 or 2")
-        elif n_elements == 2:
+        if n_elements == 2:
             return [(1, 1), (0, 0)]
-        else:
-            l = [0, 1]
-            allcomb = [list(i) for i in itertools.product(l, repeat=n_elements)]
 
-            #we also want to filter combs that only have prods and loads connected to a node
-            nProds_loads=0
-            for element in node_configuration_elements:
-                if isinstance(element, Production) or isinstance(element, Consumption):
-                    nProds_loads+=1
-                else:
-                    break
+        allcomb = [list(i) for i in itertools.product([0, 1], repeat=n_elements)]
 
-            # we get rid of symetrical topologies by fixing the first element to busbar 0.
-            # ideally if first element is not connected, we should fix the first connected element
-            # Also a node should also have 2 elements connected to it, we filter that as well
-            uniqueComb = [allcomb[i] for i in range(len(allcomb)) if self.legal_comb(allcomb[i],nProds_loads,n_elements,node_configuration,node_configuration_sym)]
-                          #if (allcomb[i][0] == 0) & (allcomb[i] != node_configuration) & (allcomb[i] != node_configuration_sym) &
-                          #(np.sum(allcomb[i]) != 1) & (np.sum(allcomb[i]) != n_elements - 1) &
-                          #]  # we get rid of symetrical topologies by fixing the first element to busbar 0. ideally if first element is not connected, we should fix the first connected element
+        # prods and loads are listed first in the substation; find where they end
+        nProds_loads = 0
+        for element in node_configuration_elements:
+            if isinstance(element, (Production, Consumption)):
+                nProds_loads += 1
+            else:
+                break
 
-
-        return uniqueComb
+        # We break the busbar symmetry by fixing comb[0] == 0 and also drop
+        # topologies that would isolate all prods/loads on a single busbar.
+        return [c for c in allcomb if self.legal_comb(
+            c, nProds_loads, n_elements, node_configuration, node_configuration_sym)]
 
     def legal_comb(self, comb: List[int], nProd_loads: int, n_elements: int, node_configuration: List[int], node_configuration_sym: List[int]) -> bool:
         sum_comb=np.sum(comb)
@@ -190,40 +142,20 @@ class AlphaDeesp:  # AKA SOLVER
         return legal_condition
 
     def rank_topologies(self, all_combinations: List[Any], graph: nx.MultiDiGraph, node_to_change: int) -> pd.DataFrame:
-        """==> ultimate goal: This function returns a DF with topologies ranked
-        for the moment:
-            takes a topo,
-            apply it to graph,
-            compute score,
-            add to df
-            next
-        """
-
-        ranked_combinations_columns = ["score", "topology", "node"]
+        """Score every candidate topology at ``node_to_change`` and return a
+        DataFrame with columns ``score``, ``topology``, ``node``. The first
+        row is a sentinel ``"XX"`` later dropped by
+        :meth:`clean_and_sort_best_topologies`."""
         scores_data = [["XX", ["X", "X", "X"], "X"]]
 
-        # ===========================================
-        # print("\nNOEUD "+str(node_to_change))
-        # print("number of topo to test "+str(len(all_combinations)))
-
-        for i, topo in enumerate(all_combinations):
-            # WARNING the internal_repr is not used further in the code. It is not up to date with the new_graph.
-            # Only the original one.
-            isSingleNodeTopo = ((np.all(np.array(topo) == 0)) or (np.all(np.array(topo) == 1)))
-            score = self.rank_current_topo_at_node_x(self.g, node_to_change, isSingleNodeTopo, topo)
+        for topo in all_combinations:
+            is_single_node_topo = np.all(np.array(topo) == 0) or np.all(np.array(topo) == 1)
+            score = self.rank_current_topo_at_node_x(self.g, node_to_change, is_single_node_topo, topo)
             if self.debug:
                 logger.debug("** RESULTS ** new topo [%s] on node [%s] has a score: [%s]", topo, node_to_change, score)
             scores_data.append([score, topo, node_to_change])
 
-            # =======================================================
-            # if i % 10000 ==0:
-              #   print("Done: "+str(i)+" topos")
-
-        ranked_combinations = pd.DataFrame(columns = ranked_combinations_columns, data = scores_data)
-
-        # =================================================
-        # ranked_combinations.to_csv("NEW_rank_topologies_l2rpn_2019_node_"+str(node_to_change)+".csv", sep = ';', decimal = ',')
-        return ranked_combinations
+        return pd.DataFrame(columns=["score", "topology", "node"], data=scores_data)
 
     # WARNING: does not work yet when you go back from two nodes to one node at a given substation? Basically one node will be not connected?
     def apply_new_topo_to_graph(self, graph: nx.MultiDiGraph, new_topology: List[int], node_to_change: int) -> Tuple[nx.MultiDiGraph, Dict[Any, Any]]:
@@ -707,179 +639,147 @@ class AlphaDeesp:  # AKA SOLVER
         return bool
 
     def sort_hubs(self, hubs: Optional[List[Any]]) -> Optional[pd.DataFrame]:
-        # creates a DATAFRAME and sort it, returns the sorted hubs
-        # print("================= sort_hubs =================")
-        if hubs:
-            df = pd.DataFrame()
-            df["hubs"] = hubs
+        """Return a DataFrame of ``hubs`` sorted by largest absolute incident
+        delta-flow (max of sum of ingoing vs outgoing). ``None`` if no hubs."""
+        if not hubs:
+            return None
 
-            # now for each node in hubs, get the max abs(ingoing or outgoing) flow
-            flows = []
+        flows = []
+        for node in hubs:
+            ingoing, outgoing = [], []
+            for _, row in self.df.iterrows():
+                if row["idx_or"] == node:
+                    outgoing.append(fabs(row["delta_flows"]))
+                if row["idx_ex"] == node:
+                    ingoing.append(fabs(row["delta_flows"]))
+            flows.append(max(sum(ingoing), sum(outgoing)))
 
-            for node in hubs:
-                flow_compute_ingoing = []
-                flow_compute_outgoing = []
-
-                # print("node = ", node)
-
-                for i, row in self.df.iterrows():
-                    if row["idx_or"] == node:
-                        flow_compute_outgoing.append(fabs(row["delta_flows"]))
-
-                    if row["idx_ex"] == node:
-                        flow_compute_ingoing.append(fabs(row["delta_flows"]))
-
-                max_result = max(sum(flow_compute_ingoing), sum(flow_compute_outgoing))
-                # print("all flows = ", max_result)
-                flows.append(max_result)
-
-            df["max_flows"] = flows
-            df.sort_values("max_flows", ascending=False, inplace=True)
-            # print(df)
-
-            return df
-
-        # else:
-        #   raise ValueError("There are no hubs")
+        df = pd.DataFrame({"hubs": hubs, "max_flows": flows})
+        df.sort_values("max_flows", ascending=False, inplace=True)
+        return df
 
     def identify_routing_buses(self) -> Dict[int, Any]:
-        """Categories 1 to 4
-        1. Hubs
-        2. all nodes that belong to c_path
-        3. On //path
-        4. Over Da on c_path"""
+        """Split interesting nodes into 4 categories:
 
-        # ALGO
-        # get all nodes from c_path, loops, //paths, {set of all those nodes}
-        # for nodes in interesting_nodes:
-        #   classify to category 1, 2, 3, 4.
-        hubs= self.g_distribution_graph.get_hubs()
+        1. hubs, sorted by incident delta-flow
+        2. other constrained-path nodes
+        3. intermediate red-loop buses, sorted by strength measure
+        4. aval nodes not already covered above
+        """
+        hubs = self.g_distribution_graph.get_hubs()
         df_sorted_hubs = self.sort_hubs(hubs)
         if df_sorted_hubs is None:
             return {}
-        else:
-            category1 = list(df_sorted_hubs["hubs"])
 
-            constrained_path = self.g_distribution_graph.get_constrained_path()
-            set_category2 = set(constrained_path.full_n_constrained_path()) - set(category1)
+        category1 = list(df_sorted_hubs["hubs"])
+        constrained_path = self.g_distribution_graph.get_constrained_path()
+        category2 = set(constrained_path.full_n_constrained_path()) - set(category1)
 
-            sort_redLoopBuses = sorted(self.rankedLoopBuses.items(), key=lambda x: x[1], reverse=True)
-            category3 = list(set([sort_redLoopBuses[i][0] for i in range(len(sort_redLoopBuses))]))  # set()  # @TODO
-            set_category4 = set(constrained_path.n_aval()) - (set(category1) | set_category2 | set(category3))
+        sorted_loop_buses = sorted(self.rankedLoopBuses.items(), key=lambda x: x[1], reverse=True)
+        category3 = list({bus for bus, _ in sorted_loop_buses})
+        category4 = set(constrained_path.n_aval()) - (set(category1) | category2 | set(category3))
 
-            d = {1: category1, 2: set_category2, 3: category3, 4: set_category4}
-        return d
+        return {1: category1, 2: category2, 3: category3, 4: category4}
 
     def rank_loop_buses(self, graph: nx.MultiDiGraph, df_initial_flows: pd.DataFrame) -> Dict[Any, float]:
-        # self.g => overflow graph
-        all_edges_color_attributes = nx.get_edge_attributes(graph, "color")  # dict[edge]
-        all_edges_xlabel_attributes = nx.get_edge_attributes(graph, "label")
+        """
+        Score each intermediate bus of every red loop by
+        ``(non_red_inflow + local_production) * red_inflow_delta``.
 
-        Strength_Bus_dic = {}
+        The heavier the upstream feed and the larger the red redispatch
+        through the bus, the more "routing-relevant" it is.
+        """
+        color_attrs = nx.get_edge_attributes(graph, "color")
+        label_attrs = nx.get_edge_attributes(graph, "label")
+
+        strength_by_bus: Dict[Any, float] = {}
         red_loops = self.g_distribution_graph.get_loops()
-        for index, loop in red_loops.iterrows():
-            # for loop in self.red_loops:
+        for _, loop in red_loops.iterrows():
             for bus in loop.Path:
-                if (bus != loop.Source) & (bus != loop.Target):
-                    nNode = 1
-                    # TO DO:we should know if bus is 1 or 2 nodes
-                    if (nNode == 1):
-                        strength_measure = 0  # it will be the product of production and in_flows
-                        sumInRedDeltaFlows = 0
-                        sumInFlowsNotRed = 0
+                if bus == loop.Source or bus == loop.Target:
+                    continue
+                strength_by_bus[bus] = self._bus_loop_strength(
+                    bus, df_initial_flows, color_attrs, label_attrs)
+        return strength_by_bus
 
-                        LocalProduction = 0
-                        # LocalProduction = float(all_nodes_value_attributes[node])  # it is actually the sum of injections. To get only production, need to use self.simulator_data["substations_elements"][node]
+    def _bus_loop_strength(self, bus: Any, df_initial_flows: pd.DataFrame,
+                           color_attrs: Dict[Any, Any], label_attrs: Dict[Any, Any]) -> float:
+        """Compute the red-loop strength measure for a single intermediate bus."""
+        red_delta_in = 0.0
+        non_red_in = 0.0
+        for edge in self.g.in_edges(bus, keys=True):
+            if color_attrs[edge] == "coral":
+                red_delta_in += float(label_attrs[edge])
+            else:
+                other = edge[0] if edge[0] != bus else edge[1]
+                non_red_in += self._initial_inflow_between(df_initial_flows, other, bus)
+        total_in = non_red_in + self._local_production_at_bus(bus)
+        return total_in * red_delta_in
 
-                        for element in self.simulator_data["substations_elements"][bus]:
-                            if isinstance(element, Production):
-                                LocalProduction += (element.value)
+    def _local_production_at_bus(self, bus: Any) -> float:
+        """Sum production values attached to ``bus`` (0 if none)."""
+        total = 0.0
+        for element in self.simulator_data["substations_elements"][bus]:
+            if isinstance(element, Production):
+                total += element.value
+        return total
 
-                        for edge in self.g.in_edges(bus,keys=True):
-                            edge_deltaflow_value = float(all_edges_xlabel_attributes[edge])
-                            edge_color = all_edges_color_attributes[edge]
-                            if (edge_color == "coral"):
-                                sumInRedDeltaFlows += edge_deltaflow_value
-                            else:  # we need to retrieve the initial flow from df_initial_flows
-                                source, target,idx = edge
+    @staticmethod
+    def _initial_inflow_between(df_initial_flows: pd.DataFrame, source: Any, target: Any) -> float:
+        """
+        Look up ``|init_flow|`` for the line carrying power into ``target``
+        from ``source`` in the initial (pre-cut) flow DataFrame.
 
-                                otherBus = source
-                                if otherBus == bus:
-                                    otherBus = target
-
-                                nodes_or = df_initial_flows["idx_or"]
-                                nodes_ex = df_initial_flows["idx_ex"]
-                                # indexEdge_inDf=-1
-
-                                for i in range(len(nodes_or)):
-                                    flowValue = df_initial_flows["init_flows"][i]
-                                    if ((flowValue >= 0) & (nodes_or[i] == otherBus) & (nodes_ex[i] == bus)):  # we are only looking for input flows
-                                        sumInFlowsNotRed += np.abs(flowValue)
-                                        break
-                                    elif ((flowValue <= 0) & (nodes_or[i] == bus) & (nodes_ex[i] == otherBus)):
-                                        sumInFlowsNotRed += np.abs(flowValue)
-                                        break
-
-                        sumInFlowsNotRed += LocalProduction
-                        strength_measure = sumInFlowsNotRed * sumInRedDeltaFlows
-                        Strength_Bus_dic[bus] = strength_measure
-        return Strength_Bus_dic
+        Handles both naming conventions: the line may be stored oriented
+        ``source -> target`` with a positive flow, or oriented the other way
+        with a negative flow. Returns 0 if no matching row is found.
+        """
+        nodes_or = df_initial_flows["idx_or"]
+        nodes_ex = df_initial_flows["idx_ex"]
+        flows = df_initial_flows["init_flows"]
+        for i in range(len(nodes_or)):
+            flow = flows[i]
+            if flow >= 0 and nodes_or[i] == source and nodes_ex[i] == target:
+                return float(np.abs(flow))
+            if flow <= 0 and nodes_or[i] == target and nodes_ex[i] == source:
+                return float(np.abs(flow))
+        return 0.0
 
     def rank_red_loops(self) -> None:
-        cut_values = []
-        cut_sets = []  # contains the edges that ended up having the minimum cut_values
-        g_red_DiGraph=self.to_DiGraph(self.g_distribution_graph.g_only_red_components)#self.g_only_red_components)#necessary to be able to compute minimum_cut
+        """Annotate ``self.g_distribution_graph.get_loops()`` in place with
+        ``min_cut_values`` and ``min_cut_edges`` for each row, using
+        networkx's min-cut on a weighted DiGraph flattening of the coral
+        MultiDiGraph."""
+        red_only_multi = self.g_distribution_graph.g_only_red_components
+        red_digraph = self.to_DiGraph(red_only_multi)
+
+        cut_values: List[Any] = []
+        cut_sets: List[Any] = []
 
         red_loops = self.g_distribution_graph.get_loops()
-        for i, row in red_loops.iterrows():#red_loops.iterrows():
-            source = row["Source"]
-            target = row["Target"]
-
-            # print("=============== source: {}, target: {}".format(source, target))
-
-            #cut_value, partition = nx.minimum_cut(self.g_only_red_components, source, target)
-            cut_value, partition = nx.minimum_cut(g_red_DiGraph, source, target)
-            reachable, non_reachable = partition
-            # print("cut_value: {}, partition: {}".format(cut_value, partition))
-
-            # info from doc - ‘partition’ here is a tuple with the two sets of nodes that define the minimum cut.
-            # You can compute the cut set of edges that induce the minimum cut as follows:
-            cutset = set()
-            for u, nbrs in ((n, self.g_distribution_graph.g_only_red_components[n]) for n in reachable):
-                cutset.update((u, v) for v in nbrs if v in non_reachable)
-            # print("sorted(cutset) = ", sorted(cutset))
-
+        for _, row in red_loops.iterrows():
+            cut_value, (reachable, non_reachable) = nx.minimum_cut(
+                red_digraph, row["Source"], row["Target"])
+            cutset = {
+                (u, v) for u in reachable for v in red_only_multi[u] if v in non_reachable
+            }
             cut_values.append(cut_value)
-            cut_sets.append(list(cutset)[0])
-
-        # print("cut_values = ", cut_values)
+            cut_sets.append(next(iter(cutset)))
 
         red_loops["min_cut_values"] = cut_values
         red_loops["min_cut_edges"] = cut_sets
-        # print("======================= cut_values added =======================")
-        # print(self.red_loops)
 
-    # create weighted digraph from MultiDiGraph
     def to_DiGraph(self, gM: nx.MultiDiGraph) -> nx.DiGraph:
+        """Flatten a MultiDiGraph to a DiGraph by summing parallel edge
+        capacities (required for ``nx.minimum_cut``)."""
         G = nx.DiGraph()
-        for u, v,idx, data in gM.edges(data=True,keys=True):
-            w = data['capacity'] if 'capacity' in data else 1.0
+        for u, v, _, data in gM.edges(data=True, keys=True):
+            w = data.get("capacity", 1.0)
             if G.has_edge(u, v):
-                G[u][v]['capacity'] += w
+                G[u][v]["capacity"] += w
             else:
                 G.add_edge(u, v, capacity=w)
         return G
-
-    def compute_meaningful_structures(self) -> None:
-        self.data["constrained_path"] = self.get_constrained_path()
-
-    def get_adjacency_matrix(self, g: nx.MultiDiGraph) -> None:
-        logger.debug("adjacency matrix full = ")
-        for line in nx.generate_adjlist(g):
-            logger.debug("%s", line)
-
-    def get_loop_paths(self) -> None:
-        pass
 
     def filter_constrained_path(self, path_to_filter: Any) -> List[Any]:
         """This function gets rid of duplicates, tuples, arrays, and return a single clean ordered array"""
@@ -895,28 +795,16 @@ class AlphaDeesp:  # AKA SOLVER
                         set_constrained_path.append(node)
         return set_constrained_path
 
-    def isAntenna(self) -> None:
-        pass
-
-    def write_g(self, g: nx.MultiDiGraph) -> None:
-        """This saves file g"""
-        nx.write_edgelist(self.g, "./alphaDeesp/tmp/save.graph")
-        # print("file saved")
-        pass
-
-    def read_g(self) -> None:
-        pass
-
 
 class AlphaDeesp_warmStart(AlphaDeesp):
+    """Skip the expensive pipeline; trust the caller to supply a pre-built
+    overflow graph and distribution graph. Used when caller already holds a
+    valid :class:`Structured_Overload_Distribution_Graph` from a previous run."""
+
     def __init__(self, g: nx.MultiDiGraph, g_distribution_graph: Any, simulator_data: Optional[Dict[str, Any]] = None, debug: bool = False) -> None:
-        # used for postprocessing
         self.bag_of_graphs = {}
         self.debug = debug
         self.boolean_dump_data_to_file = False
-
-        # data from Simulator Class
-        self.g=g
-        #Compute the overload distribution graph (constrained path, loops, hubs)
-        self.g_distribution_graph=g_distribution_graph
-        self.simulator_data=simulator_data
+        self.g = g
+        self.g_distribution_graph = g_distribution_graph
+        self.simulator_data = simulator_data
