@@ -8,6 +8,7 @@ test module can stay short.
 
 import networkx as nx
 from alphaDeesp.core.graphsAndPaths import OverFlowGraph
+from alphaDeesp.core.graphs.null_flow_graph import NullFlowGraphMixin
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -67,42 +68,38 @@ def make_detect_edges_graph():
 # Minimal mocks for invoking OverFlowGraph methods
 # ──────────────────────────────────────────────────────────────────────
 
-class FakeOverFlowGraph:
+class FakeOverFlowGraph(NullFlowGraphMixin):
     """Minimal stand-in for ``OverFlowGraph`` that skips ``__init__``.
 
-    Exposes the bound-method access used by tests on
-    ``detect_edges_to_keep`` and its helpers.
+    Inherits from :class:`NullFlowGraphMixin` so all null-flow helpers and
+    detect_edges_to_keep helpers are available without invoking the full
+    OverFlowGraph constructor. Additional OverFlowGraph-specific methods are
+    bound from the class body as needed.
     """
 
     def __init__(self):
         self.g = nx.MultiDiGraph()
 
-    detect_edges_to_keep = OverFlowGraph.detect_edges_to_keep
-    _prepare_detect_edges_inputs = OverFlowGraph._prepare_detect_edges_inputs
-    _compute_sssp_paths = OverFlowGraph._compute_sssp_paths
-    _collect_paths_of_interest = OverFlowGraph._collect_paths_of_interest
-    _classify_paths_by_reconnectability = OverFlowGraph._classify_paths_by_reconnectability
+    _setup_null_flow_styles = OverFlowGraph._setup_null_flow_styles
+    _recolor_ambiguous_as_blue = OverFlowGraph._recolor_ambiguous_as_blue
+    # re-wrap as staticmethod so self is NOT prepended when called via an instance
+    _all_edges_coral_no_dash = staticmethod(OverFlowGraph._all_edges_coral_no_dash)
 
 
-class DetectEdgesHelperHost:
-    """Exposes ``detect_edges_to_keep`` internal helpers without any state."""
-    _prepare_detect_edges_inputs = OverFlowGraph._prepare_detect_edges_inputs
-    _compute_sssp_paths = OverFlowGraph._compute_sssp_paths
-    _collect_paths_of_interest = OverFlowGraph._collect_paths_of_interest
-    _classify_paths_by_reconnectability = OverFlowGraph._classify_paths_by_reconnectability
+class DetectEdgesHelperHost(NullFlowGraphMixin):
+    """Exposes ``detect_edges_to_keep`` internal helpers without state."""
+    def __init__(self):
+        self.g = nx.MultiDiGraph()
 
 
-class NullFlowHelperHost:
+class NullFlowHelperHost(NullFlowGraphMixin):
     """Exposes the ``add_relevant_null_flow_lines`` helpers without state."""
-    _prepare_null_flow_edge_sets = OverFlowGraph._prepare_null_flow_edge_sets
-    _build_gray_components = OverFlowGraph._build_gray_components
-    _structural_info_for_null_flow = OverFlowGraph._structural_info_for_null_flow
-    _apply_null_flow_recoloring = OverFlowGraph._apply_null_flow_recoloring
+    def __init__(self):
+        self.g = nx.MultiDiGraph()
 
 
 def make_ofg_with_graph(g):
-    """Build a :class:`FakeOverFlowGraph` with ``g`` already attached and
-    bind the ``OverFlowGraph`` colouring methods tests typically call."""
+    """Build a :class:`FakeOverFlowGraph` with ``g`` attached and OverFlowGraph colouring methods bound."""
     obj = FakeOverFlowGraph()
     obj.g = g
     obj.keep_overloads_components = OverFlowGraph.keep_overloads_components.__get__(obj)
