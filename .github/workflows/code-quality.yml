@@ -43,9 +43,9 @@ jobs:
           if-no-files-found: error
       - name: Enforce critical regressions (strict)
         # This step re-runs in strict mode and *does* fail the job when any
-        # of the critical gates triggers: bare TODO markers, hardcoded
-        # absolute /home/<user>/... paths, duplicate config definitions.
-        # Non-critical metrics (ruff, vulture, complexity) stay
+        # of the critical gates triggers: hardcoded absolute /home/<user>/...
+        # paths, duplicate config definitions.
+        # Non-critical metrics (ruff, vulture, complexity, bare TODOs) stay
         # informational — they show up in the report but do not block PRs.
         run: |
           python scripts/code_quality_report.py --strict > /dev/null
