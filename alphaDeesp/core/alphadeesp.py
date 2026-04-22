@@ -9,7 +9,7 @@
 """AlphaDeesp: main orchestrator for topology-action scoring and ranking."""
 
 import logging
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 import networkx as nx
 import pandas as pd
@@ -17,12 +17,7 @@ import itertools
 import numpy as np
 
 from alphaDeesp.core.graphsAndPaths import Structured_Overload_Distribution_Graph
-from alphaDeesp.core.elements import (
-    Consumption,
-    ExtremityLine,
-    OriginLine,
-    Production,
-)
+from alphaDeesp.core.elements import Consumption, Production
 from alphaDeesp.core.topology_scorer import TopologyScorerMixin
 from alphaDeesp.core.topo_applicator import TopoApplicatorMixin
 
