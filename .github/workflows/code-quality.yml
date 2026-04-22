@@ -1,0 +1,51 @@
+name: Code quality
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  report:
+    name: Quality report
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install quality tools
+        # We do NOT install the package itself (it pulls grid2op / lightsim2grid
+        # which is heavy and not needed for static analysis). We only need
+        # the tools the report script shells out to.
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install radon>=6.0 vulture>=2.10 interrogate>=1.5 ruff>=0.5
+      - name: Run code quality report (non-strict)
+        # Always produce a full report, regardless of whether critical
+        # regressions are detected, so the GitHub step summary is populated
+        # on every run.
+        run: |
+          python scripts/code_quality_report.py \
+            --output code-quality-report.md \
+            --github-summary
+      - name: Upload report artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: code-quality-report
+          path: code-quality-report.md
+          if-no-files-found: error
+      - name: Enforce critical regressions (strict)
+        # This step re-runs in strict mode and *does* fail the job when any
+        # of the critical gates triggers: hardcoded absolute /home/<user>/...
+        # paths, duplicate config definitions.
+        # Non-critical metrics (ruff, vulture, complexity, bare TODOs) stay
+        # informational — they show up in the report but do not block PRs.
+        run: |
+          python scripts/code_quality_report.py --strict > /dev/null
