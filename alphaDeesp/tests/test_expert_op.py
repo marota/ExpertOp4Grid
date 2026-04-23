@@ -58,9 +58,10 @@ class TestExpertOp(unittest.TestCase):
         print("check if files generated")
         filenames=os.listdir(graphs_folder)
 
-        assert len(filenames)==4
+        assert len(filenames)==5
         assert np.any(["g_overflow" in filename for filename in filenames])
         assert np.any([".dot" in filename for filename in filenames])
+        assert np.any([".html" in filename for filename in filenames])
         assert np.any(["g_pow" in filename for filename in filenames])
         assert np.any(["g_pow_prime" in filename for filename in filenames])
 
