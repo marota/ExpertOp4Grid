@@ -16,6 +16,7 @@ from typing import List, Optional, Tuple
 
 import networkx as nx
 
+from alphaDeesp.core.interactive_html import build_interactive_html
 from alphaDeesp.core.twin_nodes import twin_node_id
 
 logger = logging.getLogger(__name__)
@@ -149,11 +150,26 @@ class Printer:
         if custom_layout is None:
 
             cmd_line = 'dot -Tpdf "' + str(filename_dot) + '" -o "' + str(filename_pdf) + '"'#'neato -Tpdf "' + str(filename_dot) + '" -o "' + str(filename_pdf) + '"'
+            html_prog = "dot"
         else:
             cmd_line = 'neato -n -Tpdf "' + str(filename_dot) + '" -o "' + str(filename_pdf) + '"'
+            html_prog = ["neato", "-n", "-x"]
         logger.debug("we print the cmd line = %s", cmd_line)
 
         assert execute_command(cmd_line)
+
+        # Also emit a self-contained interactive HTML viewer alongside the
+        # PDF. Failure here must not break the existing PDF flow — the HTML
+        # viewer is an additive convenience, not a hard dependency.
+        try:
+            filename_html = filename_pdf[:-4] + ".html" if filename_pdf.endswith(".pdf") else filename_pdf + ".html"
+            pydot_graph = nx.drawing.nx_pydot.to_pydot(g)
+            html = build_interactive_html(pydot_graph, prog=html_prog, title=os.path.basename(filename_html))
+            with open(filename_html, "w", encoding="utf-8") as fh:
+                fh.write(html)
+            logger.debug("interactive HTML written to %s", filename_html)
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.warning("interactive HTML export failed: %s", exc)
 
 
         #cmd_line = f"evince {str(filename_pdf)} &"
