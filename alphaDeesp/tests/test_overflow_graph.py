@@ -331,10 +331,13 @@ class TestOverFlowGraphScaling:
         })
         ofg = OverFlowGraph(_basic_topo(3), [], df)
         penwidths = {data["name"]: data["penwidth"] for _, _, data in ofg.g.edges(data=True)}
-        # max 1000 → target_max_penwidth 15.0 → scale = 0.015
+        # max 1000 → target_max_penwidth 15.0 → scale = 0.015.
+        # Floor = max(1 MW × 0.015, 10 % × 15) = max(0.015, 1.5) = 1.5, so
+        # L2 sits exactly on the floor and L3 (10 MW → 0.15 raw) is
+        # clamped up to keep it visible without zoom.
         assert penwidths["L1"] == 15.0
         assert abs(penwidths["L2"] - 1.5) < 1e-5
-        assert abs(penwidths["L3"] - 0.15) < 1e-5
+        assert abs(penwidths["L3"] - 1.5) < 1e-5
 
     def test_min_penwidth_clamping(self):
         df = pd.DataFrame({
@@ -344,7 +347,9 @@ class TestOverFlowGraphScaling:
         })
         ofg = OverFlowGraph(_basic_topo(2), [], df)
         penwidth = list(ofg.g.edges(data=True))[0][2]["penwidth"]
-        assert penwidth == 0.1
+        # All-zero flow: scaling_factor falls back to 1.0, so the floor is
+        # max(1.0 MW, 10 % of 15) = 1.5.
+        assert penwidth == 1.5
 
 
 # ──────────────────────────────────────────────────────────────────────

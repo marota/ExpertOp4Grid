@@ -21,9 +21,14 @@ from alphaDeesp.core.graphs.graph_utils import delete_color_edges
 
 logger = logging.getLogger(__name__)
 
-# Penwidth thresholds used by build_edges_from_df
+# Penwidth thresholds used by build_edges_from_df.
+# The floor is dynamic: at least the width equivalent to 1 MW of flow
+# (``scaling_factor`` applied to 1.0), and at least 10 % of the largest
+# rendered penwidth, so low / zero-flow edges (reconnectable,
+# non-reconnectable, null-flow) remain visible without zooming.
 _TARGET_MAX_PENWIDTH = 15.0
-_MIN_PENWIDTH = 0.1
+_MIN_PENWIDTH_FLOW_MW = 1.0
+_MIN_PENWIDTH_FRACTION = 0.10
 
 
 class OverFlowGraph(NullFlowGraphMixin, GraphConsolidationMixin, PowerFlowGraph):
@@ -63,6 +68,10 @@ class OverFlowGraph(NullFlowGraphMixin, GraphConsolidationMixin, PowerFlowGraph)
         """Add one coloured edge per row of self.df to g."""
         max_abs_flow = self.df["delta_flows"].abs().max()
         scaling_factor = _TARGET_MAX_PENWIDTH / max_abs_flow if max_abs_flow > 0 else 1.0
+        min_penwidth = max(
+            _MIN_PENWIDTH_FLOW_MW * scaling_factor,
+            _MIN_PENWIDTH_FRACTION * _TARGET_MAX_PENWIDTH,
+        )
 
         cols = ("idx_or", "idx_ex", "delta_flows", "gray_edges", "line_name")
         for i, (origin, extremity, reported_flow, gray_edge, line_name) in enumerate(
@@ -71,6 +80,7 @@ class OverFlowGraph(NullFlowGraphMixin, GraphConsolidationMixin, PowerFlowGraph)
                 g, origin, extremity, reported_flow, line_name,
                 color=self._edge_color(i, reported_flow, gray_edge, lines_to_cut),
                 scaling_factor=scaling_factor,
+                min_penwidth=min_penwidth,
                 is_constrained=(i in lines_to_cut))
 
     @staticmethod
@@ -93,11 +103,12 @@ class OverFlowGraph(NullFlowGraphMixin, GraphConsolidationMixin, PowerFlowGraph)
         line_name: str,
         color: str,
         scaling_factor: float,
+        min_penwidth: float,
         is_constrained: bool,
     ) -> None:
         """Add a single styled overflow edge to g."""
         fp = self.float_precision
-        penwidth = max(float(fp % (fabs(reported_flow) * scaling_factor)), _MIN_PENWIDTH)
+        penwidth = max(float(fp % (fabs(reported_flow) * scaling_factor)), min_penwidth)
         attrs = {
             "capacity": float(fp % reported_flow),
             "label": fp % reported_flow,
