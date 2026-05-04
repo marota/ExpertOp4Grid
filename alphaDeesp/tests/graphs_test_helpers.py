@@ -104,4 +104,10 @@ def make_ofg_with_graph(g):
     obj.g = g
     obj.keep_overloads_components = OverFlowGraph.keep_overloads_components.__get__(obj)
     obj.collapse_red_loops = OverFlowGraph.collapse_red_loops.__get__(obj)
+    obj.set_hubs_shape = OverFlowGraph.set_hubs_shape.__get__(obj)
+    obj.highlight_significant_line_loading = (
+        OverFlowGraph.highlight_significant_line_loading.__get__(obj)
+    )
+    obj.tag_constrained_path = OverFlowGraph.tag_constrained_path.__get__(obj)
+    obj.tag_red_loops = OverFlowGraph.tag_red_loops.__get__(obj)
     return obj

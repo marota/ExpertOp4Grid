@@ -136,11 +136,35 @@ class OverFlowGraph(NullFlowGraphMixin, GraphConsolidationMixin, PowerFlowGraph)
                             self.g[u][v][key]["color"] = "gray"
 
     def set_hubs_shape(self, hubs: Iterable[Any], shape_hub: str = "circle") -> None:
-        """Distinguish hub nodes with a custom shape."""
+        """Distinguish hub nodes with a custom shape.
+
+        Also stamps a ``is_hub`` boolean node attribute (source-of-truth flag)
+        so downstream consumers — notably the interactive HTML viewer — can
+        identify hubs without reinterpreting the visual shape.
+
+        Hubs are by definition both **on the constrained path** AND
+        **inside red-loop paths** (they are the converging substations
+        feeding the overloaded lines, surrounded by positive-flow
+        redispatch loops). Those flags are propagated here so a viewer
+        layer toggle stays consistent regardless of which other tagging
+        method (``tag_constrained_path`` / ``collapse_red_loops``) has
+        already run.
+        """
         dict_shapes = {node: "oval" for node in self.g.nodes}
-        for hub in hubs:
+        hubs_set = set(hubs)
+        for hub in hubs_set:
             dict_shapes[hub] = shape_hub
         nx.set_node_attributes(self.g, dict_shapes, "shape")
+        nx.set_node_attributes(
+            self.g, {node: (node in hubs_set) for node in self.g.nodes}, "is_hub"
+        )
+        if hubs_set:
+            nx.set_node_attributes(
+                self.g, {h: True for h in hubs_set}, "on_constrained_path"
+            )
+            nx.set_node_attributes(
+                self.g, {h: True for h in hubs_set}, "in_red_loop"
+            )
 
     def highlight_swapped_flows(self, lines_swapped: List[Any]) -> None:
         """Draw lines whose flow direction has swapped in a tapered style."""
@@ -150,12 +174,28 @@ class OverFlowGraph(NullFlowGraphMixin, GraphConsolidationMixin, PowerFlowGraph)
             nx.set_edge_attributes(self.g, {edge: value for edge in swapped_edges}, attr_name)
 
     def highlight_significant_line_loading(self, dict_line_loading: Dict[Any, Any]) -> None:
-        """Augment edge labels with loading rates for monitored lines."""
+        """Augment edge labels with loading rates for monitored lines.
+
+        Also stamps source-of-truth flags so the interactive viewer can
+        toggle them as semantic layers without scraping the compound
+        ``"X:yellow:X"`` colour:
+
+        * ``is_monitored=True`` — every edge in ``dict_line_loading``
+          (i.e. every line whose loading rate is high enough to be
+          flagged as a "low-margin" line by the recommender).
+        * ``is_overload=True`` — the strict subset of monitored edges
+          that are overloaded contingency lines (current colour was
+          ``black`` before the highlight). Overloads are therefore a
+          subset of low-margin lines, not a disjoint category.
+        """
         edge_names = nx.get_edge_attributes(self.g, "name")
         edge_colors = nx.get_edge_attributes(self.g, "color")
         edge_x_labels = nx.get_edge_attributes(self.g, "label")
         label_font_color = {edge: "black" for edge in edge_names.keys()}
         color_label_highlight = "darkred"
+
+        is_overload_attrs: Dict[Any, bool] = {}
+        is_monitored_attrs: Dict[Any, bool] = {}
 
         for edge, edge_name in edge_names.items():
             if edge_name not in dict_line_loading:
@@ -165,8 +205,12 @@ class OverFlowGraph(NullFlowGraphMixin, GraphConsolidationMixin, PowerFlowGraph)
             before = dict_line_loading[edge_name]["before"]
             after = dict_line_loading[edge_name]["after"]
 
+            # Every entry in dict_line_loading is a monitored / low-
+            # margin line; the black ones are additionally overloads.
+            is_monitored_attrs[edge] = True
             if current_edge_color == "black":
                 edge_x_labels[edge] = f'< {current_x_label} <BR/>  <B>{before}%</B>  → {after}%>'
+                is_overload_attrs[edge] = True
             else:
                 edge_x_labels[edge] = f'< {current_x_label} <BR/>  {before}% → <B>{after}%</B> >'
 
@@ -176,6 +220,10 @@ class OverFlowGraph(NullFlowGraphMixin, GraphConsolidationMixin, PowerFlowGraph)
         nx.set_edge_attributes(self.g, edge_x_labels, "label")
         nx.set_edge_attributes(self.g, label_font_color, "fontcolor")
         nx.set_edge_attributes(self.g, edge_colors, "color")
+        if is_overload_attrs:
+            nx.set_edge_attributes(self.g, is_overload_attrs, "is_overload")
+        if is_monitored_attrs:
+            nx.set_edge_attributes(self.g, is_monitored_attrs, "is_monitored")
 
     def plot(
         self,
@@ -209,7 +257,15 @@ class OverFlowGraph(NullFlowGraphMixin, GraphConsolidationMixin, PowerFlowGraph)
         self.df["idx_ex"] = [mapping[idx_or] for idx_or in self.df["idx_ex"]]
 
     def collapse_red_loops(self) -> None:
-        """Collapse purely-coral, non-hub nodes to point shapes."""
+        """Collapse purely-coral, non-hub nodes to point shapes.
+
+        This is purely a visual heuristic for the rendered graph
+        (point markers vs ovals). The semantic ``in_red_loop`` flag is
+        no longer derived from this collapse — it is set explicitly by
+        :meth:`tag_red_loops` from the recommender's
+        ``get_dispatch_edges_nodes(only_loop_paths=True)`` source-of-
+        truth list.
+        """
         shapes = nx.get_node_attributes(self.g, "shape")
         peripheries = nx.get_node_attributes(self.g, "peripheries")
         edge_colors = nx.get_edge_attributes(self.g, "color")
@@ -226,6 +282,93 @@ class OverFlowGraph(NullFlowGraphMixin, GraphConsolidationMixin, PowerFlowGraph)
                 nodes_to_collapse[node] = "point"
 
         nx.set_node_attributes(self.g, nodes_to_collapse, "shape")
+
+    def tag_red_loops(
+        self,
+        lines_red_loops: Optional[Iterable[str]] = None,
+        nodes_red_loops: Optional[Iterable[Any]] = None,
+    ) -> None:
+        """Tag the source-of-truth ``in_red_loop`` flag on the edges
+        and nodes that form the dispatch loop paths identified upstream
+        by ``Structured_Overload_Distribution_Graph.get_dispatch_edges_
+        nodes(only_loop_paths=True)``.
+
+        This replaces the previous ad-hoc heuristics (collapse-based,
+        connected-component-based) that produced false positives on
+        coral "exit" branches such as the CHALOP6→CHALOP3 transformers
+        the user reported. The recommender already computes the actual
+        cycle paths from the structured analysis — we just propagate
+        them as graph attributes.
+
+        Edges are matched by their ``name`` attribute (the line name
+        used everywhere else in the codebase). Nodes are matched by
+        identity.
+        """
+        if lines_red_loops:
+            wanted = set(lines_red_loops)
+            edge_names = nx.get_edge_attributes(self.g, "name")
+            edge_attrs = {
+                edge: True for edge, name in edge_names.items() if name in wanted
+            }
+            if edge_attrs:
+                nx.set_edge_attributes(self.g, edge_attrs, "in_red_loop")
+        if nodes_red_loops:
+            wanted_nodes = set(nodes_red_loops)
+            node_attrs = {
+                node: True for node in self.g.nodes if node in wanted_nodes
+            }
+            if node_attrs:
+                nx.set_node_attributes(self.g, node_attrs, "in_red_loop")
+
+    def tag_constrained_path(
+        self,
+        lines_constrained_path: Optional[Iterable[str]] = None,
+        nodes_constrained_path: Optional[Iterable[Any]] = None,
+    ) -> None:
+        """Tag the source-of-truth ``on_constrained_path`` flag on the
+        edges and nodes that form the constrained path identified
+        upstream by the recommender's distribution graph analysis.
+
+        Edges are matched by their ``name`` attribute (the line name
+        used everywhere else in the codebase). Nodes are matched by
+        identity in the graph.
+
+        **Coral edges are skipped** even when their ``name`` matches a
+        constrained-path entry. The constrained path is, by definition,
+        the network of black (overloaded) and blue (negative-flow)
+        edges that funnel current into the overloads. The overflow
+        ``MultiDiGraph`` may carry both flow directions of a single
+        physical line under the same ``name`` — only the negative one
+        is on the constrained path; including the coral counterpart
+        would surface positive-overflow edges in the layer toggle and
+        confuse the operator.
+        """
+        if lines_constrained_path:
+            wanted = set(lines_constrained_path)
+            edge_names = nx.get_edge_attributes(self.g, "name")
+            edge_colors = nx.get_edge_attributes(self.g, "color")
+            edge_attrs: Dict[Any, bool] = {}
+            for edge, name in edge_names.items():
+                if name not in wanted:
+                    continue
+                color = edge_colors.get(edge, "")
+                base_color = (
+                    color.split(":", 1)[0].strip().strip('"').lower()
+                    if isinstance(color, str)
+                    else ""
+                )
+                if base_color == "coral":
+                    continue
+                edge_attrs[edge] = True
+            if edge_attrs:
+                nx.set_edge_attributes(self.g, edge_attrs, "on_constrained_path")
+        if nodes_constrained_path:
+            wanted_nodes = set(nodes_constrained_path)
+            node_attrs = {
+                node: True for node in self.g.nodes if node in wanted_nodes
+            }
+            if node_attrs:
+                nx.set_node_attributes(self.g, node_attrs, "on_constrained_path")
 
     @staticmethod
     def _all_edges_coral_no_dash(

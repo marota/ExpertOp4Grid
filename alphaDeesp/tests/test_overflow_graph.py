@@ -523,3 +523,306 @@ class TestDetectEdgesHelpers:
         paths = obj._collect_paths_of_interest(g_c, prepared, sssp, max_null_flow_path_length=7)
         rec, non_rec = obj._classify_paths_by_reconnectability(prepared, paths)
         assert edge_mt in non_rec and edge_mt not in rec
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Source-of-truth attribute tagging — feeds the interactive HTML viewer
+# layer toggles (hubs, red-loops, constrained path, overloads, monitored).
+# ──────────────────────────────────────────────────────────────────────
+
+class TestSetHubsShapeAttributeFlag:
+    def test_is_hub_flag_is_set_on_hub_nodes_only(self):
+        g = nx.MultiDiGraph()
+        g.add_node("A", shape="oval")
+        g.add_node("B", shape="oval")
+        g.add_node("C", shape="oval")
+        ofg = make_ofg_with_graph(g)
+        ofg.set_hubs_shape(["A", "C"], shape_hub="diamond")
+        assert ofg.g.nodes["A"]["is_hub"] is True
+        assert ofg.g.nodes["B"]["is_hub"] is False
+        assert ofg.g.nodes["C"]["is_hub"] is True
+        assert ofg.g.nodes["A"]["shape"] == "diamond"
+
+
+class TestCollapseRedLoopsIsPurelyVisual:
+    """``collapse_red_loops`` is now a purely visual heuristic (point
+    shape vs oval). Semantic ``in_red_loop`` tagging is handled by
+    :meth:`tag_red_loops` which consumes the source-of-truth list
+    from the recommender's
+    ``Structured_Overload_Distribution_Graph.get_dispatch_edges_nodes``.
+    """
+
+    def test_collapse_does_not_set_in_red_loop(self):
+        g = nx.MultiDiGraph()
+        g.add_node("N1", shape="oval")
+        g.add_node("N2", shape="oval")
+        g.add_edge("N1", "N2", color="coral", name="line_1")
+        ofg = make_ofg_with_graph(g)
+        ofg.collapse_red_loops()
+        # N1 (purely-coral) collapses visually but no semantic flag.
+        assert ofg.g.nodes["N1"]["shape"] == "point"
+        assert "in_red_loop" not in ofg.g.nodes["N1"]
+        assert "in_red_loop" not in ofg.g.nodes["N2"]
+        for _, _, _, data in ofg.g.edges(keys=True, data=True):
+            assert "in_red_loop" not in data
+
+    def test_collapse_does_not_set_in_red_loop_for_blue_only(self):
+        g = nx.MultiDiGraph()
+        g.add_node("N1", shape="oval")
+        g.add_node("N2", shape="oval")
+        g.add_edge("N1", "N2", color="blue")
+        ofg = make_ofg_with_graph(g)
+        ofg.collapse_red_loops()
+        assert "in_red_loop" not in ofg.g.nodes["N1"]
+        assert "in_red_loop" not in ofg.g.nodes["N2"]
+
+
+class TestHighlightSignificantLineLoadingFlags:
+    def _make_graph_with_named_edges(self):
+        g = nx.MultiDiGraph()
+        g.add_node("A")
+        g.add_node("B")
+        g.add_node("C")
+        g.add_edge("A", "B", name="line_overload", color="black", label="100")
+        g.add_edge("B", "C", name="line_monitored", color="coral", label="50")
+        g.add_edge("A", "C", name="line_quiet", color="gray", label="10")
+        return g
+
+    def test_overload_flag_on_black_edges(self):
+        g = self._make_graph_with_named_edges()
+        ofg = make_ofg_with_graph(g)
+        ofg.highlight_significant_line_loading({
+            "line_overload": {"before": 95, "after": 110},
+            "line_monitored": {"before": 78, "after": 92},
+        })
+        # Find edges by name and check flags.
+        edge_flags = {
+            data.get("name"): {
+                "is_overload": data.get("is_overload"),
+                "is_monitored": data.get("is_monitored"),
+            }
+            for _, _, _, data in ofg.g.edges(keys=True, data=True)
+        }
+        # Overloads are a strict subset of monitored / low-margin
+        # lines: every entry in dict_line_loading is monitored, and
+        # the black ones are additionally overloads.
+        assert edge_flags["line_overload"]["is_overload"] is True
+        assert edge_flags["line_overload"]["is_monitored"] is True
+        assert edge_flags["line_monitored"]["is_monitored"] is True
+        assert edge_flags["line_monitored"]["is_overload"] is None
+        # Untagged line keeps neither flag.
+        assert edge_flags["line_quiet"]["is_overload"] is None
+        assert edge_flags["line_quiet"]["is_monitored"] is None
+
+
+class TestTagConstrainedPath:
+    def test_tags_edges_by_name_and_nodes_by_identity(self):
+        g = nx.MultiDiGraph()
+        g.add_node("A")
+        g.add_node("B")
+        g.add_node("C")
+        g.add_edge("A", "B", name="L1")
+        g.add_edge("B", "C", name="L2")
+        g.add_edge("A", "C", name="L3")
+        ofg = make_ofg_with_graph(g)
+        ofg.tag_constrained_path(
+            lines_constrained_path=["L1", "L2"],
+            nodes_constrained_path=["A", "B"],
+        )
+        edges_on = {
+            data.get("name"): data.get("on_constrained_path")
+            for _, _, _, data in ofg.g.edges(keys=True, data=True)
+        }
+        assert edges_on["L1"] is True
+        assert edges_on["L2"] is True
+        assert edges_on["L3"] is None
+        assert ofg.g.nodes["A"].get("on_constrained_path") is True
+        assert ofg.g.nodes["B"].get("on_constrained_path") is True
+        assert ofg.g.nodes["C"].get("on_constrained_path") is None
+
+    def test_no_op_when_inputs_empty(self):
+        g = nx.MultiDiGraph()
+        g.add_node("A")
+        g.add_edge("A", "A", name="loop")
+        ofg = make_ofg_with_graph(g)
+        ofg.tag_constrained_path(None, None)
+        ofg.tag_constrained_path([], [])
+        for _, _, _, data in ofg.g.edges(keys=True, data=True):
+            assert "on_constrained_path" not in data
+        assert "on_constrained_path" not in ofg.g.nodes["A"]
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Layer-toggle bug fixes (v2): hubs auto-membership, broader red loops,
+# coral filtering on constrained path, no-op on coral-only constrained
+# path entries.
+# ──────────────────────────────────────────────────────────────────────
+
+class TestSetHubsShapeAlsoTagsRedLoopAndConstrainedPath:
+    """Hubs are by definition both on the constrained path AND
+    inside red-loop paths — those flags must be set alongside `is_hub`.
+    """
+
+    def test_hubs_get_on_constrained_path_flag(self):
+        g = nx.MultiDiGraph()
+        g.add_node("HUB", shape="oval")
+        g.add_node("OTHER", shape="oval")
+        ofg = make_ofg_with_graph(g)
+        ofg.set_hubs_shape(["HUB"], shape_hub="diamond")
+        assert ofg.g.nodes["HUB"].get("on_constrained_path") is True
+        assert "on_constrained_path" not in ofg.g.nodes["OTHER"]
+
+    def test_hubs_get_in_red_loop_flag(self):
+        g = nx.MultiDiGraph()
+        g.add_node("HUB", shape="oval")
+        g.add_node("OTHER", shape="oval")
+        ofg = make_ofg_with_graph(g)
+        ofg.set_hubs_shape(["HUB"], shape_hub="diamond")
+        assert ofg.g.nodes["HUB"].get("in_red_loop") is True
+        assert "in_red_loop" not in ofg.g.nodes["OTHER"]
+
+
+class TestTagRedLoops:
+    """``tag_red_loops`` propagates the source-of-truth lists from
+    ``Structured_Overload_Distribution_Graph.get_dispatch_edges_nodes(
+    only_loop_paths=True)`` onto graph attributes. The viewer's
+    "Red-loop paths" layer reads those flags directly — there is no
+    heuristic involved.
+    """
+
+    def test_tags_only_lines_in_provided_list(self):
+        g = nx.MultiDiGraph()
+        g.add_node("A")
+        g.add_node("B")
+        g.add_node("C")
+        g.add_edge("A", "B", name="loop_line", color="coral")
+        g.add_edge("B", "C", name="exit_line", color="coral")
+        ofg = make_ofg_with_graph(g)
+        ofg.tag_red_loops(
+            lines_red_loops=["loop_line"],
+            nodes_red_loops=["A", "B"],
+        )
+        edges_on = {
+            data["name"]: data.get("in_red_loop")
+            for _, _, _, data in ofg.g.edges(keys=True, data=True)
+        }
+        assert edges_on["loop_line"] is True
+        # exit_line is NOT in the source-of-truth list → not tagged
+        # (this is the user-reported CHALOY633 invariant).
+        assert edges_on["exit_line"] is None
+        assert ofg.g.nodes["A"].get("in_red_loop") is True
+        assert ofg.g.nodes["B"].get("in_red_loop") is True
+        assert "in_red_loop" not in ofg.g.nodes["C"]
+
+    def test_no_op_when_inputs_empty(self):
+        g = nx.MultiDiGraph()
+        g.add_node("A")
+        g.add_edge("A", "A", name="self_loop", color="coral")
+        ofg = make_ofg_with_graph(g)
+        ofg.tag_red_loops(None, None)
+        ofg.tag_red_loops([], [])
+        for _, _, _, data in ofg.g.edges(keys=True, data=True):
+            assert "in_red_loop" not in data
+        assert "in_red_loop" not in ofg.g.nodes["A"]
+
+    def test_tags_compound_color_edges_when_in_source_list(self):
+        # A monitored coral edge ("coral:yellow:coral") that the
+        # recommender included in the dispatch loop list MUST be
+        # tagged — name match is colour-agnostic. (The previous
+        # heuristic-based logic already handled compound colours;
+        # this test pins the explicit-list contract too.)
+        g = nx.MultiDiGraph()
+        g.add_node("A")
+        g.add_node("B")
+        g.add_edge("A", "B", name="L_MON", color='"coral:yellow:coral"')
+        ofg = make_ofg_with_graph(g)
+        ofg.tag_red_loops(lines_red_loops=["L_MON"], nodes_red_loops=["A", "B"])
+        edge_data = list(ofg.g.edges(keys=True, data=True))[0][3]
+        assert edge_data.get("in_red_loop") is True
+
+    def test_chalop6_chalop3_style_exit_branch_is_NOT_tagged(self):
+        """Regression for the user-reported CHALOP6→CHALOP3 case:
+        the recommender's ``get_dispatch_edges_nodes(only_loop_paths
+        =True)`` does NOT include such transformer "exit" branches —
+        because their endpoints are not in any cycle path. The
+        explicit-list approach therefore leaves them un-tagged.
+        """
+        g = nx.MultiDiGraph()
+        g.add_node("CHALOP6")
+        g.add_node("CHALOP3")
+        g.add_node("LOUHAP3")
+        g.add_edge("CHALOP6", "CHALOP3", name="CHALOY633", color="coral")
+        g.add_edge("CHALOP6", "CHALOP3", name="CHALOY631", color="coral")
+        g.add_edge("CHALOP6", "CHALOP3", name="CHALOY632", color="coral")
+        g.add_edge("CHALOP3", "LOUHAP3", name="CHALOL31LOUHA",
+                   color="coral", style="dashed")
+        ofg = make_ofg_with_graph(g)
+        # Recommender returns an empty dispatch loop list because none
+        # of these nodes participate in a true cycle path.
+        ofg.tag_red_loops(lines_red_loops=[], nodes_red_loops=[])
+        for _, _, _, data in ofg.g.edges(keys=True, data=True):
+            assert "in_red_loop" not in data, (
+                f"edge {data['name']} wrongly tagged in_red_loop"
+            )
+        for n in ("CHALOP6", "CHALOP3", "LOUHAP3"):
+            assert "in_red_loop" not in ofg.g.nodes[n], (
+                f"node {n} wrongly tagged in_red_loop"
+            )
+
+
+class TestTagConstrainedPathSkipsCoralEdges:
+    """The constrained path is, by definition, the network of black
+    (overloaded) and blue (negative-flow) edges. Coral edges that share
+    a name with a constrained-path entry (because the
+    ``MultiDiGraph`` carries both flow directions of one physical
+    line) must NOT end up tagged.
+    """
+
+    def test_coral_edge_with_matching_name_is_skipped(self):
+        g = nx.MultiDiGraph()
+        g.add_node("A")
+        g.add_node("B")
+        # Same `name` for both directions: blue (negative) + coral (positive).
+        g.add_edge("A", "B", name="L1", color="blue")
+        g.add_edge("B", "A", name="L1", color="coral")
+        ofg = make_ofg_with_graph(g)
+        ofg.tag_constrained_path(lines_constrained_path=["L1"])
+        flagged_colors = [
+            data.get("color")
+            for _, _, _, data in ofg.g.edges(keys=True, data=True)
+            if data.get("on_constrained_path")
+        ]
+        assert flagged_colors == ["blue"]
+
+    def test_compound_color_string_with_coral_base_is_skipped(self):
+        # After `highlight_significant_line_loading` the `color` may be
+        # a graphviz compound `"coral:yellow:coral"`. The split-on-':'
+        # heuristic must still classify it as coral and skip it.
+        g = nx.MultiDiGraph()
+        g.add_node("A")
+        g.add_node("B")
+        g.add_edge("A", "B", name="L1", color='"coral:yellow:coral"')
+        g.add_edge("B", "A", name="L1", color="black")
+        ofg = make_ofg_with_graph(g)
+        ofg.tag_constrained_path(lines_constrained_path=["L1"])
+        flagged = [
+            (data.get("color"), data.get("on_constrained_path"))
+            for _, _, _, data in ofg.g.edges(keys=True, data=True)
+        ]
+        # The black one is tagged, the compound-coral is skipped.
+        assert ('"coral:yellow:coral"', None) in [(c, t) for c, t in flagged] \
+               or ('"coral:yellow:coral"', None) in flagged
+        assert any(c == "black" and t is True for c, t in flagged)
+        assert all(not (c == '"coral:yellow:coral"' and t) for c, t in flagged)
+
+    def test_black_and_blue_edges_with_matching_name_are_tagged(self):
+        g = nx.MultiDiGraph()
+        g.add_node("A")
+        g.add_node("B")
+        g.add_node("C")
+        g.add_edge("A", "B", name="L1", color="black")
+        g.add_edge("B", "C", name="L2", color="blue")
+        ofg = make_ofg_with_graph(g)
+        ofg.tag_constrained_path(lines_constrained_path=["L1", "L2"])
+        for _, _, _, data in ofg.g.edges(keys=True, data=True):
+            assert data.get("on_constrained_path") is True
