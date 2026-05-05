@@ -76,6 +76,25 @@ _SEMANTIC_LAYERS: List[Dict[str, str]] = [
     {"key": "is_hub", "label": "Hubs", "swatch": "diamond", "scope": "node"},
 ]
 
+# Threshold below which a node's ``value`` (prod − load, in MW) is
+# treated as "no real prod/load here". Build-time conventions in the
+# upstream simulators tag every node with ``prod_or_load="load"`` and
+# ``value="0.0"`` even when no consumption exists, so a strict
+# ``prod_or_load == "load"`` test would flood the layer with empty
+# nodes. The 1 MW floor matches operator practice.
+_PROD_LOAD_VALUE_FLOOR_MW = 1.0
+
+# Per-kind config for the value-based node layers. Matched against the
+# ``prod_or_load`` attribute set by ``build_nodes`` upstream
+# (alphaDeesp/core/graphs/power_flow_graph.py and the simulator-specific
+# build_nodes_v2 helpers). Each entry produces a single layer in the
+# "Individual entities properties" section, populated only with the
+# nodes whose absolute ``value`` clears ``_PROD_LOAD_VALUE_FLOOR_MW``.
+_VALUE_NODE_LAYERS: List[Dict[str, str]] = [
+    {"key": "prod", "label": "Production nodes", "swatch": "prod-node"},
+    {"key": "load", "label": "Consumption nodes", "swatch": "load-node"},
+]
+
 # Per-layer-key section assignment. The JS renders one ``<h3>`` per
 # section in the order the sections are first encountered.
 _LAYER_SECTIONS: Dict[str, str] = {
@@ -89,6 +108,9 @@ _LAYER_SECTIONS: Dict[str, str] = {
     "style:dashed": _SECTION_PROPERTIES,
     "style:dotted": _SECTION_PROPERTIES,
     "style:tapered": _SECTION_PROPERTIES,
+    # Value-based node layers — see _VALUE_NODE_LAYERS / build_nodes.
+    "node:prod": _SECTION_PROPERTIES,
+    "node:load": _SECTION_PROPERTIES,
     # Flow polarity buckets.
     "color:coral": _SECTION_FLOWS,
     "color:blue": _SECTION_FLOWS,
@@ -308,6 +330,40 @@ def _build_layer_index(
             "nodes": nodes_for_layer,
             "edges": bucket["edges"],
         })
+
+    # Value-based node layers (Production / Consumption). Built from
+    # the ``prod_or_load`` attribute upstream tagged on every node by
+    # ``build_nodes`` — see _VALUE_NODE_LAYERS. The white-coloured
+    # zero-balance nodes carry ``prod_or_load="load"`` AND
+    # ``value="0.0"`` upstream by convention; the 1 MW floor filters
+    # them out so the operator's "Consumption nodes" toggle doesn't
+    # also tag every passive substation.
+    if nodes:
+        value_buckets: Dict[str, List[str]] = {
+            cfg["key"]: [] for cfg in _VALUE_NODE_LAYERS
+        }
+        for n in nodes:
+            kind = n["attrs"].get("prod_or_load")
+            if kind not in value_buckets:
+                continue
+            try:
+                magnitude = abs(float(n["attrs"].get("value", "0")))
+            except (TypeError, ValueError):
+                continue
+            if magnitude < _PROD_LOAD_VALUE_FLOOR_MW:
+                continue
+            value_buckets[kind].append(n["name"])
+        for cfg in _VALUE_NODE_LAYERS:
+            ids = value_buckets[cfg["key"]]
+            if not ids:
+                continue
+            raw_layers.append({
+                "key": f"node:{cfg['key']}",
+                "label": cfg["label"],
+                "swatch": cfg["swatch"],
+                "nodes": ids,
+                "edges": [],
+            })
 
     # Drop layers without a section assignment (e.g. ``color:black``,
     # ``color:gray``, ``color:darkred`` — historically redundant
@@ -637,6 +693,11 @@ const MODEL = __MODEL_JSON__;
     if (swatch === 'constrained-path') return '<svg viewBox="0 0 14 6"><line x1="0" y1="3" x2="14" y2="3" stroke="black" stroke-width="2"/></svg>';
     if (swatch === 'overload') return '<svg viewBox="0 0 14 6"><line x1="0" y1="3" x2="14" y2="3" stroke="black" stroke-width="2.5"/><line x1="0" y1="3" x2="14" y2="3" stroke="yellow" stroke-width="0.8"/></svg>';
     if (swatch === 'monitored') return '<svg viewBox="0 0 14 6"><line x1="0" y1="3" x2="14" y2="3" stroke="coral" stroke-width="2.5"/><line x1="0" y1="3" x2="14" y2="3" stroke="yellow" stroke-width="0.8"/></svg>';
+    // Match the upstream node fillcolors set in build_nodes:
+    //   prod (prod_minus_load > 0)  → coral
+    //   load (prod_minus_load < 0)  → lightblue
+    if (swatch === 'prod-node') return '<svg viewBox="0 0 10 10"><circle cx="5" cy="5" r="4" fill="coral" stroke="#444" stroke-width="0.6"/></svg>';
+    if (swatch === 'load-node') return '<svg viewBox="0 0 10 10"><circle cx="5" cy="5" r="4" fill="lightblue" stroke="#444" stroke-width="0.6"/></svg>';
     return '';
   }
   function swatchStyle(swatch) {
