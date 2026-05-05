@@ -22,7 +22,7 @@ copyright = '2020, Antoine Marot, Mario Jothy, Nicolas Megel'
 author = 'Antoine Marot, Mario Jothy, Nicolas Megel'
 
 # The full version, including alpha/beta/rc tags
-release = '0.3.2'
+release = '0.3.2.post1'
 
 
 # -- General configuration ---------------------------------------------------
