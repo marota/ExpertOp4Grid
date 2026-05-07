@@ -41,6 +41,7 @@ class OverFlowGraph(NullFlowGraphMixin, GraphConsolidationMixin, PowerFlowGraph)
         df_overflow: pd.DataFrame,
         layout: Optional[List[Tuple[float, float]]] = None,
         float_precision: str = "%.2f",
+        extra_lines_to_cut: Optional[Iterable[int]] = None,
     ) -> None:
         if "line_name" not in df_overflow.columns:
             df_overflow["line_name"] = [
@@ -49,6 +50,16 @@ class OverFlowGraph(NullFlowGraphMixin, GraphConsolidationMixin, PowerFlowGraph)
             ]
 
         self.df = df_overflow
+        # Subset of ``lines_to_cut`` that the caller wants the cut-analysis
+        # to treat like overloads (so they get the same black/constrained
+        # styling and feed the structured-overload graph the same way) but
+        # WITHOUT being classified as overloads in the viewer's
+        # ``Overloads`` layer / ``is_overload`` flag.  Used by callers who
+        # want the recommender to find actions that prevent flow increase
+        # on otherwise-healthy lines (ExpertAgent's ``additionalLinesToCut``
+        # semantic).  ``None`` / empty means "no extras" — every cut line
+        # is a true overload, preserving the legacy behaviour.
+        self.extra_lines_cut = set(extra_lines_to_cut or [])
         super().__init__(topo, lines_to_cut, layout, float_precision)
 
     def build_graph(self) -> None:
@@ -74,14 +85,23 @@ class OverFlowGraph(NullFlowGraphMixin, GraphConsolidationMixin, PowerFlowGraph)
         )
 
         cols = ("idx_or", "idx_ex", "delta_flows", "gray_edges", "line_name")
+        # Operator-selected extras must NOT be coloured black: black is the
+        # visual signal for "overload contingency line" used by both the
+        # ``Overloads`` layer and the structured-overload analyser.  We
+        # therefore strip extras from the cut list passed to ``_edge_color``
+        # so they keep their natural flow polarity colour (coral / blue).
+        # They stay marked ``is_constrained`` and ``is_extra_cut`` so the
+        # downstream layers can still find them by flag.
+        cut_for_colour = [idx for idx in lines_to_cut if idx not in self.extra_lines_cut]
         for i, (origin, extremity, reported_flow, gray_edge, line_name) in enumerate(
                 zip(*(self.df[c] for c in cols))):
             self._add_overflow_edge(
                 g, origin, extremity, reported_flow, line_name,
-                color=self._edge_color(i, reported_flow, gray_edge, lines_to_cut),
+                color=self._edge_color(i, reported_flow, gray_edge, cut_for_colour),
                 scaling_factor=scaling_factor,
                 min_penwidth=min_penwidth,
-                is_constrained=(i in lines_to_cut))
+                is_constrained=(i in lines_to_cut),
+                is_extra_cut=(i in self.extra_lines_cut))
 
     @staticmethod
     def _edge_color(
@@ -105,6 +125,7 @@ class OverFlowGraph(NullFlowGraphMixin, GraphConsolidationMixin, PowerFlowGraph)
         scaling_factor: float,
         min_penwidth: float,
         is_constrained: bool,
+        is_extra_cut: bool = False,
     ) -> None:
         """Add a single styled overflow edge to g."""
         fp = self.float_precision
@@ -119,6 +140,12 @@ class OverFlowGraph(NullFlowGraphMixin, GraphConsolidationMixin, PowerFlowGraph)
         }
         if is_constrained:
             attrs["constrained"] = True
+        if is_extra_cut:
+            # Operator-supplied extra cut — gets the black/constrained
+            # styling like a real overload but the viewer's "Overloads"
+            # layer must skip it.  ``highlight_significant_line_loading``
+            # respects this flag when stamping ``is_overload``.
+            attrs["is_extra_cut"] = True
         g.add_edge(origin, extremity, **attrs)
 
     def keep_overloads_components(self) -> None:
@@ -191,6 +218,7 @@ class OverFlowGraph(NullFlowGraphMixin, GraphConsolidationMixin, PowerFlowGraph)
         edge_names = nx.get_edge_attributes(self.g, "name")
         edge_colors = nx.get_edge_attributes(self.g, "color")
         edge_x_labels = nx.get_edge_attributes(self.g, "label")
+        edge_extra_cut = nx.get_edge_attributes(self.g, "is_extra_cut")
         label_font_color = {edge: "black" for edge in edge_names.keys()}
         color_label_highlight = "darkred"
 
@@ -204,18 +232,29 @@ class OverFlowGraph(NullFlowGraphMixin, GraphConsolidationMixin, PowerFlowGraph)
             current_edge_color = edge_colors[edge]
             before = dict_line_loading[edge_name]["before"]
             after = dict_line_loading[edge_name]["after"]
+            is_extra = bool(edge_extra_cut.get(edge, False))
 
             # Every entry in dict_line_loading is a monitored / low-
             # margin line; the black ones are additionally overloads.
-            is_monitored_attrs[edge] = True
-            if current_edge_color == "black":
-                edge_x_labels[edge] = f'< {current_x_label} <BR/>  <B>{before}%</B>  → {after}%>'
-                is_overload_attrs[edge] = True
+            # Operator-selected extras (``is_extra_cut``) are kept out
+            # of both flags so the viewer's ``Overloads`` and
+            # ``Low margin lines`` layers reflect the recommender's
+            # detected state, not user-supplied targets.
+            if not is_extra:
+                is_monitored_attrs[edge] = True
+                if current_edge_color == "black":
+                    edge_x_labels[edge] = f'< {current_x_label} <BR/>  <B>{before}%</B>  → {after}%>'
+                    is_overload_attrs[edge] = True
+                else:
+                    edge_x_labels[edge] = f'< {current_x_label} <BR/>  {before}% → <B>{after}%</B> >'
+                edge_colors[edge] = f'"{current_edge_color}:yellow:{current_edge_color}"'
             else:
+                # Extras keep their natural flow colour; only the
+                # ``before → 0%`` annotation surfaces the cut so the
+                # operator sees how their choice materialises.
                 edge_x_labels[edge] = f'< {current_x_label} <BR/>  {before}% → <B>{after}%</B> >'
 
             label_font_color[edge] = color_label_highlight
-            edge_colors[edge] = f'"{current_edge_color}:yellow:{current_edge_color}"'
 
         nx.set_edge_attributes(self.g, edge_x_labels, "label")
         nx.set_edge_attributes(self.g, label_font_color, "fontcolor")

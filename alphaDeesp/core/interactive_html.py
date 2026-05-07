@@ -73,6 +73,12 @@ _SEMANTIC_LAYERS: List[Dict[str, str]] = [
     {"key": "in_red_loop", "label": "Red-loop paths", "swatch": "red-loop", "scope": "both"},
     {"key": "is_overload", "label": "Overloads", "swatch": "overload", "scope": "edge"},
     {"key": "is_monitored", "label": "Low margin lines", "swatch": "monitored", "scope": "edge"},
+    # Operator-supplied extras (ExpertAgent's `additionalLinesToCut`):
+    # cut in the analysis like overloads but rendered with their
+    # natural flow colour and excluded from the Overloads /
+    # Low margin lines layers.  Surfaced as a dedicated layer so the
+    # operator can still see how their choice materialised.
+    {"key": "is_extra_cut", "label": "Extra lines to prevent flow increase", "swatch": "extra-cut", "scope": "edge"},
     {"key": "is_hub", "label": "Hubs", "swatch": "diamond", "scope": "node"},
 ]
 
@@ -104,6 +110,7 @@ _LAYER_SECTIONS: Dict[str, str] = {
     # Individual entities properties — per-edge / per-node flags.
     "semantic:is_overload": _SECTION_PROPERTIES,
     "semantic:is_monitored": _SECTION_PROPERTIES,
+    "semantic:is_extra_cut": _SECTION_PROPERTIES,
     "semantic:is_hub": _SECTION_PROPERTIES,
     "style:dashed": _SECTION_PROPERTIES,
     "style:dotted": _SECTION_PROPERTIES,
@@ -693,6 +700,7 @@ const MODEL = __MODEL_JSON__;
     if (swatch === 'constrained-path') return '<svg viewBox="0 0 14 6"><line x1="0" y1="3" x2="14" y2="3" stroke="black" stroke-width="2"/></svg>';
     if (swatch === 'overload') return '<svg viewBox="0 0 14 6"><line x1="0" y1="3" x2="14" y2="3" stroke="black" stroke-width="2.5"/><line x1="0" y1="3" x2="14" y2="3" stroke="yellow" stroke-width="0.8"/></svg>';
     if (swatch === 'monitored') return '<svg viewBox="0 0 14 6"><line x1="0" y1="3" x2="14" y2="3" stroke="coral" stroke-width="2.5"/><line x1="0" y1="3" x2="14" y2="3" stroke="yellow" stroke-width="0.8"/></svg>';
+    if (swatch === 'extra-cut') return '<svg viewBox="0 0 14 6"><line x1="0" y1="3" x2="14" y2="3" stroke="blue" stroke-width="2" stroke-dasharray="3 2"/></svg>';
     // Match the upstream node fillcolors set in build_nodes:
     //   prod (prod_minus_load > 0)  → coral
     //   load (prod_minus_load < 0)  → lightblue

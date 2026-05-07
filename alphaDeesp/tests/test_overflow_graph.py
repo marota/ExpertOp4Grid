@@ -353,6 +353,124 @@ class TestOverFlowGraphScaling:
 
 
 # ──────────────────────────────────────────────────────────────────────
+# extra_lines_to_cut: operator-supplied extras keep their natural flow
+# colour, are flagged ``is_extra_cut`` (alongside ``constrained``), and
+# stay out of the ``is_overload`` / ``is_monitored`` semantic layers.
+# ──────────────────────────────────────────────────────────────────────
+
+
+def _three_line_df():
+    """L1 positive overload, L2 negative extra-cut, L3 healthy positive."""
+    return pd.DataFrame({
+        "idx_or": [0, 1, 2],
+        "idx_ex": [1, 2, 0],
+        "delta_flows": [1000.0, -100.0, 50.0],
+        "gray_edges": [False, False, False],
+        "line_name": ["L1", "L2", "L3"],
+    })
+
+
+def _edge_by_name(g, name):
+    for u, v, k, data in g.edges(keys=True, data=True):
+        if data.get("name") == name:
+            return (u, v, k), data
+    raise AssertionError(f"edge {name!r} not found")
+
+
+class TestExtraLinesToCut:
+
+    def test_default_extras_is_empty(self):
+        ofg = OverFlowGraph(_basic_topo(3), [0, 1], _three_line_df())
+        assert ofg.extra_lines_cut == set()
+
+    def test_extras_stored_as_set(self):
+        ofg = OverFlowGraph(
+            _basic_topo(3), [0, 1], _three_line_df(),
+            extra_lines_to_cut=[1, 1],
+        )
+        assert ofg.extra_lines_cut == {1}
+
+    def test_extras_keep_natural_flow_colour(self):
+        """An extra-cut line never gets the black overload colour — it
+        keeps coral / blue based on its delta-flow polarity."""
+        ofg = OverFlowGraph(
+            _basic_topo(3), [0, 1], _three_line_df(),
+            extra_lines_to_cut=[1],
+        )
+        _, l1 = _edge_by_name(ofg.g, "L1")  # in lines_to_cut, NOT extra
+        _, l2 = _edge_by_name(ofg.g, "L2")  # in lines_to_cut AND extra
+        _, l3 = _edge_by_name(ofg.g, "L3")  # not cut at all
+        assert l1["color"] == "black"
+        assert l2["color"] == "blue"   # natural — delta_flows = -100
+        assert l3["color"] == "coral"  # natural — delta_flows = +50
+
+    def test_extras_are_constrained_and_flagged(self):
+        ofg = OverFlowGraph(
+            _basic_topo(3), [0, 1], _three_line_df(),
+            extra_lines_to_cut=[1],
+        )
+        _, l1 = _edge_by_name(ofg.g, "L1")
+        _, l2 = _edge_by_name(ofg.g, "L2")
+        _, l3 = _edge_by_name(ofg.g, "L3")
+        # Real overload: constrained, not extra.
+        assert l1.get("constrained") is True
+        assert "is_extra_cut" not in l1
+        # Extra cut: both flags set so downstream layers can find it.
+        assert l2.get("constrained") is True
+        assert l2.get("is_extra_cut") is True
+        # Untouched line carries neither flag.
+        assert "constrained" not in l3
+        assert "is_extra_cut" not in l3
+
+    def test_extras_skipped_in_overload_and_monitored(self):
+        """``highlight_significant_line_loading`` must not stamp
+        ``is_overload`` / ``is_monitored`` on extras, must not yellow-tint
+        their colour, but should still annotate the edge label."""
+        ofg = OverFlowGraph(
+            _basic_topo(3), [0, 1], _three_line_df(),
+            extra_lines_to_cut=[1],
+        )
+        ofg.highlight_significant_line_loading({
+            "L1": {"before": 110, "after": 80},
+            "L2": {"before": 90, "after": 0},
+            "L3": {"before": 75, "after": 60},
+        })
+        _, l1 = _edge_by_name(ofg.g, "L1")
+        _, l2 = _edge_by_name(ofg.g, "L2")
+        _, l3 = _edge_by_name(ofg.g, "L3")
+
+        # L1 is a real overload: yellow-tinted, both flags set.
+        assert l1["color"] == '"black:yellow:black"'
+        assert l1.get("is_overload") is True
+        assert l1.get("is_monitored") is True
+
+        # L2 is the extra cut: keeps natural blue (no yellow tint), no
+        # is_overload / is_monitored, but the loading annotation still
+        # fires so the operator sees how their choice materialises.
+        assert l2["color"] == "blue"
+        assert l2.get("is_overload") is None
+        assert l2.get("is_monitored") is None
+        assert "90% → <B>0%</B>" in l2["label"]
+
+        # L3 is a low-margin line (not overload, not extra).
+        assert l3["color"] == '"coral:yellow:coral"'
+        assert l3.get("is_overload") is None
+        assert l3.get("is_monitored") is True
+
+    def test_legacy_behaviour_when_no_extras(self):
+        """Without ``extra_lines_to_cut`` the contingency lines render
+        black and get tagged as overloads — the legacy contract."""
+        ofg = OverFlowGraph(_basic_topo(3), [0], _three_line_df())
+        ofg.highlight_significant_line_loading({
+            "L1": {"before": 110, "after": 80},
+        })
+        _, l1 = _edge_by_name(ofg.g, "L1")
+        assert l1["color"] == '"black:yellow:black"'
+        assert l1.get("is_overload") is True
+        assert l1.get("is_extra_cut") is None
+
+
+# ──────────────────────────────────────────────────────────────────────
 # detect_edges_to_keep (full method)
 # ──────────────────────────────────────────────────────────────────────
 
