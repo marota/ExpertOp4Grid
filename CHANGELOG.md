@@ -1,4 +1,16 @@
 # Changelog
+
+## [0.3.2.post2] - 2026-05-07
+
+### New Features
+
+- **Operator-supplied "extra lines to cut"** (PR #76): `OverFlowGraph` accepts an `extra_lines_to_cut` argument naming a subset of `lines_to_cut` that the operator chose to disconnect to prevent flow increase elsewhere (ExpertAgent's `additionalLinesToCut` semantic). Those edges keep their natural flow colour (coral/blue) instead of black/yellow, are stamped `is_extra_cut=True` (alongside `constrained=True`) so downstream consumers can find them by flag, and are excluded from `is_overload` / `is_monitored` tagging in `highlight_significant_line_loading`. The before% → after% loading annotation still fires on extras so the operator sees how their cut materialises.
+- **Interactive HTML viewer layer**: new "Extra lines to prevent flow increase" semantic layer (`semantic:is_extra_cut`) with a dashed-blue swatch, surfaced under the "Individual entities properties" section.
+
+### Tests
+
+- `TestExtraLinesToCut` in `test_overflow_graph.py` covers default empty extras, set storage, natural coral/blue colour, `is_extra_cut`/`constrained` flagging, exclusion from overload/monitored layers while still annotating the label, and the legacy "no extras" path.
+- `test_layer_index_emits_extra_cut_layer_with_endpoints` verifies the new viewer layer (endpoint nodes, swatch, label, section).
  
 ## [0.3.0.post1] - 2026-03-10
  
