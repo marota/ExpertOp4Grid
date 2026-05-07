@@ -167,6 +167,35 @@ def test_layer_index_emits_semantic_layers_from_source_flags():
     assert set(by_key["semantic:is_monitored"]["nodes"]) == {"A", "B"}
 
 
+def test_layer_index_emits_extra_cut_layer_with_endpoints():
+    """``is_extra_cut`` is an edge-only semantic flag; like the other
+    edge-only layers it must include the endpoint nodes so the
+    substations stay visible when the operator ticks it on alone, and
+    the layer must be assigned to the "Properties" section."""
+    edges = [
+        {"id": "edge1", "source": "A", "target": "B",
+         "attrs": {"color": "blue", "is_extra_cut": "True"}},
+        {"id": "edge2", "source": "B", "target": "C",
+         "attrs": {"color": "coral"}},
+    ]
+    nodes = [
+        {"name": "A", "attrs": {}},
+        {"name": "B", "attrs": {}},
+        {"name": "C", "attrs": {}},
+    ]
+    layers = _build_layer_index(edges, nodes)
+    by_key = {l["key"]: l for l in layers}
+
+    assert "semantic:is_extra_cut" in by_key
+    layer = by_key["semantic:is_extra_cut"]
+    assert layer["edges"] == ["edge1"]
+    assert set(layer["nodes"]) == {"A", "B"}
+    assert layer["swatch"] == "extra-cut"
+    assert layer["label"] == "Extra lines to prevent flow increase"
+    # Section assignment matches the other per-entity property layers.
+    assert layer["section"] == "Individual entities properties"
+
+
 def test_layer_index_skips_semantic_layer_when_no_match():
     """No noise: empty semantic buckets do NOT produce a layer entry."""
     edges = [
@@ -177,6 +206,7 @@ def test_layer_index_skips_semantic_layer_when_no_match():
     keys = {l["key"] for l in _build_layer_index(edges, nodes)}
     assert "semantic:is_hub" not in keys
     assert "semantic:in_red_loop" not in keys
+    assert "semantic:is_extra_cut" not in keys
     assert "color:coral" in keys
 
 
