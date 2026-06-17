@@ -525,7 +525,7 @@ _HTML_TEMPLATE = """<!doctype html>
     <div class="hint">Click a node to highlight its neighbourhood. Wheel to zoom, drag to pan. Esc clears selection.</div>
 
     <h2>Search</h2>
-    <input type="text" id="search" placeholder="filter nodes by name…" autocomplete="off">
+    <input type="text" id="search" placeholder="filter nodes by name or id…" autocomplete="off">
 
     <h2>Layers</h2>
     <div class="layer-controls">
@@ -598,15 +598,40 @@ const MODEL = __MODEL_JSON__;
   // ---- Adjacency lookup, hover, click-highlight ----
   const tooltip = document.getElementById('tooltip');
   const info = document.getElementById('info');
-  function fmtAttrs(prefix, el) {
+  function fmtAttrs(prefix, el, skip) {
     const out = [];
+    const skipSet = skip ? new Set(skip) : null;
     for (const a of el.attributes) {
       if (a.name.startsWith('data-' + prefix + '-')) {
         const k = a.name.slice(('data-' + prefix + '-').length);
+        if (skipSet && skipSet.has(k)) continue;
         out.push('<span class="key">' + k + '</span>: ' + a.value);
       }
     }
     return out.join('<br>');
+  }
+  // Display name for a node: the readable ``label`` (e.g. a voltage-level
+  // name such as "Saucats 400kV") when present, else the stable node id
+  // (``data-name``). The id is preserved as the node identity for
+  // selection / adjacency / double-click resolution; ``label`` only
+  // changes what the operator reads.
+  function nodeDisplayName(el) {
+    if (!el) return '';
+    const label = el.getAttribute('data-attr-label');
+    // Graphviz stores an *unset* label as the placeholder "\\N" (meaning
+    // "node name"); any backslash escape (\\N, \\G, …) is not a readable
+    // name, so fall back to the stable id (data-name) in that case.
+    if (label && label.indexOf('\\\\') === -1) return label;
+    return el.getAttribute('data-name') || '';
+  }
+  // Tooltip / selection header for a node: readable name in bold, with the
+  // raw id shown underneath only when it differs from the readable name.
+  function nodeHeaderHtml(el) {
+    const disp = nodeDisplayName(el);
+    const id = el.getAttribute('data-name') || '';
+    let head = '<b>' + escapeHtml(disp) + '</b>';
+    if (id && id !== disp) head += '<br><span class="key">id</span>: ' + escapeHtml(id);
+    return head;
   }
   function showTooltip(e, html) {
     tooltip.innerHTML = html;
@@ -635,7 +660,7 @@ const MODEL = __MODEL_JSON__;
       const ed = document.getElementById(n.edge);
       if (ed) ed.classList.add('hl');
     }
-    info.innerHTML = '<b>' + escapeHtml(name) + '</b><br>' + fmtAttrs('attr', node)
+    info.innerHTML = nodeHeaderHtml(node) + '<br>' + fmtAttrs('attr', node, ['label'])
       + '<br><br>degree: ' + neighbours.length;
   }
   function cssEscape(s) { return (window.CSS && CSS.escape) ? CSS.escape(s) : s.replace(/(["\\\\])/g, '\\\\$1'); }
@@ -644,7 +669,7 @@ const MODEL = __MODEL_JSON__;
   root.addEventListener('mouseover', (e) => {
     const g = e.target.closest('.node, .edge'); if (!g) return;
     if (g.classList.contains('node')) {
-      showTooltip(e, '<b>' + escapeHtml(g.getAttribute('data-name') || '') + '</b><br>' + fmtAttrs('attr', g));
+      showTooltip(e, nodeHeaderHtml(g) + '<br>' + fmtAttrs('attr', g, ['label']));
     } else {
       const lbl = g.querySelector('text'); const name = g.getAttribute('data-attr-name') || '';
       showTooltip(e, '<b>' + escapeHtml(g.getAttribute('data-source')) + ' → ' + escapeHtml(g.getAttribute('data-target')) + '</b>'
@@ -676,8 +701,15 @@ const MODEL = __MODEL_JSON__;
     root.classList.add('has-search');
     let count = 0;
     root.querySelectorAll('.node').forEach(n => {
-      const name = (n.getAttribute('data-name') || '').toLowerCase();
-      if (name.indexOf(q) !== -1) { n.classList.add('match'); count++; }
+      // Match against both the stable id (data-name) and the resolved
+      // readable display name (e.g. a voltage-level name), so operators can
+      // find a node by either spelling. nodeDisplayName ignores the
+      // graphviz "\\N" placeholder, so label-less nodes match on their id.
+      const id = (n.getAttribute('data-name') || '').toLowerCase();
+      const disp = nodeDisplayName(n).toLowerCase();
+      if (id.indexOf(q) !== -1 || (disp && disp.indexOf(q) !== -1)) {
+        n.classList.add('match'); count++;
+      }
     });
   }
   document.getElementById('search').addEventListener('input', applySearch);
