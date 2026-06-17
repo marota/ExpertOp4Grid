@@ -220,6 +220,37 @@ def test_layer_index_node_arg_is_optional_for_legacy_callers():
         assert "nodes" in layer and "edges" in layer
 
 
+def test_readable_node_label_surfaces_without_losing_id():
+    """A node ``label`` (e.g. a readable voltage-level name) is rendered and
+    exposed as ``data-attr-label`` while the node identity (``<title>`` /
+    ``data-name``) stays the original id — so selection, adjacency and
+    double-click resolution keep using the stable id."""
+    g = nx.MultiDiGraph()
+    g.add_node("VL_way_1", color="red", shape="oval", label="Saucats 400kV")
+    g.add_node("VL_way_2", color="blue", shape="oval")
+    g.add_edge("VL_way_1", "VL_way_2", color="coral", label="42", name="line_1")
+    pg = nx.drawing.nx_pydot.to_pydot(g)
+    html = build_interactive_html(pg, title="toy")
+
+    # Readable name is exposed for the JS (search + tooltip header) …
+    assert 'data-attr-label="Saucats 400kV"' in html
+    # … and rendered as the visible node text.
+    assert "Saucats 400kV" in html
+    # Node identity is preserved as the id.
+    assert "<title>VL_way_1</title>" in html
+    assert 'data-name="VL_way_1"' in html
+
+
+def test_search_matches_readable_label_and_id():
+    """The viewer's search filters on both the readable label and the id."""
+    pg = nx.drawing.nx_pydot.to_pydot(_toy_graph())
+    html = build_interactive_html(pg, title="toy")
+    # Search reads the readable label attribute in addition to data-name.
+    assert "data-attr-label" in html
+    assert "function nodeDisplayName" in html
+    assert "function nodeHeaderHtml" in html
+
+
 def test_template_uses_dim_class_not_display_none():
     """Unchecked layers must DIM elements (not hide them) so spatial
     context is preserved."""
