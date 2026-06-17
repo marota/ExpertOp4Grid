@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.3.2.post4] - 2026-06-17
+
+### New Features
+
+- **Readable node names in the interactive overflow viewer** (PR #78): the
+  viewer now uses each node's human-readable display label (e.g. a
+  voltage-level name such as `Saucats 400kV`, set via the Graphviz `label`
+  node attribute by the upstream recommender) instead of only the raw node
+  id. Search matches on **both** the readable display name and the stable id;
+  the hover tooltip and selection panel show the readable name as the header
+  with the id underneath only when it differs. Node identity (SVG `<title>` /
+  `data-name`) is unchanged, so selection, adjacency highlight and
+  double-click SLD resolution keep using the stable id.
+
+### Bug Fixes
+
+- **Do not leak the Graphviz `\N` placeholder**: label-less nodes carry the
+  Graphviz `\N` ("use node name") placeholder in their label attribute;
+  `nodeDisplayName` now ignores any backslash escape and falls back to the
+  id, so tooltips/search never surface a literal `\N`.
+
+### Tests
+
+- `test_interactive_html.py`: readable label surfaces as `data-attr-label`
+  without losing the id; search consults both id and resolved display name;
+  tooltip/selection skip the duplicated `label` attribute; label-less nodes
+  fall back to the id (no `\N` leak).
+
 ## [0.3.2.post2] - 2026-05-07
 
 ### New Features

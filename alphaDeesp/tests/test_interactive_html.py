@@ -249,6 +249,39 @@ def test_search_matches_readable_label_and_id():
     assert "data-attr-label" in html
     assert "function nodeDisplayName" in html
     assert "function nodeHeaderHtml" in html
+    # The search routine consults BOTH the stable id (data-name) and the
+    # resolved readable display name (via nodeDisplayName).
+    search_fn = html.split("function applySearch()", 1)[1].split(
+        "document.getElementById('search').addEventListener", 1
+    )[0]
+    assert "data-name" in search_fn
+    assert "nodeDisplayName(n)" in search_fn
+
+
+def test_label_less_nodes_fall_back_to_id_for_display():
+    """Backward compatibility: when no readable ``label`` is set, Graphviz
+    stores the placeholder ``\\N`` in the label attribute. The viewer must
+    NOT surface that placeholder — ``nodeDisplayName`` ignores any
+    backslash escape and falls back to the stable id (data-name)."""
+    pg = nx.drawing.nx_pydot.to_pydot(_toy_graph())  # _toy_graph sets no labels
+    html = build_interactive_html(pg, title="toy")
+    assert 'data-name="VALDI"' in html
+    # Graphviz emits the "\N" placeholder for label-less nodes …
+    assert 'data-attr-label="\\N"' in html
+    # … and the viewer guards against leaking any backslash placeholder.
+    assert "label.indexOf('\\\\') === -1" in html
+
+
+def test_node_tooltip_skips_duplicated_label_attr():
+    """Node tooltips/selection use the readable name as the header and pass
+    a skip-list so the ``label`` attribute is not also repeated in the
+    attribute dump."""
+    pg = nx.drawing.nx_pydot.to_pydot(_toy_graph())
+    html = build_interactive_html(pg, title="toy")
+    # fmtAttrs accepts a skip list and node renders pass ['label'].
+    assert "function fmtAttrs(prefix, el, skip)" in html
+    assert "fmtAttrs('attr', g, ['label'])" in html
+    assert "fmtAttrs('attr', node, ['label'])" in html
 
 
 def test_template_uses_dim_class_not_display_none():

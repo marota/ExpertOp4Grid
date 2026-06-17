@@ -617,7 +617,12 @@ const MODEL = __MODEL_JSON__;
   // changes what the operator reads.
   function nodeDisplayName(el) {
     if (!el) return '';
-    return el.getAttribute('data-attr-label') || el.getAttribute('data-name') || '';
+    const label = el.getAttribute('data-attr-label');
+    // Graphviz stores an *unset* label as the placeholder "\\N" (meaning
+    // "node name"); any backslash escape (\\N, \\G, …) is not a readable
+    // name, so fall back to the stable id (data-name) in that case.
+    if (label && label.indexOf('\\\\') === -1) return label;
+    return el.getAttribute('data-name') || '';
   }
   // Tooltip / selection header for a node: readable name in bold, with the
   // raw id shown underneath only when it differs from the readable name.
@@ -696,12 +701,13 @@ const MODEL = __MODEL_JSON__;
     root.classList.add('has-search');
     let count = 0;
     root.querySelectorAll('.node').forEach(n => {
-      // Match against both the stable id (data-name) and the readable
-      // display label (e.g. a voltage-level name), so operators can find
-      // a node by either spelling.
+      // Match against both the stable id (data-name) and the resolved
+      // readable display name (e.g. a voltage-level name), so operators can
+      // find a node by either spelling. nodeDisplayName ignores the
+      // graphviz "\\N" placeholder, so label-less nodes match on their id.
       const id = (n.getAttribute('data-name') || '').toLowerCase();
-      const label = (n.getAttribute('data-attr-label') || '').toLowerCase();
-      if (id.indexOf(q) !== -1 || (label && label.indexOf(q) !== -1)) {
+      const disp = nodeDisplayName(n).toLowerCase();
+      if (id.indexOf(q) !== -1 || (disp && disp.indexOf(q) !== -1)) {
         n.classList.add('match'); count++;
       }
     });
